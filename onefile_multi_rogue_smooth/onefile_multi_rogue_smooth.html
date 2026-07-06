@@ -226,7 +226,7 @@
     </div>
   </div>
 
-  <div class="mode-block hidden" id="joinPanel">
+  <div class="mode-block" id="joinPanel">
     <h2>친구 방 참가</h2>
     <input id="joinCodeInput" type="text" placeholder="방 코드 붙여넣기" autocomplete="off" spellcheck="false">
     <div class="btn-row" style="margin-top:8px">
@@ -301,7 +301,7 @@
   'use strict';
 
   const IS_FILE = location.protocol === 'file:';
-  const USE_ROOM_CODE = IS_FILE;
+  const USE_ROOM_CODE = true;
   const MAX_PLAYERS = 4;
   const SYNC_MS = 50;
   const PLAYER_SPEED = 4.8;
@@ -2071,8 +2071,7 @@
   }
 
   function bootFromInviteUrl() {
-    if (USE_ROOM_CODE) return;
-    const join = new URLSearchParams(location.search).get('join');
+        const join = new URLSearchParams(location.search).get('join');
     if (!join) return;
     roomInput.value = join;
     lobbyLog('초대 링크 감지 — 연결 중…');

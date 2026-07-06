@@ -87,7 +87,7 @@
     <h2>② 멀티 (2~4인)</h2>
     <button class="btn-primary" id="btnHost">방 만들기</button>
   </div>
-  <div class="mode-block hidden" id="joinPanel">
+  <div class="mode-block" id="joinPanel">
     <input id="joinCodeInput" placeholder="방 코드">
     <div class="btn-row" style="margin-top:8px"><button class="btn-red" id="btnJoin">참가</button></div>
   </div>
@@ -135,7 +135,7 @@
   'use strict';
 
   const IS_FILE = location.protocol === 'file:';
-  const USE_ROOM_CODE = IS_FILE;
+  const USE_ROOM_CODE = true;
   const MAX_PLAYERS = 4;
   const SYNC_HZ = 20;
   const SYNC_MS = 1000 / SYNC_HZ;

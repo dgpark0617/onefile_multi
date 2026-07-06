@@ -229,7 +229,7 @@
         <button class="lobby-btn btn-primary" id="btnCoopHost">방 만들기</button>
       </div>
     </div>
-    <div class="mode-block hidden" id="joinPanel">
+    <div class="mode-block" id="joinPanel">
       <h2>친구 방 참가</h2>
       <input id="joinCodeInput" type="text" placeholder="방 코드 붙여넣기" autocomplete="off" spellcheck="false">
       <div class="btn-row" style="margin-top:8px">
@@ -289,7 +289,7 @@
   (function () {
     'use strict';
     const IS_FILE = location.protocol === 'file:';
-    const USE_ROOM_CODE = IS_FILE;
+    const USE_ROOM_CODE = true;
     const MAX_PLAYERS = 4;
     const SYNC_MS = 50;
     const PLAYER_DEFS = [

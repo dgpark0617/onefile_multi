@@ -122,7 +122,7 @@
     <button class="btn-primary" id="btnHost">방 만들기</button>
   </div>
 
-  <div class="mode-block hidden" id="joinPanel">
+  <div class="mode-block" id="joinPanel">
     <h2>참가</h2>
     <input id="joinCodeInput" placeholder="방 코드" autocomplete="off">
     <div class="btn-row" style="margin-top:8px"><button class="btn-red" id="btnJoin">참가</button></div>
@@ -172,7 +172,7 @@
   'use strict';
 
   const IS_FILE = location.protocol === 'file:';
-  const USE_ROOM_CODE = IS_FILE;
+  const USE_ROOM_CODE = true;
   const MAX_PLAYERS = 4;
   const TURN_SECONDS = 5;
   const TURN_MS = TURN_SECONDS * 1000;

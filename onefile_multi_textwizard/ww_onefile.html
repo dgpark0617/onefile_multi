@@ -172,7 +172,7 @@
     </div>
   </div>
 
-  <div class="mode-block hidden" id="joinPanel">
+  <div class="mode-block" id="joinPanel">
     <h2>친구 방 참가</h2>
     <p>방장이 보낸 <strong>방 코드</strong> 붙여넣기</p>
     <input id="joinCodeInput" type="text" placeholder="방 코드 붙여넣기" autocomplete="off" spellcheck="false">
@@ -1680,7 +1680,7 @@ if (typeof window !== 'undefined') window.WwNet = WwNet;
  */
 (function () {
   const IS_FILE = location.protocol === 'file:';
-  const USE_ROOM_CODE = IS_FILE || window.WW_STANDALONE;
+  const USE_ROOM_CODE = true;
   const MODE = 'coop';
   const PLAYER_EMOJIS = ['\u{1F478}', '\u{1F9B8}']; // 👸 공주, 🦸 용사
   const BOSS_EMOJI = '\u{1F9D9}';   // 🧙 마법사 (보스)
