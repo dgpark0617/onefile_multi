@@ -1,0 +1,1519 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Emoji Rogue — P2P 협동 (최대 4인)</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #1a1a2e; color: #eee; font-family: system-ui, sans-serif; }
+  .hidden { display: none !important; }
+
+  #lobby {
+    min-height: 100dvh; padding: 20px; max-width: 520px; margin: 0 auto;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  #lobby h1 { font-size: 1.35rem; margin: 0; }
+  #lobby .sub { color: #aaa; font-size: 0.85rem; line-height: 1.5; }
+  #lobby .hint {
+    background: #16213e; border: 1px solid #334; border-radius: 10px;
+    padding: 12px 14px; font-size: 0.82rem; color: #bbb; line-height: 1.55;
+  }
+  #lobby .hint kbd, #lobby .hint strong { color: #7ec8e3; }
+  #lobby .hint kbd {
+    background: #0f3460; border: 1px solid #446; border-radius: 4px; padding: 1px 5px; font-size: 0.78rem;
+  }
+  .mode-block { background: #16213e; border: 1px solid #334; border-radius: 12px; padding: 14px; }
+  .mode-block h2 { margin: 0 0 8px; font-size: 1rem; color: #7ec8e3; }
+  .mode-block p { margin: 0 0 10px; font-size: 0.78rem; color: #888; line-height: 1.4; }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  button {
+    border: none; border-radius: 8px; padding: 10px 14px; font-size: 0.85rem;
+    cursor: pointer; touch-action: manipulation;
+  }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-green { background: #059669; color: #fff; }
+  .btn-red { background: #dc2626; color: #fff; }
+  .btn-yellow { background: #ca8a04; color: #fff; }
+  .btn-ghost { background: #334; color: #ddd; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  input[type="text"], input:not([type]) {
+    width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #445;
+    background: #1a1a2e; color: #eee; font-size: 0.9rem;
+  }
+  #roomBox, #waitingBox {
+    background: #0f3460; padding: 12px; border-radius: 8px; font-size: 0.82rem;
+    word-break: break-all; border: 1px solid #2563eb; color: #ddd;
+  }
+  #waitingBox { border-color: #ca8a04; }
+  #inviteLink { color: #7ec8e3; font-size: 0.78rem; display: block; margin: 8px 0; }
+  #rosterList { margin: 10px 0; padding: 0; list-style: none; line-height: 1.8; }
+  #rosterList li { font-size: 0.9rem; }
+  #rosterList .empty { color: #666; font-style: italic; }
+  #log { font-size: 0.75rem; color: #4ade80; max-height: 90px; overflow-y: auto; white-space: pre-wrap; }
+  .opt-label {
+    display: flex; align-items: flex-start; gap: 8px; font-size: 0.85rem;
+    cursor: pointer; line-height: 1.45; user-select: none;
+  }
+  .opt-label input[type="checkbox"] {
+    margin-top: 3px; flex-shrink: 0; cursor: pointer;
+    width: 1rem; height: 1rem; padding: 0; accent-color: #2563eb;
+  }
+  .opt-label span { flex: 1; min-width: 0; line-height: 1.45; }
+  .opt-label small { display: block; color: #888; font-size: 0.75rem; margin-top: 2px; }
+
+  #gameRoot { display: flex; flex-direction: column; height: 100dvh; width: 100vw; }
+  #fieldWrap { flex: 6; position: relative; background: #0f0f1a; overflow: hidden; }
+  #fieldCanvas { display: block; width: 100%; height: 100%; object-fit: contain; }
+
+  #hud {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+    display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center;
+    padding: 6px 10px; font-size: clamp(10px, 2.6vw, 12px);
+    background: rgba(15,15,26,0.92); border-bottom: 1px solid #334; pointer-events: none;
+  }
+  #hud .turn { color: #60a5fa; font-weight: bold; }
+  #hud .timer { color: #60a5fa; font-variant-numeric: tabular-nums; min-width: 2.2em; }
+  #hud .timer.urgent { color: #f87171; }
+  #hud .hp { color: #f87171; }
+  #hud .atk { color: #fbbf24; }
+  #playerBars {
+    display: flex; flex-wrap: wrap; gap: 4px 8px; width: 100%;
+  }
+  .pbar {
+    display: flex; align-items: center; gap: 4px; font-size: clamp(9px, 2.4vw, 11px);
+    padding: 2px 6px; border-radius: 6px; background: rgba(30,30,50,0.85);
+    border: 1px solid transparent;
+  }
+  .pbar.active { border-color: #60a5fa; box-shadow: 0 0 6px rgba(96,165,250,0.35); }
+  .pbar.dead { opacity: 0.35; }
+  .pbar .emoji { font-size: 1.1em; line-height: 1; }
+  .pbar .bar-wrap {
+    width: 52px; height: 7px; background: #2a2a40; border-radius: 4px; overflow: hidden;
+  }
+  .pbar .bar-fill { height: 100%; border-radius: 4px; transition: width 0.15s; }
+  .pbar .hp-num { color: #f87171; font-variant-numeric: tabular-nums; min-width: 2.8em; }
+  .pbar .gear { color: #888; font-size: 0.85em; letter-spacing: -1px; }
+  #equipStats { color: #aaa; font-size: clamp(9px, 2.3vw, 11px); }
+  #equipStats b { color: #fbbf24; font-weight: 600; }
+
+  #logPanel {
+    position: absolute; bottom: 0; left: 0; right: 0; z-index: 5;
+    max-height: 64px; overflow-y: auto; padding: 4px 10px;
+    font-size: clamp(10px, 2.6vw, 11px); color: #aaa; line-height: 1.4;
+    background: rgba(15,15,26,0.88); border-top: 1px solid #334; pointer-events: none;
+  }
+  #backBtn { position: absolute; top: 6px; right: 6px; z-index: 10; padding: 5px 10px; font-size: 11px; }
+
+  #dpad {
+    flex: 4; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 4px; padding: 8px; background: #16213e; border-top: 2px solid #334;
+  }
+  .dpadRow { display: flex; gap: 4px; width: 100%; max-width: 320px; }
+  .dpadKey {
+    flex: 1; aspect-ratio: 1.2; max-height: 58px;
+    border: 1px solid #445; border-radius: 8px; background: #1a1a2e; color: #eee;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    user-select: none; touch-action: manipulation; min-width: 0;
+  }
+  .dpadKey .arrow { font-size: clamp(16px, 4.5vw, 22px); line-height: 1; }
+  .dpadKey .keyLabel { font-size: clamp(8px, 2.2vw, 10px); color: #888; margin-top: 2px; }
+  .dpadKey.wait { background: #0f3460; }
+  .dpadKey:active, .dpadKey.pressed { background: #2563eb; outline: 2px solid #60a5fa; }
+  .dpadKey.disabled { opacity: 0.35; pointer-events: none; }
+  #actionRow { display: flex; gap: 8px; width: 100%; max-width: 320px; margin-top: 4px; }
+  #actionRow button { flex: 1; padding: 10px; font-size: 0.82rem; }
+
+  #overlay {
+    position: absolute; inset: 0; z-index: 20;
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(10,10,20,0.92); text-align: center; padding: 20px;
+  }
+  #overlay.show { display: flex; }
+  #overlay h2 { margin: 0 0 8px; font-size: 1.5rem; }
+  #overlay.win h2 { color: #4ade80; }
+  #overlay.lose h2 { color: #f87171; }
+  #overlay p { color: #aaa; margin: 0 0 16px; font-size: 0.9rem; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<div id="lobby">
+  <h1>🧙 Emoji Rogue</h1>
+  <p class="sub">1층 · 턴제 · 최대 4인 P2P 협동</p>
+  <div class="hint" id="hintWeb">
+    <strong>웹:</strong> 방장 「방 만들기」→ 링크 공유 → 대기실에서 모인 뒤 「게임 시작」.
+  </div>
+  <div class="hint hidden" id="hintFile">
+    <strong>로컬 파일:</strong> 같은 HTML → 방 코드 공유 → <strong>대기실</strong>에서 2~4명 모임 → 방장 시작.<br>
+    키패드 <kbd>7~9/4~6/1~3</kbd> · <kbd>5</kbd> 대기 · 턴당 <strong>5초</strong>.<br>
+    아이템: 🧪회복 · ⚔️공격 · 🛡️방어 · 🥋체력+
+  </div>
+
+  <div class="mode-block" id="gameOptions">
+    <label class="opt-label">
+      <input type="checkbox" id="optFog" checked>
+      <span>전장의 안개<small>체크: 미탐험 지역 숨김 (어려움) · 해제: 맵 전체 공개 (쉬움)</small></span>
+    </label>
+  </div>
+
+  <div class="mode-block" id="modeBlocks">
+    <h2>① 솔로</h2>
+    <p>혼자 1층 클리어</p>
+    <button class="btn-green" id="btnSolo">솔로 시작</button>
+  </div>
+
+  <div class="mode-block" id="coopBlock">
+    <h2>② 협동 (2~4인)</h2>
+    <p>대기실에서 모인 뒤 시작 · 🧙🦸👸🥷 · 턴당 5초</p>
+    <div class="btn-row">
+      <button class="btn-primary" id="btnCoopHost">방 만들기</button>
+    </div>
+  </div>
+
+  <div class="mode-block hidden" id="joinPanel">
+    <h2>친구 방 참가</h2>
+    <input id="joinCodeInput" type="text" placeholder="방 코드 붙여넣기" autocomplete="off" spellcheck="false">
+    <div class="btn-row" style="margin-top:8px">
+      <button class="btn-red" id="btnJoin">참가</button>
+    </div>
+  </div>
+
+  <div id="waitingBox" class="hidden">
+    <div id="waitingTitle">대기실 — 친구를 기다리는 중…</div>
+    <a id="inviteLink" href="#" rel="noopener"></a>
+    <ul id="rosterList"></ul>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn-yellow" id="btnCopyLink">방 코드 복사</button>
+      <button class="btn-green hidden" id="btnStartGame" disabled>게임 시작 (2인 이상)</button>
+      <button class="btn-ghost" id="btnCancelWait">나가기</button>
+    </div>
+    <p id="guestWaitHint" class="hidden" style="margin:8px 0 0;font-size:0.78rem;color:#888">방장이 「게임 시작」을 누를 때까지 대기…</p>
+  </div>
+
+  <input id="roomInput" type="text" class="hidden" autocomplete="off">
+  <div id="roomBox" class="hidden">Peer ID: <b id="roomCode">—</b></div>
+  <div id="log"></div>
+</div>
+
+<div id="gameRoot" class="hidden">
+  <div id="fieldWrap">
+    <button type="button" id="backBtn" class="btn-ghost">← 로비</button>
+    <div id="hud">
+      <span class="floor">1층</span>
+      <span class="turn" id="turnLabel">내 턴</span>
+      <span class="timer hidden" id="turnTimer">5s</span>
+      <div id="playerBars"></div>
+      <span id="equipStats"></span>
+      <span>👹 <span id="mobVal">0</span></span>
+    </div>
+    <canvas id="fieldCanvas"></canvas>
+    <div id="logPanel"></div>
+    <div id="overlay">
+      <h2 id="overlayTitle">게임 오버</h2>
+      <p id="overlayMsg"></p>
+      <button class="btn-green" id="btnRetry">다시 시작</button>
+      <button class="btn-ghost" id="btnToLobby">로비로</button>
+    </div>
+  </div>
+  <div id="dpad">
+    <div class="dpadRow">
+      <button type="button" class="dpadKey" data-dir="nw" data-key="7"><span class="arrow">↖</span><span class="keyLabel">7</span></button>
+      <button type="button" class="dpadKey" data-dir="n"  data-key="8"><span class="arrow">↑</span><span class="keyLabel">8</span></button>
+      <button type="button" class="dpadKey" data-dir="ne" data-key="9"><span class="arrow">↗</span><span class="keyLabel">9</span></button>
+    </div>
+    <div class="dpadRow">
+      <button type="button" class="dpadKey" data-dir="w"  data-key="4"><span class="arrow">←</span><span class="keyLabel">4</span></button>
+      <button type="button" class="dpadKey wait" data-dir="wait" data-key="5"><span class="arrow">·</span><span class="keyLabel">5</span></button>
+      <button type="button" class="dpadKey" data-dir="e"  data-key="6"><span class="arrow">→</span><span class="keyLabel">6</span></button>
+    </div>
+    <div class="dpadRow">
+      <button type="button" class="dpadKey" data-dir="sw" data-key="1"><span class="arrow">↙</span><span class="keyLabel">1</span></button>
+      <button type="button" class="dpadKey" data-dir="s"  data-key="2"><span class="arrow">↓</span><span class="keyLabel">2</span></button>
+      <button type="button" class="dpadKey" data-dir="se" data-key="3"><span class="arrow">↘</span><span class="keyLabel">3</span></button>
+    </div>
+    <div id="actionRow"><button type="button" class="btn-ghost" id="btnWait">대기 (5)</button></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  const IS_FILE = location.protocol === 'file:';
+  const USE_ROOM_CODE = IS_FILE;
+  const MAX_PLAYERS = 4;
+  const TURN_SECONDS = 5;
+  const TURN_MS = TURN_SECONDS * 1000;
+
+  const TILE = { WALL: 0, FLOOR: 1, DOOR: 2 };
+  const PLAYER_DEFS = [
+    { emoji: '🧙', name: '마법사' },
+    { emoji: '🦸', name: '용사' },
+    { emoji: '👸', name: '공주' },
+    { emoji: '🥷', name: '닌자' }
+  ];
+  const EMOJI = {
+    wall: '🧱', exit: '🕳️', door: '🚪'
+  };
+  const ITEM_DEFS = {
+    potion: { kind: 'consumable', emoji: '🧪', name: '물약', heal: 10 },
+    weapon: { kind: 'weapon', emoji: '⚔️', name: '무기', atk: 2 },
+    shield: { kind: 'shield', emoji: '🛡️', name: '방패', block: 2 },
+    armor:  { kind: 'armor',  emoji: '🥋', name: '갑옷', def: 1, maxHp: 4 }
+  };
+  const ITEM_POOL = ['potion', 'weapon', 'shield', 'armor'];
+
+  function pickItemId() {
+    return ITEM_POOL[Math.floor(Math.random() * ITEM_POOL.length)];
+  }
+
+  function playerAtk(pl) { return pl.baseAtk + (pl.equip.weapon?.atk || 0); }
+  function playerDef(pl) { return pl.equip.armor?.def || 0; }
+  function playerBlock(pl) { return pl.equip.shield?.block || 0; }
+  function calcMaxHp(pl) { return pl.baseMaxHp + (pl.equip.armor?.maxHp || 0); }
+  function applyDamage(pl, raw) {
+    const reduced = Math.max(1, raw - playerDef(pl) - playerBlock(pl));
+    pl.hp = Math.max(0, pl.hp - reduced);
+    return reduced;
+  }
+  function gearIcons(pl) {
+    const g = [];
+    if (pl.equip.weapon) g.push(pl.equip.weapon.emoji);
+    if (pl.equip.shield) g.push(pl.equip.shield.emoji);
+    if (pl.equip.armor) g.push(pl.equip.armor.emoji);
+    return g.join('');
+  }
+  const EMOJI_FONT = "'Segoe UI Emoji', 'Segoe UI Symbol', 'Apple Color Emoji', sans-serif";
+  const MAP_W = 25;
+  const MAP_H = 17;
+  const SIGHT_RADIUS = 6;
+  const LOGIC_W = 625;
+  const LOGIC_H = 425;
+
+  const DIRS = {
+    nw: { dx: -1, dy: -1, key: '7' }, n: { dx: 0, dy: -1, key: '8' }, ne: { dx: 1, dy: -1, key: '9' },
+    w:  { dx: -1, dy: 0, key: '4' }, wait: { dx: 0, dy: 0, key: '5' }, e: { dx: 1, dy: 0, key: '6' },
+    sw: { dx: -1, dy: 1, key: '1' }, s: { dx: 0, dy: 1, key: '2' }, se: { dx: 1, dy: 1, key: '3' }
+  };
+  const KEY_TO_DIR = {};
+  Object.entries(DIRS).forEach(([name, d]) => {
+    KEY_TO_DIR[d.key] = name;
+    KEY_TO_DIR['Numpad' + d.key] = name;
+  });
+
+  const MONSTER_DEFS = [
+    { emoji: '👺', hp: 5, atk: 2, name: '고블린', w: 16 },
+    { emoji: '💀', hp: 4, atk: 2, name: '해골',   w: 14 },
+    { emoji: '🦇', hp: 3, atk: 2, name: '박쥐',   w: 12 },
+    { emoji: '🕷️', hp: 4, atk: 2, name: '거미',   w: 12 },
+    { emoji: '🐍', hp: 5, atk: 3, name: '뱀',     w: 10 },
+    { emoji: '👻', hp: 3, atk: 3, name: '유령',   w: 8 },
+    { emoji: '🧟', hp: 7, atk: 2, name: '좀비',   w: 10 },
+    { emoji: '🐺', hp: 6, atk: 3, name: '늑대',   w: 10 },
+    { emoji: '👹', hp: 8, atk: 3, name: '오크',   w: 8 },
+    { emoji: '🐻', hp: 10, atk: 3, name: '곰',    w: 5 },
+    { emoji: '🐉', hp: 16, atk: 5, name: '용',   w: 3, boss: true }
+  ];
+
+  function pickMonsterDef() {
+    const total = MONSTER_DEFS.reduce((s, m) => s + m.w, 0);
+    let r = Math.random() * total;
+    for (const m of MONSTER_DEFS) {
+      r -= m.w;
+      if (r <= 0) return { emoji: m.emoji, hp: m.hp, atk: m.atk, name: m.name, boss: !!m.boss };
+    }
+    const m = MONSTER_DEFS[0];
+    return { emoji: m.emoji, hp: m.hp, atk: m.atk, name: m.name, boss: !!m.boss };
+  }
+
+  /* ── 로그라이크 랜덤 던전: 방 + 복도 ── */
+  function roomsOverlap(a, b, pad) {
+    return !(a.x + a.w + pad <= b.x || b.x + b.w + pad <= a.x ||
+             a.y + a.h + pad <= b.y || b.y + b.h + pad <= a.y);
+  }
+
+  function carveRoom(map, room) {
+    for (let y = room.y; y < room.y + room.h; y++) {
+      for (let x = room.x; x < room.x + room.w; x++) map[y][x] = TILE.FLOOR;
+    }
+  }
+
+  function carveH(map, x1, x2, y) {
+    for (let x = Math.min(x1, x2); x <= Math.max(x1, x2); x++) map[y][x] = TILE.FLOOR;
+  }
+
+  function carveV(map, y1, y2, x) {
+    for (let y = Math.min(y1, y2); y <= Math.max(y1, y2); y++) map[y][x] = TILE.FLOOR;
+  }
+
+  function connectRooms(map, a, b) {
+    if (Math.random() < 0.5) {
+      carveH(map, a.cx, b.cx, a.cy);
+      carveV(map, a.cy, b.cy, b.cx);
+    } else {
+      carveV(map, a.cy, b.cy, a.cx);
+      carveH(map, a.cx, b.cx, b.cy);
+    }
+  }
+
+  function roomFloorCells(map, room, inset) {
+    const cells = [];
+    const pad = inset || 0;
+    for (let y = room.y + pad; y < room.y + room.h - pad; y++) {
+      for (let x = room.x + pad; x < room.x + room.w - pad; x++) {
+        if (map[y][x] === TILE.FLOOR) cells.push({ x, y });
+      }
+    }
+    return cells;
+  }
+
+  function inRoom(x, y, room) {
+    return x >= room.x && x < room.x + room.w && y >= room.y && y < room.y + room.h;
+  }
+
+  function placeExitDoor(map, exitRoom, exit) {
+    const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+    for (const [dx, dy] of dirs) {
+      const nx = exit.x + dx, ny = exit.y + dy;
+      if (nx <= 0 || ny <= 0 || nx >= MAP_W - 1 || ny >= MAP_H - 1) continue;
+      if (map[ny][nx] === TILE.WALL) { map[ny][nx] = TILE.DOOR; return; }
+    }
+    for (let y = exitRoom.y; y < exitRoom.y + exitRoom.h; y++) {
+      for (let x = exitRoom.x; x < exitRoom.x + exitRoom.w; x++) {
+        for (const [dx, dy] of dirs) {
+          const nx = x + dx, ny = y + dy;
+          if (nx <= 0 || ny <= 0 || nx >= MAP_W - 1 || ny >= MAP_H - 1) continue;
+          if (map[ny][nx] === TILE.WALL) { map[ny][nx] = TILE.DOOR; return; }
+        }
+      }
+    }
+  }
+
+  function buildRandomDungeon(w, h, targetRooms) {
+    const map = Array.from({ length: h }, () => Array(w).fill(TILE.WALL));
+    const rooms = [];
+
+    for (let attempt = 0; attempt < 120 && rooms.length < targetRooms; attempt++) {
+      const rw = 4 + Math.floor(Math.random() * 5);
+      const rh = 3 + Math.floor(Math.random() * 4);
+      const rx = 1 + Math.floor(Math.random() * (w - rw - 2));
+      const ry = 1 + Math.floor(Math.random() * (h - rh - 2));
+      const room = {
+        x: rx, y: ry, w: rw, h: rh,
+        cx: Math.floor(rx + rw / 2), cy: Math.floor(ry + rh / 2)
+      };
+      if (rooms.some(r => roomsOverlap(r, room, 1))) continue;
+      carveRoom(map, room);
+      if (rooms.length) connectRooms(map, rooms[rooms.length - 1], room);
+      rooms.push(room);
+    }
+    return { map, rooms };
+  }
+
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  /* ── 시야(FOV) · 전장의 안개 ── */
+  function bresenhamLine(x0, y0, x1, y1, visit) {
+    let dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+    const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    let err = dx - dy, x = x0, y = y0;
+    while (true) {
+      if (visit(x, y) === false) break;
+      if (x === x1 && y === y1) break;
+      const e2 = 2 * err;
+      if (e2 > -dy) { err -= dy; x += sx; }
+      if (e2 < dx) { err += dx; y += sy; }
+    }
+  }
+
+  function computeFOV(map, px, py, radius, w, h) {
+    const visible = new Set();
+    const key = (x, y) => `${x},${y}`;
+    visible.add(key(px, py));
+    for (let ty = py - radius; ty <= py + radius; ty++) {
+      for (let tx = px - radius; tx <= px + radius; tx++) {
+        if (tx < 0 || ty < 0 || tx >= w || ty >= h) continue;
+        const ddx = tx - px, ddy = ty - py;
+        if (ddx * ddx + ddy * ddy > radius * radius) continue;
+        bresenhamLine(px, py, tx, ty, (x, y) => {
+          visible.add(key(x, y));
+          return map[y][x] !== TILE.WALL;
+        });
+      }
+    }
+    return visible;
+  }
+
+  /* ── PeerJS: 호스트 ↔ 최대 3명 (별 topology) ── */
+  const WwNet = (function () {
+    const PROTO = 1;
+    let peer = null;
+    let guestConn = null;
+    const clients = new Map();
+    let isHost = false;
+    let myIndex = 0;
+    let roomId = '';
+    let gameStarted = false;
+    let onData = null;
+    let onOpen = null;
+    let onClose = null;
+    let onError = null;
+    let onLobby = null;
+
+    function allocSlot() {
+      for (let i = 1; i < MAX_PLAYERS; i++) {
+        if (!clients.has(i)) return i;
+      }
+      return -1;
+    }
+
+    function buildRoster() {
+      const roster = [{
+        index: 0,
+        emoji: PLAYER_DEFS[0].emoji,
+        name: PLAYER_DEFS[0].name + (isHost ? ' (방장)' : ''),
+        connected: true
+      }];
+      [...clients.keys()].sort((a, b) => a - b).forEach(idx => {
+        roster.push({
+          index: idx,
+          emoji: PLAYER_DEFS[idx].emoji,
+          name: PLAYER_DEFS[idx].name,
+          connected: true
+        });
+      });
+      return roster;
+    }
+
+    function broadcast(data) {
+      clients.forEach(({ conn }) => { if (conn.open) conn.send(data); });
+    }
+
+    function broadcastLobby() {
+      const payload = { type: 'LOBBY', proto: PROTO, roster: buildRoster(), playerCount: buildRoster().length };
+      broadcast(payload);
+      onLobby && onLobby(payload);
+    }
+
+    function broadcastState(state) {
+      broadcast({ type: 'STATE', proto: PROTO, ...state });
+    }
+
+    function sendToHost(data) {
+      if (guestConn && guestConn.open) guestConn.send(data);
+    }
+
+    function initPeer(opts) {
+      const { asHost, remoteId, handlers } = opts;
+      isHost = asHost;
+      myIndex = asHost ? 0 : -1;
+      gameStarted = false;
+      clients.clear();
+      guestConn = null;
+      onData = handlers.onData || null;
+      onOpen = handlers.onOpen || null;
+      onClose = handlers.onClose || null;
+      onError = handlers.onError || null;
+      onLobby = handlers.onLobby || null;
+
+      peer = new Peer({ debug: 1 });
+      peer.on('open', (id) => {
+        roomId = id;
+        if (asHost) {
+          peer.on('connection', (connection) => {
+            connection.on('open', () => {
+              if (gameStarted) {
+                connection.send({ type: 'REJECT', reason: '이미 게임이 시작되었습니다' });
+                setTimeout(() => connection.close(), 300);
+                return;
+              }
+              const slot = allocSlot();
+              if (slot < 0) {
+                connection.send({ type: 'REJECT', reason: '방이 가득 찼습니다 (최대 4인)' });
+                setTimeout(() => connection.close(), 300);
+                return;
+              }
+              clients.set(slot, { conn: connection });
+              connection.send({ type: 'WELCOME', proto: PROTO, index: slot, roster: buildRoster() });
+              broadcastLobby();
+              onOpen && onOpen({ role: 'host', clientJoined: true, index: slot });
+
+              connection.on('data', (data) => { onData && onData(data); });
+              connection.on('close', () => {
+                clients.delete(slot);
+                if (!gameStarted) broadcastLobby();
+                else onData && onData({ type: 'PEER_LEFT', index: slot });
+              });
+            });
+          });
+          onOpen && onOpen({ id, role: 'host', roomReady: true });
+        } else {
+          guestConn = peer.connect(remoteId.trim(), { reliable: true });
+          guestConn.on('open', () => onOpen && onOpen({ role: 'client', connOpen: true }));
+          guestConn.on('data', (data) => {
+            if (data.type === 'WELCOME') myIndex = data.index;
+            onData && onData(data);
+          });
+          guestConn.on('close', () => { guestConn = null; onClose && onClose(); });
+        }
+      });
+      peer.on('error', (err) => { onError && onError(err); });
+    }
+
+    function startGameBroadcast(playerCount, fogOfWar) {
+      gameStarted = true;
+      broadcast({ type: 'START', proto: PROTO, playerCount, fogOfWar: !!fogOfWar });
+    }
+
+    function destroy() {
+      clients.forEach(({ conn }) => { try { conn.close(); } catch (e) {} });
+      clients.clear();
+      if (guestConn) guestConn.close();
+      if (peer) peer.destroy();
+      guestConn = null;
+      peer = null;
+      gameStarted = false;
+      myIndex = 0;
+    }
+
+    return {
+      PROTO, initPeer, broadcast, broadcastState, sendToHost, startGameBroadcast, destroy, buildRoster,
+      get isHost() { return isHost; },
+      get myIndex() { return myIndex; },
+      get roomId() { return roomId; },
+      get gameStarted() { return gameStarted; },
+      get playerCount() { return isHost ? buildRoster().length : 0; },
+      set gameStarted(v) { gameStarted = v; }
+    };
+  })();
+
+  /* ── DOM ── */
+  const lobby = document.getElementById('lobby');
+  const gameRoot = document.getElementById('gameRoot');
+  const canvas = document.getElementById('fieldCanvas');
+  const ctx = canvas.getContext('2d');
+  const logPanel = document.getElementById('logPanel');
+  const overlay = document.getElementById('overlay');
+  const overlayTitle = document.getElementById('overlayTitle');
+  const overlayMsg = document.getElementById('overlayMsg');
+  const turnLabel = document.getElementById('turnLabel');
+  const turnTimerEl = document.getElementById('turnTimer');
+  const mobVal = document.getElementById('mobVal');
+  const playerBarsEl = document.getElementById('playerBars');
+  const equipStatsEl = document.getElementById('equipStats');
+  const optFog = document.getElementById('optFog');
+  const logEl = document.getElementById('log');
+  const roomBox = document.getElementById('roomBox');
+  const roomCode = document.getElementById('roomCode');
+  const roomInput = document.getElementById('roomInput');
+  const waitingBox = document.getElementById('waitingBox');
+  const inviteLinkEl = document.getElementById('inviteLink');
+  const waitingTitle = document.getElementById('waitingTitle');
+  const rosterListEl = document.getElementById('rosterList');
+  const btnStartGame = document.getElementById('btnStartGame');
+  const guestWaitHint = document.getElementById('guestWaitHint');
+  const joinPanel = document.getElementById('joinPanel');
+  const modeBlocks = document.getElementById('modeBlocks');
+  const coopBlock = document.getElementById('coopBlock');
+
+  let game = null;
+  let inCoopWait = false;
+  let currentInviteUrl = '';
+  let tilePx = 20;
+
+  function lobbyLog(msg) { logEl.textContent = msg + '\n' + logEl.textContent; }
+
+  function copyText(text, msg) {
+    const done = () => lobbyLog(msg);
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(fallback);
+    } else fallback();
+    function fallback() {
+      const ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); ta.remove(); done();
+    }
+  }
+
+  function getInviteUrl(hostPeerId) {
+    const u = new URL(location.href);
+    u.search = ''; u.searchParams.set('join', hostPeerId);
+    return u.toString();
+  }
+
+  function getFogEnabled() { return optFog.checked; }
+
+  function updateRosterUI(data) {
+    const roster = data.roster || WwNet.buildRoster();
+    const count = data.playerCount || roster.length;
+    rosterListEl.innerHTML = '';
+    roster.forEach(r => {
+      const li = document.createElement('li');
+      li.textContent = `${r.emoji} ${r.name}`;
+      rosterListEl.appendChild(li);
+    });
+    for (let i = count; i < MAX_PLAYERS; i++) {
+      const li = document.createElement('li');
+      li.className = 'empty';
+      li.textContent = `${PLAYER_DEFS[i].emoji} (빈 슬롯)`;
+      rosterListEl.appendChild(li);
+    }
+    waitingTitle.textContent = `대기실 — ${count}/${MAX_PLAYERS}명`;
+    if (WwNet.isHost) {
+      btnStartGame.disabled = count < 2;
+      btnStartGame.textContent = count < 2 ? '게임 시작 (2인 이상)' : `게임 시작 (${count}인)`;
+    }
+  }
+
+  function showCoopWait(hostPeerId, asHost) {
+    inCoopWait = true;
+    roomCode.textContent = hostPeerId;
+    roomBox.classList.remove('hidden');
+    modeBlocks.classList.add('hidden');
+    coopBlock.classList.add('hidden');
+    joinPanel.classList.add('hidden');
+    waitingBox.classList.remove('hidden');
+    btnStartGame.classList.toggle('hidden', !asHost);
+    guestWaitHint.classList.toggle('hidden', asHost);
+    document.getElementById('btnCopyLink').classList.toggle('hidden', !asHost);
+    optFog.disabled = !asHost;
+    document.getElementById('gameOptions').classList.toggle('hidden', !asHost);
+
+    if (asHost) {
+      if (USE_ROOM_CODE) {
+        currentInviteUrl = hostPeerId;
+        inviteLinkEl.textContent = '방 코드: ' + hostPeerId;
+        inviteLinkEl.href = '#';
+        inviteLinkEl.onclick = (e) => e.preventDefault();
+        document.getElementById('btnCopyLink').textContent = '방 코드 복사';
+      } else {
+        currentInviteUrl = getInviteUrl(hostPeerId);
+        inviteLinkEl.textContent = currentInviteUrl;
+        inviteLinkEl.href = currentInviteUrl;
+        document.getElementById('btnCopyLink').textContent = '초대 링크 복사';
+        const u = new URL(location.href);
+        u.search = ''; u.searchParams.set('host', hostPeerId);
+        history.replaceState(null, '', u.toString());
+      }
+    } else {
+      inviteLinkEl.textContent = '방장이 「게임 시작」을 누를 때까지 대기';
+      inviteLinkEl.href = '#';
+    }
+    updateRosterUI({ roster: WwNet.buildRoster(), playerCount: WwNet.isHost ? 1 : 0 });
+    lobbyLog(asHost ? '대기실 열림 — 친구를 초대하세요' : '대기실 입장 — 방장 시작 대기');
+  }
+
+  function hideCoopWait() {
+    inCoopWait = false;
+    waitingBox.classList.add('hidden');
+    roomBox.classList.add('hidden');
+    modeBlocks.classList.remove('hidden');
+    coopBlock.classList.remove('hidden');
+    if (USE_ROOM_CODE) joinPanel.classList.remove('hidden');
+    optFog.disabled = false;
+    document.getElementById('gameOptions').classList.remove('hidden');
+    currentInviteUrl = '';
+  }
+
+  function showLobby() {
+    if (game) { game.stop(); game = null; }
+    WwNet.destroy();
+    hideCoopWait();
+    overlay.classList.remove('show', 'win', 'lose');
+    gameRoot.classList.add('hidden');
+    lobby.classList.remove('hidden');
+    setDpadEnabled(false);
+    if (!IS_FILE) history.replaceState(null, '', location.pathname);
+  }
+
+  function showGame() {
+    hideCoopWait();
+    lobby.classList.add('hidden');
+    gameRoot.classList.remove('hidden');
+  }
+
+  function setDpadEnabled(on) {
+    document.querySelectorAll('.dpadKey').forEach(btn => btn.classList.toggle('disabled', !on));
+  }
+
+  function flashKey(keyOrDir) {
+    const sel = keyOrDir.length <= 2 && /^\d$/.test(keyOrDir)
+      ? `.dpadKey[data-key="${keyOrDir}"]`
+      : `.dpadKey[data-dir="${keyOrDir}"]`;
+    const el = document.querySelector(sel);
+    if (!el) return;
+    el.classList.add('pressed');
+    setTimeout(() => el.classList.remove('pressed'), 100);
+  }
+
+  /* ── Game ── */
+  class RogueGame {
+    constructor(opts) {
+      this.solo = opts.solo;
+      this.isHost = opts.isHost;
+      this.myIndex = opts.myIndex;
+      this.playerCount = opts.playerCount || 1;
+      this.onNet = opts.onNet;
+      this.running = false;
+      this.map = [];
+      this.players = [];
+      this.monsters = [];
+      this.items = [];
+      this.exit = null;
+      this.logs = [];
+      this.activePlayer = 0;
+      this.gameOver = false;
+      this.gameResult = null;
+      this.turnDeadline = 0;
+      this._timerId = null;
+      this._timingOut = false;
+      this.explored = [];
+      this.visible = new Set();
+      this.fogOfWar = opts.fogOfWar !== false;
+    }
+
+    stop() {
+      this.running = false;
+      this.stopTurnTimer();
+      setDpadEnabled(false);
+    }
+
+    stopTurnTimer() {
+      if (this._timerId) { clearInterval(this._timerId); this._timerId = null; }
+    }
+
+    startTurnTimer() {
+      this.stopTurnTimer();
+      if (this.solo || this.gameOver) return;
+      if (this.isHost) this.turnDeadline = Date.now() + TURN_MS;
+      this._timerId = setInterval(() => this.tickTurnTimer(), 100);
+    }
+
+    tickTurnTimer() {
+      if (this.gameOver || this.solo) { this.stopTurnTimer(); return; }
+      this.syncHud();
+      if (!this.isHost || this._timingOut) return;
+      if (Date.now() < this.turnDeadline) return;
+      const pl = this.players[this.activePlayer];
+      if (!pl || pl.hp <= 0) return;
+      this._timingOut = true;
+      this.hostApplyMove(this.activePlayer, 'wait', { timeout: true });
+      this._timingOut = false;
+    }
+
+    log(msg) {
+      this.logs.unshift(msg);
+      if (this.logs.length > 5) this.logs.length = 5;
+      logPanel.textContent = this.logs.join('\n');
+    }
+
+    resize() {
+      canvas.width = LOGIC_W;
+      canvas.height = LOGIC_H;
+      tilePx = Math.floor(Math.min(LOGIC_W / MAP_W, LOGIC_H / MAP_H));
+    }
+
+    inBounds(x, y) { return x >= 0 && x < MAP_W && y >= 0 && y < MAP_H; }
+    isWalkable(x, y) {
+      if (!this.inBounds(x, y)) return false;
+      const t = this.map[y][x];
+      return t === TILE.FLOOR || t === TILE.DOOR;
+    }
+    monsterAt(x, y) { return this.monsters.find(m => m.x === x && m.y === y && m.hp > 0); }
+    playerAt(x, y) { return this.players.find(p => p.hp > 0 && p.x === x && p.y === y); }
+    itemAt(x, y) { return this.items.find(it => it.x === x && it.y === y); }
+
+    randomFloorCell(opts) {
+      const skipRoom = opts?.skipRoom;
+      for (let n = 0; n < 400; n++) {
+        const x = 1 + Math.floor(Math.random() * (MAP_W - 2));
+        const y = 1 + Math.floor(Math.random() * (MAP_H - 2));
+        if (this.map[y][x] !== TILE.FLOOR) continue;
+        if (skipRoom && inRoom(x, y, skipRoom)) continue;
+        if (this.playerAt(x, y)) continue;
+        if (this.monsterAt(x, y)) continue;
+        if (this.itemAt(x, y)) continue;
+        if (this.exit && this.exit.x === x && this.exit.y === y) continue;
+        return { x, y };
+      }
+      return null;
+    }
+
+    generateMap() {
+      const n = this.solo ? 1 : this.playerCount;
+      const targetRooms = (this.solo ? 6 : 7) + Math.floor(Math.random() * 3);
+      let rooms = [];
+
+      for (let tryN = 0; tryN < 24; tryN++) {
+        const built = buildRandomDungeon(MAP_W, MAP_H, targetRooms);
+        if (built.rooms.length >= 4) {
+          this.map = built.map;
+          rooms = built.rooms;
+          break;
+        }
+      }
+      if (!rooms.length) {
+        const fallback = buildRandomDungeon(MAP_W, MAP_H, 5);
+        this.map = fallback.map;
+        rooms = fallback.rooms;
+      }
+
+      const spawnRoom = rooms[0];
+      let exitRoom = rooms[0];
+      let bestDist = -1;
+      rooms.forEach(r => {
+        const d = Math.abs(r.cx - spawnRoom.cx) + Math.abs(r.cy - spawnRoom.cy);
+        if (d > bestDist) { bestDist = d; exitRoom = r; }
+      });
+      const exitCells = roomFloorCells(this.map, exitRoom, 1);
+      this.exit = exitCells.length
+        ? exitCells[Math.floor(Math.random() * exitCells.length)]
+        : { x: exitRoom.cx, y: exitRoom.cy };
+      placeExitDoor(this.map, exitRoom, this.exit);
+
+      const spawnCells = shuffle(roomFloorCells(this.map, spawnRoom, 1));
+      this.players = [];
+      for (let i = 0; i < n; i++) {
+        const def = PLAYER_DEFS[i];
+        const cell = spawnCells[i] || spawnCells[0] || { x: spawnRoom.cx, y: spawnRoom.cy };
+        this.players.push({
+          x: cell.x, y: cell.y, hp: 20, maxHp: 20, baseMaxHp: 20, baseAtk: 3,
+          emoji: def.emoji, name: def.name,
+          equip: { weapon: null, shield: null, armor: null }
+        });
+      }
+
+      this.monsters = [];
+      const mobCount = this.solo ? 6 + Math.floor(Math.random() * 4) : 6 + n * 2 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < mobCount; i++) {
+        const cell = this.randomFloorCell({ skipRoom: spawnRoom });
+        if (!cell) break;
+        const def = pickMonsterDef();
+        this.monsters.push({ ...def, x: cell.x, y: cell.y, id: i });
+      }
+
+      this.items = [];
+      const itemCount = this.solo ? 8 : 6 + n * 2;
+      for (let i = 0; i < itemCount; i++) {
+        const cell = this.randomFloorCell({ skipRoom: spawnRoom });
+        if (!cell) break;
+        const id = pickItemId();
+        const def = ITEM_DEFS[id];
+        this.items.push({ x: cell.x, y: cell.y, id, emoji: def.emoji });
+      }
+
+      this.activePlayer = 0;
+      this.gameOver = false;
+      this.gameResult = null;
+      this.logs = [];
+      this.log(this.solo
+        ? `던전 ${rooms.length}구역 — 키패드/버튼으로 이동`
+        : `던전 ${rooms.length}구역 · ${n}인 협동 — 턴당 ${TURN_SECONDS}초`);
+      this.log(this.fogOfWar ? '🌫️ 전장의 안개 ON' : '👁️ 맵 전체 공개 (쉬움)');
+      this.explored = Array.from({ length: MAP_H }, () => Array(MAP_W).fill(false));
+      this.updateVision();
+    }
+
+    revealAll() {
+      this.explored = Array.from({ length: MAP_H }, () => Array(MAP_W).fill(true));
+      this.visible = new Set();
+      for (let y = 0; y < MAP_H; y++) {
+        for (let x = 0; x < MAP_W; x++) this.visible.add(`${x},${y}`);
+      }
+    }
+
+    recomputeVisible() {
+      if (!this.fogOfWar) { this.revealAll(); return; }
+      this.visible = new Set();
+      this.alivePlayers().forEach(({ p }) => {
+        computeFOV(this.map, p.x, p.y, SIGHT_RADIUS, MAP_W, MAP_H)
+          .forEach(k => this.visible.add(k));
+      });
+    }
+
+    updateVision() {
+      if (!this.fogOfWar) { this.revealAll(); return; }
+      this.recomputeVisible();
+      if (this.solo || this.isHost) {
+        this.visible.forEach(k => {
+          const [x, y] = k.split(',').map(Number);
+          this.explored[y][x] = true;
+        });
+      }
+    }
+
+    isExplored(x, y) { return !this.fogOfWar || !!this.explored[y]?.[x]; }
+    isVisible(x, y) { return !this.fogOfWar || this.visible.has(`${x},${y}`); }
+
+    serialize() {
+      return {
+        map: this.map, players: this.players, monsters: this.monsters, items: this.items,
+        exit: this.exit, logs: this.logs, activePlayer: this.activePlayer,
+        turnDeadline: this.turnDeadline, gameOver: this.gameOver, gameResult: this.gameResult,
+        solo: this.solo, playerCount: this.playerCount, explored: this.explored,
+        fogOfWar: this.fogOfWar
+      };
+    }
+
+    applyState(data) {
+      if (data.playerCount) this.playerCount = data.playerCount;
+      if (data.map) this.map = data.map;
+      if (data.players) {
+        this.players = data.players.map(p => {
+          const equip = p.equip || { weapon: null, shield: null, armor: null };
+          const baseAtk = p.baseAtk ?? 3;
+          const baseMaxHp = p.baseMaxHp ?? 20;
+          return {
+            ...p, baseAtk, baseMaxHp, equip,
+            maxHp: p.maxHp ?? calcMaxHp({ baseMaxHp, equip })
+          };
+        });
+      }
+      if (data.monsters) this.monsters = data.monsters;
+      if (data.items) this.items = data.items;
+      if (data.exit) this.exit = data.exit;
+      if (data.logs) { this.logs = data.logs; logPanel.textContent = this.logs.join('\n'); }
+      if (data.activePlayer !== undefined) this.activePlayer = data.activePlayer;
+      if (data.turnDeadline !== undefined) this.turnDeadline = data.turnDeadline;
+      if (data.gameOver !== undefined) this.gameOver = data.gameOver;
+      if (data.gameResult !== undefined) this.gameResult = data.gameResult;
+      if (data.fogOfWar !== undefined) this.fogOfWar = data.fogOfWar;
+      if (data.explored) this.explored = data.explored;
+      else if (!this.explored.length && this.map.length) {
+        this.explored = Array.from({ length: MAP_H }, () => Array(MAP_W).fill(false));
+      }
+      if (!this.fogOfWar) this.revealAll();
+      else this.recomputeVisible();
+      if (!this.running) { this.running = true; this.resize(); }
+      if (!this.solo && !this.gameOver && this.turnDeadline) this.startTurnTimer();
+      this.syncHud();
+      this.draw();
+      if (this.gameOver) {
+        this.stopTurnTimer();
+        this.showEndOverlay('', this.gameResult === 'WIN');
+      }
+    }
+
+    finishTurn() {
+      if (this.gameOver) return;
+      this.nextActivePlayer();
+      this.startTurnTimer();
+      this.syncHud();
+      this.updateVision();
+      this.checkWin();
+      this.broadcast();
+    }
+
+    broadcast() {
+      if (this.onNet) this.onNet({ type: 'STATE', ...this.serialize() });
+    }
+
+    alivePlayers() {
+      return this.players.map((p, i) => ({ p, i })).filter(x => x.p.hp > 0);
+    }
+
+    nextActivePlayer() {
+      const alive = this.alivePlayers();
+      if (!alive.length) return;
+      const idx = alive.findIndex(x => x.i === this.activePlayer);
+      this.activePlayer = alive[(idx + 1) % alive.length].i;
+    }
+
+    isMyTurn() {
+      if (this.gameOver) return false;
+      if (this.solo) return true;
+      return this.myIndex === this.activePlayer;
+    }
+
+    syncHud() {
+      const me = this.players[this.myIndex] || this.players[0];
+      playerBarsEl.innerHTML = '';
+      const showCount = this.solo ? 1 : this.players.length;
+      for (let i = 0; i < showCount; i++) {
+        const p = this.players[i];
+        if (!p) continue;
+        const ratio = p.maxHp > 0 ? p.hp / p.maxHp : 0;
+        const barColor = ratio > 0.5 ? '#4ade80' : ratio > 0.25 ? '#fbbf24' : '#f87171';
+        const row = document.createElement('div');
+        row.className = 'pbar' + (p.hp <= 0 ? ' dead' : '') +
+          (!this.solo && i === this.activePlayer && !this.gameOver ? ' active' : '');
+        row.innerHTML =
+          `<span class="emoji">${p.emoji}</span>` +
+          `<span class="bar-wrap"><span class="bar-fill" style="width:${Math.round(ratio * 100)}%;background:${barColor}"></span></span>` +
+          `<span class="hp-num">${p.hp}/${p.maxHp}</span>` +
+          (gearIcons(p) ? `<span class="gear">${gearIcons(p)}</span>` : '');
+        playerBarsEl.appendChild(row);
+      }
+
+      if (me && me.hp > 0) {
+        equipStatsEl.innerHTML =
+          `⚔️<b>${playerAtk(me)}</b> ` +
+          `🛡️<b>${playerBlock(me)}</b> ` +
+          `🥋<b>${playerDef(me)}</b>`;
+        equipStatsEl.classList.remove('hidden');
+      } else {
+        equipStatsEl.classList.add('hidden');
+      }
+      mobVal.textContent = this.monsters.filter(m => m.hp > 0).length;
+
+      if (this.solo) {
+        turnLabel.textContent = '솔로';
+        turnTimerEl.classList.add('hidden');
+      } else {
+        const remain = this.turnDeadline
+          ? Math.max(0, Math.ceil((this.turnDeadline - Date.now()) / 1000))
+          : TURN_SECONDS;
+        turnTimerEl.textContent = remain + 's';
+        turnTimerEl.classList.remove('hidden');
+        turnTimerEl.classList.toggle('urgent', remain <= 2);
+        if (this.isMyTurn()) turnLabel.textContent = '내 턴 ▶';
+        else turnLabel.textContent = (PLAYER_DEFS[this.activePlayer]?.emoji || '?') + ' 턴…';
+      }
+      setDpadEnabled(this.running && this.isMyTurn() && !this.gameOver);
+    }
+
+    endGame(win, msg) {
+      this.gameOver = true;
+      this.gameResult = win ? 'WIN' : 'LOSE';
+      this.stopTurnTimer();
+      this.showEndOverlay(msg, win);
+      this.syncHud();
+      this.broadcast();
+    }
+
+    showEndOverlay(msg, win) {
+      overlay.className = win ? 'win show' : 'lose show';
+      overlayTitle.textContent = win ? '1층 클리어!' : '게임 오버';
+      overlayMsg.textContent = msg || '';
+      overlay.classList.add('show');
+    }
+
+    checkWin() {
+      const aliveMobs = this.monsters.filter(m => m.hp > 0).length;
+      const onExit = this.players.some(p => p.hp > 0 && p.x === this.exit.x && p.y === this.exit.y);
+      if (onExit && aliveMobs === 0) {
+        const hpSum = this.players.filter(p => p.hp > 0).map(p => p.hp).join(' / ');
+        this.endGame(true, `클리어! 생존 HP: ${hpSum}`);
+        return true;
+      }
+      if (onExit && aliveMobs > 0) this.log(`적 ${aliveMobs}마리 남음`);
+      return false;
+    }
+
+    bumpCombat(m, pi) {
+      const pl = this.players[pi];
+      const dmg = playerAtk(pl);
+      m.hp -= dmg;
+      this.log(`${pl.emoji} ${pl.equip.weapon?.emoji || '👊'} → ${m.name} ${dmg} 피해`);
+      if (m.hp <= 0) {
+        this.monsters = this.monsters.filter(x => x.id !== m.id);
+        this.log(m.boss ? '🐉 용을 쓰러뜨렸다!' : `${m.name} 처치!`);
+        if (!this.monsters.filter(x => x.hp > 0).length) this.log('적 전멸! 🕳️ 출구로');
+        return;
+      }
+      const taken = applyDamage(pl, m.atk);
+      this.log(`${m.name} 반격 ${taken} (HP ${pl.hp}/${pl.maxHp})`);
+      if (pl.hp <= 0) {
+        this.log(`${pl.name} 쓰러짐…`);
+        if (!this.alivePlayers().length) this.endGame(false, '전원 전멸…');
+      }
+    }
+
+    pickupItem(it, pi) {
+      const pl = this.players[pi];
+      const def = ITEM_DEFS[it.id];
+      if (!def) return;
+
+      if (def.kind === 'consumable') {
+        const before = pl.hp;
+        pl.hp = Math.min(pl.maxHp, pl.hp + def.heal);
+        this.log(`${def.emoji} ${def.name} +${pl.hp - before} (HP ${pl.hp}/${pl.maxHp})`);
+        this.items = this.items.filter(x => x !== it);
+        return;
+      }
+
+      const slot = def.kind;
+      if (pl.equip[slot]) {
+        this.log(`${def.emoji} ${def.name} — 이미 장착 중`);
+        return;
+      }
+
+      if (slot === 'armor') {
+        pl.equip.armor = { id: it.id, ...def };
+        pl.maxHp = calcMaxHp(pl);
+        pl.hp = Math.min(pl.maxHp, pl.hp + (def.maxHp || 0));
+      } else {
+        pl.equip[slot] = { id: it.id, ...def };
+      }
+      this.log(`${def.emoji} ${def.name} 장착! (⚔️${playerAtk(pl)} 🛡️${playerBlock(pl)} 🥋${playerDef(pl)})`);
+      this.items = this.items.filter(x => x !== it);
+    }
+
+    hostApplyMove(pi, dirName, opts) {
+      if (this.gameOver || !this.isHost) return;
+      if (pi !== this.activePlayer) return;
+      const pl = this.players[pi];
+      if (!pl || pl.hp <= 0) return;
+      const d = DIRS[dirName];
+      if (!d) return;
+
+      if (dirName === 'wait') {
+        this.log(opts?.timeout ? `⏱ ${pl.name} 시간 초과 — 대기` : `${pl.name} 대기`);
+        this.monsterTurn();
+        this.finishTurn();
+        return;
+      }
+
+      const nx = pl.x + d.dx;
+      const ny = pl.y + d.dy;
+      if (!this.isWalkable(nx, ny)) { this.log('벽'); this.broadcast(); return; }
+      if (this.playerAt(nx, ny) && this.playerAt(nx, ny) !== pl) {
+        this.log('아군 위치'); this.broadcast(); return;
+      }
+
+      const mob = this.monsterAt(nx, ny);
+      if (mob) {
+        this.bumpCombat(mob, pi);
+        if (!this.gameOver) this.monsterTurn();
+        if (!this.gameOver) this.finishTurn();
+        return;
+      }
+
+      pl.x = nx; pl.y = ny;
+      const it = this.itemAt(nx, ny);
+      if (it) this.pickupItem(it, pi);
+      this.monsterTurn();
+      if (!this.gameOver) this.finishTurn();
+    }
+
+    requestMove(dirName) {
+      if (!this.running || !this.isMyTurn()) return;
+      flashKey(dirName);
+      if (this.solo || this.isHost) {
+        this.hostApplyMove(this.myIndex, dirName);
+        this.draw();
+      } else if (this.onNet) {
+        this.onNet({ type: 'MOVE', dir: dirName, playerIdx: this.myIndex });
+      }
+    }
+
+    handlePeerLeft(index) {
+      const pl = this.players[index];
+      if (pl && pl.hp > 0) {
+        pl.hp = 0;
+        this.log(`${pl.name} 연결 끊김`);
+        if (this.activePlayer === index) this.nextActivePlayer();
+        if (!this.alivePlayers().length) this.endGame(false, '전원 이탈…');
+        else { this.updateVision(); this.broadcast(); }
+      }
+    }
+
+    monsterTurn() {
+      if (this.gameOver) return;
+      const targets = this.alivePlayers().map(x => x.p);
+      if (!targets.length) return;
+      this.monsters.filter(m => m.hp > 0).forEach(m => {
+        let best = targets[0], bestD = Infinity;
+        targets.forEach(t => {
+          const d = Math.abs(t.x - m.x) + Math.abs(t.y - m.y);
+          if (d < bestD) { bestD = d; best = t; }
+        });
+        const dx = Math.sign(best.x - m.x), dy = Math.sign(best.y - m.y);
+        const options = [];
+        if (dx || dy) options.push({ x: m.x + dx, y: m.y + dy });
+        if (dx) options.push({ x: m.x + dx, y: m.y });
+        if (dy) options.push({ x: m.x, y: m.y + dy });
+        for (const opt of options) {
+          const hitPl = this.players.find(p => p.hp > 0 && p.x === opt.x && p.y === opt.y);
+          if (hitPl) {
+            const taken = applyDamage(hitPl, m.atk);
+            this.log(`${m.name} → ${hitPl.name} ${taken} 피해`);
+            if (hitPl.hp <= 0) {
+              this.log(`${hitPl.name} 쓰러짐`);
+              if (!this.alivePlayers().length) this.endGame(false, '전원 전멸…');
+            }
+            return;
+          }
+          if (this.isWalkable(opt.x, opt.y) && !this.monsterAt(opt.x, opt.y) && !this.playerAt(opt.x, opt.y)) {
+            m.x = opt.x; m.y = opt.y;
+            return;
+          }
+        }
+      });
+    }
+
+    drawHpBar(cx, cy, hp, maxHp) {
+      const ratio = maxHp > 0 ? Math.max(0, hp / maxHp) : 0;
+      const barW = tilePx * 0.88;
+      const barH = Math.max(3, Math.floor(tilePx * 0.12));
+      const x = cx - barW / 2;
+      const y = cy - tilePx * 0.52;
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(x - 1, y - 1, barW + 2, barH + 2);
+      ctx.fillStyle = '#2a2a40';
+      ctx.fillRect(x, y, barW, barH);
+      ctx.fillStyle = ratio > 0.5 ? '#4ade80' : ratio > 0.25 ? '#fbbf24' : '#f87171';
+      ctx.fillRect(x, y, barW * ratio, barH);
+    }
+
+    drawEmoji(emoji, cx, cy, size) {
+      ctx.font = `${size}px ${EMOJI_FONT}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(emoji, cx, cy);
+    }
+
+    draw() {
+      ctx.fillStyle = '#050508';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const offX = Math.floor((canvas.width - MAP_W * tilePx) / 2);
+      const offY = Math.floor((canvas.height - MAP_H * tilePx) / 2);
+      const emSize = Math.floor(tilePx * 0.72);
+
+      const drawTile = (x, y, px, py, lit) => {
+        const t = this.map[y]?.[x];
+        const alpha = lit ? 1 : 0.42;
+        ctx.globalAlpha = alpha;
+        if (t === TILE.WALL) {
+          ctx.fillStyle = lit ? '#2a2a40' : '#181824';
+          ctx.fillRect(px, py, tilePx, tilePx);
+          this.drawEmoji(EMOJI.wall, px + tilePx / 2, py + tilePx / 2, emSize);
+        } else if (t === TILE.DOOR) {
+          ctx.fillStyle = lit ? '#1e3a2f' : '#142820';
+          ctx.fillRect(px, py, tilePx, tilePx);
+          this.drawEmoji(EMOJI.door, px + tilePx / 2, py + tilePx / 2, emSize);
+        } else if (t === TILE.FLOOR) {
+          ctx.fillStyle = lit ? '#1a1a28' : '#101018';
+          ctx.fillRect(px, py, tilePx, tilePx);
+        }
+        ctx.globalAlpha = 1;
+        if (!lit) {
+          ctx.fillStyle = 'rgba(0,0,0,0.48)';
+          ctx.fillRect(px, py, tilePx, tilePx);
+        }
+      };
+
+      for (let y = 0; y < MAP_H; y++) {
+        for (let x = 0; x < MAP_W; x++) {
+          if (!this.isExplored(x, y)) continue;
+          const px = offX + x * tilePx, py = offY + y * tilePx;
+          drawTile(x, y, px, py, this.isVisible(x, y));
+        }
+      }
+
+      const drawEntity = (x, y, drawFn) => {
+        if (!this.isVisible(x, y)) return;
+        drawFn(offX + x * tilePx + tilePx / 2, offY + y * tilePx + tilePx / 2);
+      };
+
+      this.items.forEach(it => {
+        drawEntity(it.x, it.y, (cx, cy) => this.drawEmoji(it.emoji, cx, cy, emSize));
+      });
+      if (this.exit) {
+        drawEntity(this.exit.x, this.exit.y, (cx, cy) => this.drawEmoji(EMOJI.exit, cx, cy, emSize));
+      }
+      this.monsters.filter(m => m.hp > 0).forEach(m => {
+        drawEntity(m.x, m.y, (cx, cy) => this.drawEmoji(m.emoji, cx, cy, emSize));
+      });
+      this.players.forEach((p, i) => {
+        if (p.hp <= 0) return;
+        drawEntity(p.x, p.y, (cx, cy) => {
+          this.drawHpBar(cx, cy, p.hp, p.maxHp);
+          if (!this.solo && i === this.activePlayer && !this.gameOver) {
+            ctx.strokeStyle = '#60a5fa';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(cx, cy, tilePx * 0.42, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+          this.drawEmoji(p.emoji, cx, cy, emSize);
+          const gear = gearIcons(p);
+          if (gear) {
+            ctx.font = `${Math.floor(tilePx * 0.28)}px ${EMOJI_FONT}`;
+            ctx.textAlign = 'left';
+            ctx.fillText(gear, cx + tilePx * 0.15, cy + tilePx * 0.38);
+          }
+        });
+      });
+      this.syncHud();
+    }
+
+    startAsHost() {
+      this.running = true;
+      this.resize();
+      this.generateMap();
+      this.startTurnTimer();
+      this.draw();
+      this.broadcast();
+    }
+  }
+
+  function makeNetHandler(isHost) {
+    return (payload) => {
+      if (payload.type === 'STATE') WwNet.broadcastState(payload);
+      else WwNet.broadcast(payload);
+    };
+  }
+
+  function hostBeginGame() {
+    const count = WwNet.playerCount;
+    if (count < 2) return;
+    const fogOfWar = getFogEnabled();
+    WwNet.startGameBroadcast(count, fogOfWar);
+    showGame();
+    game = new RogueGame({
+      solo: false, isHost: true, myIndex: 0, playerCount: count, fogOfWar,
+      onNet: makeNetHandler(true)
+    });
+    game.startAsHost();
+  }
+
+  function clientBeginGame(playerCount, fogOfWar) {
+    showGame();
+    game = new RogueGame({
+      solo: false, isHost: false, myIndex: WwNet.myIndex, playerCount,
+      fogOfWar: fogOfWar !== false,
+      onNet: (payload) => WwNet.sendToHost(payload)
+    });
+  }
+
+  function startSolo() {
+    showGame();
+    game = new RogueGame({
+      solo: true, isHost: true, myIndex: 0, playerCount: 1, fogOfWar: getFogEnabled(),
+      onNet: null
+    });
+    game.startAsHost();
+  }
+
+  function handleNetData(data) {
+    if (data.type === 'LOBBY') {
+      updateRosterUI(data);
+    } else if (data.type === 'WELCOME' && !WwNet.isHost) {
+      showCoopWait(roomInput.value.trim(), false);
+      updateRosterUI({ roster: data.roster, playerCount: data.roster.length });
+      lobbyLog(`대기실 입장 (${PLAYER_DEFS[data.index].emoji} 슬롯 ${data.index + 1})`);
+    } else if (data.type === 'START' && !WwNet.isHost) {
+      clientBeginGame(data.playerCount, data.fogOfWar);
+      lobbyLog(data.fogOfWar !== false ? '게임 시작! (안개 ON)' : '게임 시작! (맵 공개)');
+    } else if (data.type === 'STATE' && game) {
+      game.applyState(data);
+    } else if (data.type === 'MOVE' && game && WwNet.isHost) {
+      game.hostApplyMove(data.playerIdx, data.dir);
+      game.draw();
+    } else if (data.type === 'PEER_LEFT' && game && WwNet.isHost) {
+      game.handlePeerLeft(data.index);
+      game.draw();
+    } else if (data.type === 'REJECT') {
+      lobbyLog('거부: ' + data.reason);
+      if (!WwNet.isHost) showLobby();
+    }
+  }
+
+  function startNet(asHost) {
+    const remoteId = roomInput.value.trim();
+    if (!asHost && !remoteId) {
+      lobbyLog(USE_ROOM_CODE ? '방 코드를 입력하세요' : '초대 링크가 없습니다');
+      return;
+    }
+
+    WwNet.initPeer({
+      asHost,
+      remoteId,
+      handlers: {
+        onOpen: (info) => {
+          if (info.role === 'host' && info.roomReady) {
+            showCoopWait(info.id, true);
+          } else if (info.role === 'host' && info.clientJoined) {
+            lobbyLog(`${PLAYER_DEFS[info.index].emoji} 입장`);
+          } else if (info.role === 'client' && info.connOpen) {
+            lobbyLog('호스트에 연결됨 — 대기실');
+          }
+        },
+        onLobby: updateRosterUI,
+        onData: handleNetData,
+        onClose: () => {
+          if (!WwNet.gameStarted) lobbyLog('연결 종료');
+          else if (game) game.log('연결 종료');
+          else showLobby();
+        },
+        onError: (e) => lobbyLog('Peer 오류: ' + (e.type || e.message))
+      }
+    });
+  }
+
+  function bindInput() {
+    document.querySelectorAll('.dpadKey').forEach(btn => {
+      const handler = (e) => {
+        e.preventDefault();
+        if (game) game.requestMove(btn.dataset.dir);
+      };
+      btn.addEventListener('touchstart', handler, { passive: false });
+      btn.addEventListener('mousedown', handler);
+    });
+    document.getElementById('btnWait').addEventListener('click', () => game && game.requestMove('wait'));
+    document.addEventListener('keydown', (e) => {
+      if (!game || game.gameOver) return;
+      if (e.repeat) return;
+      const dir = KEY_TO_DIR[e.code] || KEY_TO_DIR[e.key];
+      if (!dir) return;
+      e.preventDefault();
+      flashKey(DIRS[dir].key);
+      game.requestMove(dir);
+    });
+  }
+
+  function initLobbyUi() {
+    if (USE_ROOM_CODE) {
+      document.getElementById('hintWeb').classList.add('hidden');
+      document.getElementById('hintFile').classList.remove('hidden');
+      joinPanel.classList.remove('hidden');
+    }
+  }
+
+  function bootFromInviteUrl() {
+    if (USE_ROOM_CODE) return;
+    const join = new URLSearchParams(location.search).get('join');
+    if (!join) return;
+    roomInput.value = join;
+    lobbyLog('초대 링크 감지 — 연결 중…');
+    startNet(false);
+  }
+
+  document.getElementById('btnSolo').addEventListener('click', startSolo);
+  document.getElementById('btnCoopHost').addEventListener('click', () => startNet(true));
+  document.getElementById('btnJoin').addEventListener('click', () => {
+    roomInput.value = document.getElementById('joinCodeInput').value.trim();
+    startNet(false);
+  });
+  document.getElementById('btnStartGame').addEventListener('click', hostBeginGame);
+  document.getElementById('btnCopyLink').addEventListener('click', () => {
+    if (USE_ROOM_CODE) copyText(roomCode.textContent, '방 코드 복사됨');
+    else if (currentInviteUrl) copyText(currentInviteUrl, '초대 링크 복사됨');
+  });
+  document.getElementById('btnCancelWait').addEventListener('click', showLobby);
+  document.getElementById('backBtn').addEventListener('click', showLobby);
+  document.getElementById('btnToLobby').addEventListener('click', showLobby);
+  document.getElementById('btnRetry').addEventListener('click', () => {
+    overlay.classList.remove('show', 'win', 'lose');
+    if (game?.solo) startSolo();
+    else showLobby();
+  });
+  window.addEventListener('resize', () => { if (game?.running) { game.resize(); game.draw(); } });
+
+  bindInput();
+  initLobbyUi();
+  bootFromInviteUrl();
+})();
+</script>
+</body>
+</html>

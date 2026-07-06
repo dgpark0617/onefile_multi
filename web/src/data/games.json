@@ -1,0 +1,130 @@
+[
+  {
+    "slug": "soccer",
+    "title": "미니 사커 택틱스",
+    "subtitle": "10v10 WEGO 전술 축구 · 솔로/멀티",
+    "category": "sports",
+    "tags": ["전술", "멀티", "PeerJS"],
+    "source": "onefile_multi_soccer/onefile_multi_soccer.html",
+    "downloadName": "mini_soccer_tactics.html",
+    "featured": true
+  },
+  {
+    "slug": "textwizard",
+    "title": "글자 마법사",
+    "subtitle": "P2P 협동 타이핑 디펜스",
+    "category": "education",
+    "tags": ["타이핑", "협동", "PeerJS"],
+    "source": "onefile_multi_textwizard/onefile_multi_textwizard.html",
+    "downloadName": "word_wizard_multi.html",
+    "featured": true
+  },
+  {
+    "slug": "mario",
+    "title": "버섯 어드벤처",
+    "subtitle": "멀티 플랫포머",
+    "category": "action",
+    "tags": ["플랫포머", "멀티"],
+    "source": "onefile_multi_mario/onefile_multi_mario.html",
+    "downloadName": "mushroom_adventure.html"
+  },
+  {
+    "slug": "infinitestairs",
+    "title": "무한의 계단",
+    "subtitle": "P2P 실시간 서바이벌",
+    "category": "action",
+    "tags": ["서바이벌", "멀티"],
+    "source": "onefile_multi_infinitestairs/onefile_multi_infinitestairs.html",
+    "downloadName": "infinite_stairs.html"
+  },
+  {
+    "slug": "birdstrike",
+    "title": "버드 스트라이크",
+    "subtitle": "Bird Strike",
+    "category": "action",
+    "tags": ["아케이드"],
+    "source": "onefile_multi_birdstrike/onefile_multi_birdstrike.html",
+    "downloadName": "bird_strike.html"
+  },
+  {
+    "slug": "rogue-smooth",
+    "title": "Emoji Rogue Smooth",
+    "subtitle": "실시간 P2P · 앞·뒤 넷코드",
+    "category": "roguelike",
+    "tags": ["로그라이크", "멀티"],
+    "source": "onefile_multi_rogue_smooth/onefile_multi_rogue_smooth.html",
+    "downloadName": "emoji_rogue_smooth.html"
+  },
+  {
+    "slug": "rogue",
+    "title": "Emoji Rogue",
+    "subtitle": "P2P 협동 (최대 4인)",
+    "category": "roguelike",
+    "tags": ["로그라이크", "협동"],
+    "source": "onefile_mulit_rogue/onefile_mulit_rogue.html",
+    "downloadName": "emoji_rogue.html"
+  },
+  {
+    "slug": "rogue-realtime",
+    "title": "Emoji Rogue RT",
+    "subtitle": "실시간 P2P 협동",
+    "category": "roguelike",
+    "tags": ["로그라이크", "실시간"],
+    "source": "onefile_multi_rogue_realtime/onefile_multi_rogue_realtime.html",
+    "downloadName": "emoji_rogue_rt.html"
+  },
+  {
+    "slug": "worms",
+    "title": "지렁이 게임",
+    "subtitle": "멀티 스네이크",
+    "category": "arcade",
+    "tags": ["아케이드", "멀티"],
+    "source": "onefile_multi_worms/onefile_multi_worms.html",
+    "downloadName": "worms.html"
+  },
+  {
+    "slug": "flight",
+    "title": "스카이 파이터",
+    "subtitle": "비행 슈팅",
+    "category": "action",
+    "tags": ["슈팅", "멀티"],
+    "source": "onefile_multi_flight/onefile_multi_flight.html",
+    "downloadName": "sky_fighter.html"
+  },
+  {
+    "slug": "minecraft",
+    "title": "포트나이트 타워",
+    "subtitle": "타워 디펜스 스타일",
+    "category": "action",
+    "tags": ["타워", "멀티"],
+    "source": "onefile_multi_minecraft/onefile_multi_minecraft.html",
+    "downloadName": "fortnite_tower.html"
+  },
+  {
+    "slug": "flood",
+    "title": "Flood",
+    "subtitle": "P2P FFA (최대 4인)",
+    "category": "action",
+    "tags": ["FFA", "멀티"],
+    "source": "onefile_multi_flood/onefile_multi_flood.html",
+    "downloadName": "flood.html"
+  },
+  {
+    "slug": "neon-shooter",
+    "title": "Neon Ruin",
+    "subtitle": "실시간 P2P 슈터",
+    "category": "action",
+    "tags": ["슈팅", "네온"],
+    "source": "onefile_multi_neon_shooter/onefile_multi_neon_shooter.html",
+    "downloadName": "neon_ruin.html"
+  },
+  {
+    "slug": "racing-fail",
+    "title": "Neon Rush [FAIL]",
+    "subtitle": "P2P 레이싱 (중단 프로토타입)",
+    "category": "racing",
+    "tags": ["레이싱", "프로토타입"],
+    "source": "onefile_multi_racing_fail/onefile_multi_racing_fail.html",
+    "downloadName": "neon_rush_fail.html"
+  }
+]

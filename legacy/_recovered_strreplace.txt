@@ -1,0 +1,56 @@
+      updatePlayerHud();
+      checkGameEnd();
+    });
+  }
+
+  function checkGameEnd() {
+    if (state.gameState === 'END') return;
+    if (boss.hp <= 0) {
+      endGame('WIN', '🧙 마법사를 물리쳤습니다!', '승리!');
+      return;
+    }
+    if (players[0].hp <= 0) {
+      endGame('LOSE', '👸 공주가 쓰러졌습니다…', '패배');
+      return;
+    }
+    if (players[1].hp <= 0) {
+      endGame('LOSE', '🦸 용사가 쓰러졌습니다…', '패배');
+    }
+  }
+
+  function endGame(result, msg, title) {
+    state.gameState = 'END';
+    state.gameResult = result;
+    words = [];
+    missiles = [];
+    hideUpgradeOverlay();
+    gameOverOverlay.className = result === 'WIN' ? 'win show' : 'lose show';
+    gameOverTitle.textContent = title;
+    gameOverMsg.textContent = msg;
+    gameOverOverlay.classList.add('show');
+  }
+
+  function resetGame() {
+    state.gameState = 'WAVE';
+    state.gameResult = null;
+    state.waveIndex = 0;
+    state.killCount = 0;
+    state.playerPerks = { piercing: false, bounce: false, splitLevel: 0, explosionLevel: 0 };
+    boss.hp = boss.maxHp;
+    players[0].hp = players[0].maxHp;
+    players[1].hp = players[1].maxHp;
+    words = [];
+    missiles = [];
+    particles = [];
+    hitFlashes = [];
+    spawnTimer = 0;
+    wordIdCounter = 0;
+    clearBuffer();
+    hideUpgradeOverlay();
+    gameOverOverlay.classList.remove('show', 'win', 'lose');
+    updateWaveHud();
+    updatePlayerHud();
+    updatePerkStatusDisplay();
+  }
+
+  btnRetry.addEventListener('click', resetGame);

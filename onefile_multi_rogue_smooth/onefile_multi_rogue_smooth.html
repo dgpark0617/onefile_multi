@@ -1,0 +1,2117 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Emoji Rogue Smooth — 실시간 P2P (앞·뒤 넷코드)</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #1a1a2e; color: #eee; font-family: system-ui, sans-serif; }
+  .hidden { display: none !important; }
+
+  #lobby {
+    min-height: 100dvh; padding: 20px; max-width: 520px; margin: 0 auto;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  #lobby h1 { font-size: 1.35rem; margin: 0; }
+  #lobby .sub { color: #aaa; font-size: 0.85rem; line-height: 1.5; }
+  #lobby .hint {
+    background: #16213e; border: 1px solid #334; border-radius: 10px;
+    padding: 12px 14px; font-size: 0.82rem; color: #bbb; line-height: 1.55;
+  }
+  #lobby .hint kbd, #lobby .hint strong { color: #7ec8e3; }
+  #lobby .hint kbd {
+    background: #0f3460; border: 1px solid #446; border-radius: 4px; padding: 1px 5px; font-size: 0.78rem;
+  }
+  .mode-block { background: #16213e; border: 1px solid #334; border-radius: 12px; padding: 14px; }
+  #balanceOptions {
+    border-color: rgba(96, 165, 250, 0.45);
+    background: linear-gradient(180deg, rgba(37, 99, 235, 0.08), #16213e);
+  }
+  #balanceOptions h2 { color: #93c5fd; }
+  .mode-block h2 { margin: 0 0 8px; font-size: 1rem; color: #7ec8e3; }
+  .mode-block p { margin: 0 0 10px; font-size: 0.78rem; color: #888; line-height: 1.4; }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  button {
+    border: none; border-radius: 8px; padding: 10px 14px; font-size: 0.85rem;
+    cursor: pointer; touch-action: manipulation;
+  }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-green { background: #059669; color: #fff; }
+  .btn-red { background: #dc2626; color: #fff; }
+  .btn-yellow { background: #ca8a04; color: #fff; }
+  .btn-ghost { background: #334; color: #ddd; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  input[type="text"], input:not([type]) {
+    width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #445;
+    background: #1a1a2e; color: #eee; font-size: 0.9rem;
+  }
+  #roomBox, #waitingBox {
+    background: #0f3460; padding: 12px; border-radius: 8px; font-size: 0.82rem;
+    word-break: break-all; border: 1px solid #2563eb; color: #ddd;
+  }
+  #waitingBox { border-color: #ca8a04; }
+  #inviteLink { color: #7ec8e3; font-size: 0.78rem; display: block; margin: 8px 0; }
+  #rosterList { margin: 10px 0; padding: 0; list-style: none; line-height: 1.8; }
+  #rosterList li { font-size: 0.9rem; }
+  #rosterList .empty { color: #666; font-style: italic; }
+  #log { font-size: 0.75rem; color: #4ade80; max-height: 90px; overflow-y: auto; white-space: pre-wrap; }
+  .opt-label {
+    display: flex; align-items: flex-start; gap: 8px; font-size: 0.85rem;
+    cursor: pointer; line-height: 1.45; user-select: none;
+  }
+  .opt-label input[type="checkbox"] {
+    margin-top: 3px; flex-shrink: 0; cursor: pointer;
+    width: 1rem; height: 1rem; padding: 0; accent-color: #2563eb;
+  }
+  .opt-label span { flex: 1; min-width: 0; line-height: 1.45; }
+  .opt-label small { display: block; color: #888; font-size: 0.75rem; margin-top: 2px; }
+
+  #gameRoot { display: flex; flex-direction: column; height: 100dvh; width: 100vw; }
+  #fieldWrap { flex: 6; position: relative; background: #0f0f1a; overflow: hidden; }
+  #fieldCanvas { display: block; width: 100%; height: 100%; object-fit: contain; }
+
+  #hud {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+    display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center;
+    padding: 6px 10px; font-size: clamp(10px, 2.6vw, 12px);
+    background: rgba(15,15,26,0.92); border-bottom: 1px solid #334; pointer-events: none;
+  }
+  #hud .turn { color: #60a5fa; font-weight: bold; }
+  #hud .timer { color: #60a5fa; font-variant-numeric: tabular-nums; min-width: 2.2em; }
+  #hud .timer.urgent { color: #f87171; }
+  #hud .hp { color: #f87171; }
+  #hud .atk { color: #fbbf24; }
+  #playerBars {
+    display: flex; flex-wrap: wrap; gap: 4px 8px; width: 100%;
+  }
+  .pbar {
+    display: flex; align-items: center; gap: 4px; font-size: clamp(9px, 2.4vw, 11px);
+    padding: 2px 6px; border-radius: 6px; background: rgba(30,30,50,0.85);
+    border: 1px solid transparent;
+  }
+  .pbar.active { border-color: #60a5fa; box-shadow: 0 0 6px rgba(96,165,250,0.35); }
+  .pbar.dead { opacity: 0.35; }
+  .pbar .emoji { font-size: 1.1em; line-height: 1; }
+  .pbar .bar-wrap {
+    width: 52px; height: 7px; background: #2a2a40; border-radius: 4px; overflow: hidden;
+  }
+  .pbar .bar-fill { height: 100%; border-radius: 4px; transition: width 0.15s; }
+  .pbar .hp-num { color: #f87171; font-variant-numeric: tabular-nums; min-width: 2.8em; }
+  .pbar .gear { color: #888; font-size: 0.85em; letter-spacing: -1px; }
+  #equipStats { color: #aaa; font-size: clamp(9px, 2.3vw, 11px); }
+  #equipStats b { color: #fbbf24; font-weight: 600; }
+
+  #tuneBar {
+    width: 100%; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center;
+    padding: 6px 8px; margin-top: 2px;
+    background: rgba(37, 99, 235, 0.12); border: 1px solid rgba(96, 165, 250, 0.35);
+    border-radius: 8px; pointer-events: auto;
+  }
+  #tuneBar .tune-title { color: #7ec8e3; font-weight: 600; font-size: clamp(10px, 2.5vw, 11px); }
+  #tuneBar label {
+    display: flex; align-items: center; gap: 4px;
+    font-size: clamp(10px, 2.5vw, 11px); color: #cbd5e1;
+  }
+  #tuneBar input[type="number"] {
+    width: 52px; padding: 3px 6px; border-radius: 6px; border: 1px solid #445;
+    background: #1a1a2e; color: #eee; font-size: 0.82rem;
+  }
+  #tuneBar .btn-ghost { padding: 4px 10px; font-size: 0.75rem; pointer-events: auto; }
+
+  .tune-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  }
+  .tune-grid label {
+    display: flex; flex-direction: column; gap: 4px;
+    font-size: 0.82rem; color: #cbd5e1;
+  }
+  .tune-grid input[type="number"] {
+    width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #445;
+    background: #1a1a2e; color: #eee; font-size: 0.9rem;
+  }
+  .tune-grid small { color: #888; font-size: 0.72rem; }
+
+  #logPanel {
+    position: absolute; bottom: 0; left: 0; right: 0; z-index: 5;
+    max-height: 64px; overflow-y: auto; padding: 4px 10px;
+    font-size: clamp(10px, 2.6vw, 11px); color: #aaa; line-height: 1.4;
+    background: rgba(15,15,26,0.88); border-top: 1px solid #334; pointer-events: none;
+  }
+  #backBtn { position: absolute; top: 6px; right: 6px; z-index: 10; padding: 5px 10px; font-size: 11px; }
+
+  #dpad {
+    flex: 4; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 4px; padding: 8px; background: #16213e; border-top: 2px solid #334;
+  }
+  .dpadRow { display: flex; gap: 4px; width: 100%; max-width: 320px; }
+  .dpadKey {
+    flex: 1; aspect-ratio: 1.2; max-height: 58px;
+    border: 1px solid #445; border-radius: 8px; background: #1a1a2e; color: #eee;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    user-select: none; touch-action: manipulation; min-width: 0;
+  }
+  .dpadKey .arrow { font-size: clamp(16px, 4.5vw, 22px); line-height: 1; }
+  .dpadKey .keyLabel { font-size: clamp(8px, 2.2vw, 10px); color: #888; margin-top: 2px; }
+  .dpadKey.wait { background: #0f3460; }
+  .dpadKey:active, .dpadKey.pressed { background: #2563eb; outline: 2px solid #60a5fa; }
+  .dpadKey.disabled { opacity: 0.35; pointer-events: none; }
+  .dpadKey.dpadCenter {
+    background: #141422; border-color: #3a3a50; cursor: default;
+    opacity: 0.72;
+  }
+  .dpadKey.dpadCenter:active { background: #141422; outline: none; }
+  #actionRow { display: flex; gap: 8px; width: 100%; max-width: 320px; margin-top: 4px; }
+  #actionRow button { flex: 1; padding: 10px; font-size: 0.82rem; }
+
+  #overlay {
+    position: absolute; inset: 0; z-index: 20;
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(10,10,20,0.92); text-align: center; padding: 20px;
+  }
+  #overlay.show { display: flex; }
+  #overlay h2 { margin: 0 0 8px; font-size: 1.5rem; }
+  #overlay.win h2 { color: #4ade80; }
+  #overlay.lose h2 { color: #f87171; }
+  #overlay p { color: #aaa; margin: 0 0 16px; font-size: 0.9rem; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<div id="lobby">
+  <h1>🧙 Emoji Rogue Smooth</h1>
+  <p class="sub">1층 · 연속 이동 · 앞·뒤 넷코드 · 2~4인 P2P</p>
+  <div class="hint" id="hintWeb">
+    <strong>실시간:</strong> WASD/키패드 — 마리오처럼 <strong>연속 이동</strong>.<br>
+    <strong>멀티:</strong> 내 입력 즉시 반영(앞) + 호스트 보정(뒤) · 방 만들기 → 시작.
+  </div>
+  <div class="hint hidden" id="hintFile">
+    <strong>로컬:</strong> 방 코드 → 대기실 → 방장 시작.<br>
+    <kbd>WASD</kbd> / 키패드 · <strong>연속 이동</strong> · 예측+보정 멀티.
+  </div>
+
+  <div class="mode-block" id="balanceOptions">
+    <h2>⚙️ 밸런스 (시작 전 설정)</h2>
+    <div class="tune-grid">
+      <label>플레이어 HP
+        <input type="number" id="cfgPlayerHp" min="10" max="999" value="60" step="5">
+        <small>기본 60 (예전 20의 3배)</small>
+      </label>
+      <label>적 HP 배율
+        <input type="number" id="cfgMobHpMult" min="0.3" max="5" value="1" step="0.1">
+        <small>1.0 = 기본 · 0.5 = 절반</small>
+      </label>
+    </div>
+  </div>
+
+  <div class="mode-block" id="gameOptions">
+    <label class="opt-label">
+      <input type="checkbox" id="optFog" checked>
+      <span>전장의 안개<small>체크: 미탐험 지역 숨김 (어려움) · 해제: 맵 전체 공개 (쉬움)</small></span>
+    </label>
+  </div>
+
+  <div class="mode-block" id="modeBlocks">
+    <h2>① 솔로</h2>
+    <p>혼자 1층 클리어</p>
+    <button class="btn-green" id="btnSolo">솔로 시작</button>
+  </div>
+
+  <div class="mode-block" id="coopBlock">
+    <h2>② 협동 (2~4인)</h2>
+    <p>대기실에서 모인 뒤 시작 · 🧙🦸👸🥷 · 실시간 동시 이동</p>
+    <div class="btn-row">
+      <button class="btn-primary" id="btnCoopHost">방 만들기</button>
+    </div>
+  </div>
+
+  <div class="mode-block hidden" id="joinPanel">
+    <h2>친구 방 참가</h2>
+    <input id="joinCodeInput" type="text" placeholder="방 코드 붙여넣기" autocomplete="off" spellcheck="false">
+    <div class="btn-row" style="margin-top:8px">
+      <button class="btn-red" id="btnJoin">참가</button>
+    </div>
+  </div>
+
+  <div id="waitingBox" class="hidden">
+    <div id="waitingTitle">대기실 — 친구를 기다리는 중…</div>
+    <a id="inviteLink" href="#" rel="noopener"></a>
+    <ul id="rosterList"></ul>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn-yellow" id="btnCopyLink">방 코드 복사</button>
+      <button class="btn-green hidden" id="btnStartGame" disabled>게임 시작 (2인 이상)</button>
+      <button class="btn-ghost" id="btnCancelWait">나가기</button>
+    </div>
+    <p id="guestWaitHint" class="hidden" style="margin:8px 0 0;font-size:0.78rem;color:#888">방장이 「게임 시작」을 누를 때까지 대기…</p>
+  </div>
+
+  <input id="roomInput" type="text" class="hidden" autocomplete="off">
+  <div id="roomBox" class="hidden">Peer ID: <b id="roomCode">—</b></div>
+  <div id="log"></div>
+</div>
+
+<div id="gameRoot" class="hidden">
+  <div id="fieldWrap">
+    <button type="button" id="backBtn" class="btn-ghost">← 로비</button>
+    <div id="hud">
+      <span class="floor">1층</span>
+      <span class="turn" id="turnLabel">Smooth</span>
+      <div id="playerBars"></div>
+      <span id="equipStats"></span>
+      <span>👹 <span id="mobVal">0</span></span>
+      <div id="tuneBar">
+        <span class="tune-title">⚙️ 밸런스</span>
+        <label>❤️ HP <input type="number" id="cfgPlayerHpLive" min="10" max="999" step="5" value="60"></label>
+        <label>👹 적× <input type="number" id="cfgMobHpLive" min="0.3" max="5" step="0.1" value="1"></label>
+        <button type="button" class="btn-ghost" id="btnApplyTune">적용</button>
+      </div>
+    </div>
+    <canvas id="fieldCanvas"></canvas>
+    <div id="logPanel"></div>
+    <div id="overlay">
+      <h2 id="overlayTitle">게임 오버</h2>
+      <p id="overlayMsg"></p>
+      <button class="btn-green" id="btnRetry">다시 시작</button>
+      <button class="btn-ghost" id="btnToLobby">로비로</button>
+    </div>
+  </div>
+  <div id="dpad">
+    <div class="dpadRow">
+      <button type="button" class="dpadKey" data-dir="nw" data-key="7"><span class="arrow">↖</span><span class="keyLabel">7</span></button>
+      <button type="button" class="dpadKey" data-dir="n"  data-key="8"><span class="arrow">↑</span><span class="keyLabel">8</span></button>
+      <button type="button" class="dpadKey" data-dir="ne" data-key="9"><span class="arrow">↗</span><span class="keyLabel">9</span></button>
+    </div>
+    <div class="dpadRow">
+      <button type="button" class="dpadKey" data-dir="w"  data-key="4"><span class="arrow">←</span><span class="keyLabel">4</span></button>
+      <button type="button" class="dpadKey dpadCenter" data-dir="center" aria-label="중앙 (미할당)" tabindex="-1"></button>
+      <button type="button" class="dpadKey" data-dir="e"  data-key="6"><span class="arrow">→</span><span class="keyLabel">6</span></button>
+    </div>
+    <div class="dpadRow">
+      <button type="button" class="dpadKey" data-dir="sw" data-key="1"><span class="arrow">↙</span><span class="keyLabel">1</span></button>
+      <button type="button" class="dpadKey" data-dir="s"  data-key="2"><span class="arrow">↓</span><span class="keyLabel">2</span></button>
+      <button type="button" class="dpadKey" data-dir="se" data-key="3"><span class="arrow">↘</span><span class="keyLabel">3</span></button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  const IS_FILE = location.protocol === 'file:';
+  const USE_ROOM_CODE = IS_FILE;
+  const MAX_PLAYERS = 4;
+  const SYNC_MS = 50;
+  const PLAYER_SPEED = 4.8;
+  const MOB_SPEED = 2.4;
+  const BODY_HALF = 0.28;
+  const MOB_HALF = 0.22;
+  const MOB_SEP = MOB_HALF * 2 + 0.04;
+  const EMOJI_FIT = 0.72;
+  const PLAYER_SEP = BODY_HALF * 2 + 0.04;
+  const CONTACT_RANGE = BODY_HALF + MOB_HALF + 0.02;
+  const BUMP_RANGE = CONTACT_RANGE + 0.02;
+  const ATK_CD = 0.45;
+  const MOB_ATK_CD = 0.55;
+  const RECONCILE_SNAP = 1.2;
+  const RECONCILE_BLEND = 0.28;
+  const DEFAULT_PLAYER_HP = 60;
+  const DEFAULT_MOB_HP_MULT = 1;
+
+  const TILE = { WALL: 0, FLOOR: 1, DOOR: 2 };
+  const PLAYER_DEFS = [
+    { emoji: '🧙', name: '마법사' },
+    { emoji: '🦸', name: '용사' },
+    { emoji: '👸', name: '공주' },
+    { emoji: '🥷', name: '닌자' }
+  ];
+  const EMOJI = {
+    wall: '🧱', exit: '🕳️', door: '🚪'
+  };
+  const ITEM_DEFS = {
+    potion: { kind: 'consumable', emoji: '🧪', name: '물약', heal: 10 },
+    weapon: { kind: 'weapon', emoji: '⚔️', name: '무기', atk: 2 },
+    shield: { kind: 'shield', emoji: '🛡️', name: '방패', block: 2 },
+    armor:  { kind: 'armor',  emoji: '🥋', name: '갑옷', def: 1, maxHp: 4 }
+  };
+  const ITEM_POOL = ['potion', 'weapon', 'shield', 'armor'];
+
+  const WASD_TO_DIR = { w: 'n', s: 's', a: 'w', d: 'e' };
+  const ARROW_TO_DIR = { ArrowUp: 'n', ArrowDown: 's', ArrowLeft: 'w', ArrowRight: 'e' };
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  function pickItemIdRnd(rnd) {
+    return ITEM_POOL[Math.floor(rnd() * ITEM_POOL.length)];
+  }
+
+  function pickMonsterDefRnd(rnd, hpMult) {
+    const mult = hpMult ?? DEFAULT_MOB_HP_MULT;
+    const total = MONSTER_DEFS.reduce((s, m) => s + m.w, 0);
+    let r = rnd() * total;
+    for (const m of MONSTER_DEFS) {
+      r -= m.w;
+      if (r <= 0) {
+        const hp = Math.max(1, Math.round(m.hp * mult));
+        return { emoji: m.emoji, hp, maxHp: hp, atk: m.atk, name: m.name, boss: !!m.boss };
+      }
+    }
+    const m = MONSTER_DEFS[0];
+    const hp = Math.max(1, Math.round(m.hp * mult));
+    return { emoji: m.emoji, hp, maxHp: hp, atk: m.atk, name: m.name, boss: !!m.boss };
+  }
+
+  function playerAtk(pl) { return pl.baseAtk + (pl.equip.weapon?.atk || 0); }
+  function playerDef(pl) { return pl.equip.armor?.def || 0; }
+  function playerBlock(pl) { return pl.equip.shield?.block || 0; }
+  function calcMaxHp(pl) { return pl.baseMaxHp + (pl.equip.armor?.maxHp || 0); }
+  function applyDamage(pl, raw) {
+    const reduced = Math.max(1, raw - playerDef(pl) - playerBlock(pl));
+    pl.hp = Math.max(0, pl.hp - reduced);
+    return reduced;
+  }
+  function gearIcons(pl) {
+    const g = [];
+    if (pl.equip.weapon) g.push(pl.equip.weapon.emoji);
+    if (pl.equip.shield) g.push(pl.equip.shield.emoji);
+    if (pl.equip.armor) g.push(pl.equip.armor.emoji);
+    return g.join('');
+  }
+  const EMOJI_FONT = "'Segoe UI Emoji', 'Segoe UI Symbol', 'Apple Color Emoji', sans-serif";
+  const MAP_W = 25;
+  const MAP_H = 17;
+  const SIGHT_RADIUS = 6;
+  const LOGIC_W = 625;
+  const LOGIC_H = 425;
+
+  const DIRS = {
+    nw: { dx: -1, dy: -1, key: '7' }, n: { dx: 0, dy: -1, key: '8' }, ne: { dx: 1, dy: -1, key: '9' },
+    w:  { dx: -1, dy: 0, key: '4' }, wait: { dx: 0, dy: 0, key: '5' }, e: { dx: 1, dy: 0, key: '6' },
+    sw: { dx: -1, dy: 1, key: '1' }, s: { dx: 0, dy: 1, key: '2' }, se: { dx: 1, dy: 1, key: '3' }
+  };
+  const KEY_TO_DIR = {};
+  Object.entries(DIRS).forEach(([name, d]) => {
+    KEY_TO_DIR[d.key] = name;
+    KEY_TO_DIR['Numpad' + d.key] = name;
+  });
+
+  const MONSTER_DEFS = [
+    { emoji: '👺', hp: 5, atk: 2, name: '고블린', w: 16 },
+    { emoji: '💀', hp: 4, atk: 2, name: '해골',   w: 14 },
+    { emoji: '🦇', hp: 3, atk: 2, name: '박쥐',   w: 12 },
+    { emoji: '🕷️', hp: 4, atk: 2, name: '거미',   w: 12 },
+    { emoji: '🐍', hp: 5, atk: 3, name: '뱀',     w: 10 },
+    { emoji: '👻', hp: 3, atk: 3, name: '유령',   w: 8 },
+    { emoji: '🧟', hp: 7, atk: 2, name: '좀비',   w: 10 },
+    { emoji: '🐺', hp: 6, atk: 3, name: '늑대',   w: 10 },
+    { emoji: '👹', hp: 8, atk: 3, name: '오크',   w: 8 },
+    { emoji: '🐻', hp: 10, atk: 3, name: '곰',    w: 5 },
+    { emoji: '🐉', hp: 16, atk: 5, name: '용',   w: 3, boss: true }
+  ];
+
+  function pickMonsterDef(rnd, hpMult) {
+    return pickMonsterDefRnd(rnd || Math.random, hpMult);
+  }
+
+  /* ── 로그라이크 랜덤 던전: 방 + 복도 ── */
+  function roomsOverlap(a, b, pad) {
+    return !(a.x + a.w + pad <= b.x || b.x + b.w + pad <= a.x ||
+             a.y + a.h + pad <= b.y || b.y + b.h + pad <= a.y);
+  }
+
+  function carveRoom(map, room) {
+    for (let y = room.y; y < room.y + room.h; y++) {
+      for (let x = room.x; x < room.x + room.w; x++) map[y][x] = TILE.FLOOR;
+    }
+  }
+
+  function carveH(map, x1, x2, y, width) {
+    const w = width ?? 3;
+    const xMin = Math.min(x1, x2), xMax = Math.max(x1, x2);
+    for (let t = 0; t < w; t++) {
+      const yy = y + t;
+      if (yy < 0 || yy >= map.length) continue;
+      for (let x = xMin; x <= xMax; x++) {
+        if (x >= 0 && x < map[0].length) map[yy][x] = TILE.FLOOR;
+      }
+    }
+  }
+
+  function carveV(map, y1, y2, x, width) {
+    const w = width ?? 3;
+    const yMin = Math.min(y1, y2), yMax = Math.max(y1, y2);
+    for (let t = 0; t < w; t++) {
+      const xx = x + t;
+      if (xx < 0 || xx >= map[0].length) continue;
+      for (let y = yMin; y <= yMax; y++) {
+        if (y >= 0 && y < map.length) map[y][xx] = TILE.FLOOR;
+      }
+    }
+  }
+
+  function carveBlob(map, cx, cy, w, h) {
+    for (let dy = 0; dy < h; dy++) {
+      for (let dx = 0; dx < w; dx++) {
+        const x = cx + dx, y = cy + dy;
+        if (x >= 0 && y >= 0 && x < map[0].length && y < map.length) map[y][x] = TILE.FLOOR;
+      }
+    }
+  }
+
+  function connectRooms(map, a, b, rnd) {
+    if (rnd() < 0.5) {
+      carveH(map, a.cx, b.cx, a.cy);
+      carveV(map, a.cy, b.cy, b.cx);
+      carveBlob(map, b.cx, a.cy, 3, 3);
+    } else {
+      carveV(map, a.cy, b.cy, a.cx);
+      carveH(map, a.cx, b.cx, b.cy);
+      carveBlob(map, a.cx, b.cy, 3, 3);
+    }
+  }
+
+  function roomFloorCells(map, room, inset) {
+    const cells = [];
+    const pad = inset || 0;
+    for (let y = room.y + pad; y < room.y + room.h - pad; y++) {
+      for (let x = room.x + pad; x < room.x + room.w - pad; x++) {
+        if (map[y][x] === TILE.FLOOR) cells.push({ x, y });
+      }
+    }
+    return cells;
+  }
+
+  function inRoom(x, y, room) {
+    return x >= room.x && x < room.x + room.w && y >= room.y && y < room.y + room.h;
+  }
+
+  function placeExitDoor(map, exitRoom, exit) {
+    const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+    for (const [dx, dy] of dirs) {
+      const nx = exit.x + dx, ny = exit.y + dy;
+      if (nx <= 0 || ny <= 0 || nx >= MAP_W - 1 || ny >= MAP_H - 1) continue;
+      if (map[ny][nx] === TILE.WALL) { map[ny][nx] = TILE.DOOR; return; }
+    }
+    for (let y = exitRoom.y; y < exitRoom.y + exitRoom.h; y++) {
+      for (let x = exitRoom.x; x < exitRoom.x + exitRoom.w; x++) {
+        for (const [dx, dy] of dirs) {
+          const nx = x + dx, ny = y + dy;
+          if (nx <= 0 || ny <= 0 || nx >= MAP_W - 1 || ny >= MAP_H - 1) continue;
+          if (map[ny][nx] === TILE.WALL) { map[ny][nx] = TILE.DOOR; return; }
+        }
+      }
+    }
+  }
+
+  function buildRandomDungeon(w, h, targetRooms, rnd) {
+    const rand = rnd || Math.random;
+    const map = Array.from({ length: h }, () => Array(w).fill(TILE.WALL));
+    const rooms = [];
+
+    for (let attempt = 0; attempt < 120 && rooms.length < targetRooms; attempt++) {
+      const rw = 4 + Math.floor(rand() * 5);
+      const rh = 3 + Math.floor(rand() * 4);
+      const rx = 1 + Math.floor(rand() * (w - rw - 2));
+      const ry = 1 + Math.floor(rand() * (h - rh - 2));
+      const room = {
+        x: rx, y: ry, w: rw, h: rh,
+        cx: Math.floor(rx + rw / 2), cy: Math.floor(ry + rh / 2)
+      };
+      if (rooms.some(r => roomsOverlap(r, room, 1))) continue;
+      carveRoom(map, room);
+      if (rooms.length) connectRooms(map, rooms[rooms.length - 1], room, rand);
+      rooms.push(room);
+    }
+    return { map, rooms };
+  }
+
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  /* ── 시야(FOV) · 전장의 안개 ── */
+  function bresenhamLine(x0, y0, x1, y1, visit) {
+    let dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+    const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    let err = dx - dy, x = x0, y = y0;
+    while (true) {
+      if (visit(x, y) === false) break;
+      if (x === x1 && y === y1) break;
+      const e2 = 2 * err;
+      if (e2 > -dy) { err -= dy; x += sx; }
+      if (e2 < dx) { err += dx; y += sy; }
+    }
+  }
+
+  function computeFOV(map, px, py, radius, w, h) {
+    const visible = new Set();
+    const key = (x, y) => `${x},${y}`;
+    visible.add(key(px, py));
+    for (let ty = py - radius; ty <= py + radius; ty++) {
+      for (let tx = px - radius; tx <= px + radius; tx++) {
+        if (tx < 0 || ty < 0 || tx >= w || ty >= h) continue;
+        const ddx = tx - px, ddy = ty - py;
+        if (ddx * ddx + ddy * ddy > radius * radius) continue;
+        bresenhamLine(px, py, tx, ty, (x, y) => {
+          visible.add(key(x, y));
+          return map[y][x] !== TILE.WALL;
+        });
+      }
+    }
+    return visible;
+  }
+
+  /* ── 벽 충돌 v5: 턴제와 동일 — floor(x),floor(y) 타일이 🧱이면 불가 ── */
+  function tileWalkable(map, tx, ty) {
+    if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return false;
+    const t = map[ty][tx];
+    return t === TILE.FLOOR || t === TILE.DOOR;
+  }
+
+  function onWalkableTile(map, x, y) {
+    return tileWalkable(map, Math.floor(x), Math.floor(y));
+  }
+
+  function nearestWalkable(map, x, y) {
+    if (onWalkableTile(map, x, y)) return { x, y };
+    let best = null, bestD = Infinity;
+    for (let ty = 0; ty < MAP_H; ty++) {
+      for (let tx = 0; tx < MAP_W; tx++) {
+        if (!tileWalkable(map, tx, ty)) continue;
+        const cx = tx + 0.5, cy = ty + 0.5;
+        const d = (cx - x) ** 2 + (cy - y) ** 2;
+        if (d < bestD) { bestD = d; best = { x: cx, y: cy }; }
+      }
+    }
+    return best || { x: 0.5, y: 0.5 };
+  }
+
+  function snapOffWall(map, ent) {
+    if (onWalkableTile(map, ent.x, ent.y)) {
+      ent.lastX = ent.x;
+      ent.lastY = ent.y;
+      return false;
+    }
+    if (ent.lastX != null && onWalkableTile(map, ent.lastX, ent.lastY)) {
+      ent.x = ent.lastX;
+      ent.y = ent.lastY;
+      return true;
+    }
+    const s = nearestWalkable(map, ent.x, ent.y);
+    ent.x = s.x;
+    ent.y = s.y;
+    ent.lastX = s.x;
+    ent.lastY = s.y;
+    return true;
+  }
+
+  function moveSmooth(map, x, y, vx, vy, dt) {
+    const ox = x, oy = y;
+    let nx = x, ny = y;
+    const dx = vx * dt, dy = vy * dt;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 1e-8) return { x, y };
+    const steps = Math.max(1, Math.ceil(dist / 0.03));
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      const tx = ox + dx * t, ty = oy + dy * t;
+      let sx = nx;
+      if (onWalkableTile(map, tx, ny)) sx = tx;
+      let sy = ny;
+      if (onWalkableTile(map, sx, ty)) sy = ty;
+      if (sx === nx && sy === ny) break;
+      nx = sx;
+      ny = sy;
+    }
+    return onWalkableTile(map, nx, ny) ? { x: nx, y: ny } : { x: ox, y: oy };
+  }
+
+  function countWallViolations(map, players, monsters) {
+    let n = 0;
+    players.forEach(p => {
+      if (p.hp > 0 && !onWalkableTile(map, p.x, p.y)) n++;
+    });
+    monsters.forEach(m => {
+      if (m.hp > 0 && !onWalkableTile(map, m.x, m.y)) n++;
+    });
+    return n;
+  }
+
+  function pushApart(x, y, ox, oy, minD) {
+    const d = Math.hypot(x - ox, y - oy);
+    if (d >= minD || d < 1e-4) return { x, y };
+    const push = minD - d;
+    return { x: x + (x - ox) / d * push, y: y + (y - oy) / d * push };
+  }
+
+  function entityTouching(x, y, ox, oy, minD) {
+    return Math.hypot(x - ox, y - oy) <= minD + 0.02;
+  }
+
+  function auditMapCollision(map) {
+    let badCenter = 0, badMove = 0, inWall = 0;
+    const dt = 1 / 60;
+    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
+    for (let ty = 0; ty < MAP_H; ty++) {
+      for (let tx = 0; tx < MAP_W; tx++) {
+        if (!tileWalkable(map, tx, ty)) continue;
+        const cx = tx + 0.5, cy = ty + 0.5;
+        if (!onWalkableTile(map, cx, cy)) badCenter++;
+        for (const [dx, dy] of dirs) {
+          if (!tileWalkable(map, tx + dx, ty + dy)) continue;
+          const moved = moveSmooth(map, cx, cy, dx * PLAYER_SPEED, dy * PLAYER_SPEED, dt);
+          if (!onWalkableTile(map, moved.x, moved.y)) inWall++;
+          if (onWalkableTile(map, tx + dx + 0.5, ty + dy + 0.5) &&
+              Math.hypot(moved.x - cx, moved.y - cy) < 0.001) badMove++;
+        }
+      }
+    }
+    return { ok: badCenter === 0 && badMove === 0 && inWall === 0, badCenter, badMove, inWall };
+  }
+
+  function normInput(dx, dy) {
+    if (!dx && !dy) return { dx: 0, dy: 0 };
+    const len = Math.hypot(dx, dy);
+    return { dx: dx / len, dy: dy / len };
+  }
+
+  /* ── PeerJS: 호스트 ↔ 최대 3명 (별 topology) ── */
+  const WwNet = (function () {
+    const PROTO = 1;
+    let peer = null;
+    let guestConn = null;
+    const clients = new Map();
+    let isHost = false;
+    let myIndex = 0;
+    let roomId = '';
+    let gameStarted = false;
+    let onData = null;
+    let onOpen = null;
+    let onClose = null;
+    let onError = null;
+    let onLobby = null;
+
+    function allocSlot() {
+      for (let i = 1; i < MAX_PLAYERS; i++) {
+        if (!clients.has(i)) return i;
+      }
+      return -1;
+    }
+
+    function buildRoster() {
+      const roster = [{
+        index: 0,
+        emoji: PLAYER_DEFS[0].emoji,
+        name: PLAYER_DEFS[0].name + (isHost ? ' (방장)' : ''),
+        connected: true
+      }];
+      [...clients.keys()].sort((a, b) => a - b).forEach(idx => {
+        roster.push({
+          index: idx,
+          emoji: PLAYER_DEFS[idx].emoji,
+          name: PLAYER_DEFS[idx].name,
+          connected: true
+        });
+      });
+      return roster;
+    }
+
+    function broadcast(data) {
+      clients.forEach(({ conn }) => { if (conn.open) conn.send(data); });
+    }
+
+    function broadcastLobby() {
+      const payload = { type: 'LOBBY', proto: PROTO, roster: buildRoster(), playerCount: buildRoster().length };
+      broadcast(payload);
+      onLobby && onLobby(payload);
+    }
+
+    function broadcastState(state) {
+      broadcast({ type: 'STATE', proto: PROTO, ...state });
+    }
+
+    function sendToHost(data) {
+      if (guestConn && guestConn.open) guestConn.send(data);
+    }
+
+    function initPeer(opts) {
+      const { asHost, remoteId, handlers } = opts;
+      isHost = asHost;
+      myIndex = asHost ? 0 : -1;
+      gameStarted = false;
+      clients.clear();
+      guestConn = null;
+      onData = handlers.onData || null;
+      onOpen = handlers.onOpen || null;
+      onClose = handlers.onClose || null;
+      onError = handlers.onError || null;
+      onLobby = handlers.onLobby || null;
+
+      peer = new Peer({ debug: 1 });
+      peer.on('open', (id) => {
+        roomId = id;
+        if (asHost) {
+          peer.on('connection', (connection) => {
+            connection.on('open', () => {
+              if (gameStarted) {
+                connection.send({ type: 'REJECT', reason: '이미 게임이 시작되었습니다' });
+                setTimeout(() => connection.close(), 300);
+                return;
+              }
+              const slot = allocSlot();
+              if (slot < 0) {
+                connection.send({ type: 'REJECT', reason: '방이 가득 찼습니다 (최대 4인)' });
+                setTimeout(() => connection.close(), 300);
+                return;
+              }
+              clients.set(slot, { conn: connection });
+              connection.send({ type: 'WELCOME', proto: PROTO, index: slot, roster: buildRoster() });
+              broadcastLobby();
+              onOpen && onOpen({ role: 'host', clientJoined: true, index: slot });
+
+              connection.on('data', (data) => { onData && onData(data); });
+              connection.on('close', () => {
+                clients.delete(slot);
+                if (!gameStarted) broadcastLobby();
+                else onData && onData({ type: 'PEER_LEFT', index: slot });
+              });
+            });
+          });
+          onOpen && onOpen({ id, role: 'host', roomReady: true });
+        } else {
+          guestConn = peer.connect(remoteId.trim(), { reliable: true });
+          guestConn.on('open', () => onOpen && onOpen({ role: 'client', connOpen: true }));
+          guestConn.on('data', (data) => {
+            if (data.type === 'WELCOME') myIndex = data.index;
+            onData && onData(data);
+          });
+          guestConn.on('close', () => { guestConn = null; onClose && onClose(); });
+        }
+      });
+      peer.on('error', (err) => { onError && onError(err); });
+    }
+
+    function startGameBroadcast(playerCount, fogOfWar, seed, config) {
+      gameStarted = true;
+      broadcast({ type: 'START', proto: PROTO, playerCount, fogOfWar: !!fogOfWar, seed, config });
+    }
+
+    function destroy() {
+      clients.forEach(({ conn }) => { try { conn.close(); } catch (e) {} });
+      clients.clear();
+      if (guestConn) guestConn.close();
+      if (peer) peer.destroy();
+      guestConn = null;
+      peer = null;
+      gameStarted = false;
+      myIndex = 0;
+    }
+
+    return {
+      PROTO, initPeer, broadcast, broadcastState, sendToHost, startGameBroadcast, destroy, buildRoster,
+      get isHost() { return isHost; },
+      get myIndex() { return myIndex; },
+      get roomId() { return roomId; },
+      get gameStarted() { return gameStarted; },
+      get playerCount() { return isHost ? buildRoster().length : 0; },
+      set gameStarted(v) { gameStarted = v; }
+    };
+  })();
+
+  /* ── DOM ── */
+  const lobby = document.getElementById('lobby');
+  const gameRoot = document.getElementById('gameRoot');
+  const canvas = document.getElementById('fieldCanvas');
+  const ctx = canvas.getContext('2d');
+  const logPanel = document.getElementById('logPanel');
+  const overlay = document.getElementById('overlay');
+  const overlayTitle = document.getElementById('overlayTitle');
+  const overlayMsg = document.getElementById('overlayMsg');
+  const turnLabel = document.getElementById('turnLabel');
+  const turnTimerEl = document.getElementById('turnTimer');
+  const mobVal = document.getElementById('mobVal');
+  const playerBarsEl = document.getElementById('playerBars');
+  const equipStatsEl = document.getElementById('equipStats');
+  const cfgPlayerHpEl = document.getElementById('cfgPlayerHp');
+  const cfgMobHpMultEl = document.getElementById('cfgMobHpMult');
+  const cfgPlayerHpLiveEl = document.getElementById('cfgPlayerHpLive');
+  const cfgMobHpLiveEl = document.getElementById('cfgMobHpLive');
+  const btnApplyTune = document.getElementById('btnApplyTune');
+  const optFog = document.getElementById('optFog');
+  const logEl = document.getElementById('log');
+  const roomBox = document.getElementById('roomBox');
+  const roomCode = document.getElementById('roomCode');
+  const roomInput = document.getElementById('roomInput');
+  const waitingBox = document.getElementById('waitingBox');
+  const inviteLinkEl = document.getElementById('inviteLink');
+  const waitingTitle = document.getElementById('waitingTitle');
+  const rosterListEl = document.getElementById('rosterList');
+  const btnStartGame = document.getElementById('btnStartGame');
+  const guestWaitHint = document.getElementById('guestWaitHint');
+  const joinPanel = document.getElementById('joinPanel');
+  const modeBlocks = document.getElementById('modeBlocks');
+  const coopBlock = document.getElementById('coopBlock');
+
+  let game = null;
+  let inCoopWait = false;
+  let currentInviteUrl = '';
+  let tilePx = 20;
+  const keysHeld = {};
+  let lastDir = null;
+
+  function lobbyLog(msg) { logEl.textContent = msg + '\n' + logEl.textContent; }
+
+  function copyText(text, msg) {
+    const done = () => lobbyLog(msg);
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(fallback);
+    } else fallback();
+    function fallback() {
+      const ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); ta.remove(); done();
+    }
+  }
+
+  function getInviteUrl(hostPeerId) {
+    const u = new URL(location.href);
+    u.search = ''; u.searchParams.set('join', hostPeerId);
+    return u.toString();
+  }
+
+  function getFogEnabled() { return optFog.checked; }
+
+  function readGameConfig(fromLive) {
+    const hpEl = fromLive ? cfgPlayerHpLiveEl : cfgPlayerHpEl;
+    const mobEl = fromLive ? cfgMobHpLiveEl : cfgMobHpMultEl;
+    return {
+      playerBaseHp: Math.max(10, Math.min(999, parseInt(hpEl?.value, 10) || DEFAULT_PLAYER_HP)),
+      mobHpMult: Math.max(0.3, Math.min(5, parseFloat(mobEl?.value) || DEFAULT_MOB_HP_MULT))
+    };
+  }
+
+  function syncTuneUi(cfg) {
+    const vHp = String(cfg.playerBaseHp);
+    const vMob = String(cfg.mobHpMult);
+    if (cfgPlayerHpEl) cfgPlayerHpEl.value = vHp;
+    if (cfgMobHpMultEl) cfgMobHpMultEl.value = vMob;
+    if (cfgPlayerHpLiveEl) cfgPlayerHpLiveEl.value = vHp;
+    if (cfgMobHpLiveEl) cfgMobHpLiveEl.value = vMob;
+  }
+
+  function syncTuneInputsFromLobby() {
+    syncTuneUi(readGameConfig(false));
+  }
+
+  function updateRosterUI(data) {
+    const roster = data.roster || WwNet.buildRoster();
+    const count = data.playerCount || roster.length;
+    rosterListEl.innerHTML = '';
+    roster.forEach(r => {
+      const li = document.createElement('li');
+      li.textContent = `${r.emoji} ${r.name}`;
+      rosterListEl.appendChild(li);
+    });
+    for (let i = count; i < MAX_PLAYERS; i++) {
+      const li = document.createElement('li');
+      li.className = 'empty';
+      li.textContent = `${PLAYER_DEFS[i].emoji} (빈 슬롯)`;
+      rosterListEl.appendChild(li);
+    }
+    waitingTitle.textContent = `대기실 — ${count}/${MAX_PLAYERS}명`;
+    if (WwNet.isHost) {
+      btnStartGame.disabled = count < 2;
+      btnStartGame.textContent = count < 2 ? '게임 시작 (2인 이상)' : `게임 시작 (${count}인)`;
+    }
+  }
+
+  function showCoopWait(hostPeerId, asHost) {
+    inCoopWait = true;
+    roomCode.textContent = hostPeerId;
+    roomBox.classList.remove('hidden');
+    modeBlocks.classList.add('hidden');
+    coopBlock.classList.add('hidden');
+    joinPanel.classList.add('hidden');
+    waitingBox.classList.remove('hidden');
+    btnStartGame.classList.toggle('hidden', !asHost);
+    guestWaitHint.classList.toggle('hidden', asHost);
+    document.getElementById('btnCopyLink').classList.toggle('hidden', !asHost);
+    optFog.disabled = !asHost;
+    document.getElementById('gameOptions').classList.toggle('hidden', !asHost);
+
+    if (asHost) {
+      if (USE_ROOM_CODE) {
+        currentInviteUrl = hostPeerId;
+        inviteLinkEl.textContent = '방 코드: ' + hostPeerId;
+        inviteLinkEl.href = '#';
+        inviteLinkEl.onclick = (e) => e.preventDefault();
+        document.getElementById('btnCopyLink').textContent = '방 코드 복사';
+      } else {
+        currentInviteUrl = getInviteUrl(hostPeerId);
+        inviteLinkEl.textContent = currentInviteUrl;
+        inviteLinkEl.href = currentInviteUrl;
+        document.getElementById('btnCopyLink').textContent = '초대 링크 복사';
+        const u = new URL(location.href);
+        u.search = ''; u.searchParams.set('host', hostPeerId);
+        history.replaceState(null, '', u.toString());
+      }
+    } else {
+      inviteLinkEl.textContent = '방장이 「게임 시작」을 누를 때까지 대기';
+      inviteLinkEl.href = '#';
+    }
+    updateRosterUI({ roster: WwNet.buildRoster(), playerCount: WwNet.isHost ? 1 : 0 });
+    lobbyLog(asHost ? '대기실 열림 — 친구를 초대하세요' : '대기실 입장 — 방장 시작 대기');
+  }
+
+  function hideCoopWait() {
+    inCoopWait = false;
+    waitingBox.classList.add('hidden');
+    roomBox.classList.add('hidden');
+    modeBlocks.classList.remove('hidden');
+    coopBlock.classList.remove('hidden');
+    if (USE_ROOM_CODE) joinPanel.classList.remove('hidden');
+    optFog.disabled = false;
+    document.getElementById('gameOptions').classList.remove('hidden');
+    currentInviteUrl = '';
+  }
+
+  function showLobby() {
+    if (game) { game.stop(); game = null; }
+    WwNet.destroy();
+    hideCoopWait();
+    overlay.classList.remove('show', 'win', 'lose');
+    gameRoot.classList.add('hidden');
+    lobby.classList.remove('hidden');
+    setDpadEnabled(false);
+    if (!IS_FILE) history.replaceState(null, '', location.pathname);
+  }
+
+  function showGame() {
+    hideCoopWait();
+    lobby.classList.add('hidden');
+    gameRoot.classList.remove('hidden');
+    syncTuneInputsFromLobby();
+  }
+
+  function setDpadEnabled(on) {
+    document.querySelectorAll('.dpadKey').forEach(btn => {
+      if (btn.dataset.dir === 'center' || btn.dataset.dir === 'wait') return;
+      btn.classList.toggle('disabled', !on);
+    });
+  }
+
+  function flashKey(keyOrDir) {
+    const sel = keyOrDir.length <= 2 && /^\d$/.test(keyOrDir)
+      ? `.dpadKey[data-key="${keyOrDir}"]`
+      : `.dpadKey[data-dir="${keyOrDir}"]`;
+    const el = document.querySelector(sel);
+    if (!el) return;
+    el.classList.add('pressed');
+    setTimeout(() => el.classList.remove('pressed'), 100);
+  }
+
+  /* ── Game ── */
+  class RogueGame {
+    constructor(opts) {
+      this.solo = opts.solo;
+      this.isHost = opts.isHost;
+      this.myIndex = opts.myIndex;
+      this.playerCount = opts.playerCount || 1;
+      this.onNet = opts.onNet;
+      this.seed = opts.seed || (Date.now() % 999999 | 0);
+      this.rnd = mulberry32(this.seed);
+      this.running = false;
+      this.map = [];
+      this.players = [];
+      this.monsters = [];
+      this.items = [];
+      this.exit = null;
+      this.logs = [];
+      this.gameOver = false;
+      this.gameResult = null;
+      this.explored = [];
+      this.visible = new Set();
+      this.fogOfWar = opts.fogOfWar !== false;
+      this.config = opts.config || readGameConfig(false);
+      this.lastT = 0;
+      this.lastSync = 0;
+      this.rafId = 0;
+    }
+
+    me() { return this.players[this.myIndex] || this.players[0]; }
+
+    stop() {
+      this.running = false;
+      cancelAnimationFrame(this.rafId);
+      setDpadEnabled(false);
+    }
+
+    log(msg) {
+      this.logs.unshift(msg);
+      if (this.logs.length > 5) this.logs.length = 5;
+      logPanel.textContent = this.logs.join('\n');
+    }
+
+    resize() {
+      canvas.width = LOGIC_W;
+      canvas.height = LOGIC_H;
+      tilePx = Math.floor(Math.min(LOGIC_W / MAP_W, LOGIC_H / MAP_H));
+    }
+
+    inBounds(x, y) { return x >= 0 && x < MAP_W && y >= 0 && y < MAP_H; }
+    isWalkable(x, y) {
+      if (!this.inBounds(x, y)) return false;
+      const t = this.map[y][x];
+      return t === TILE.FLOOR || t === TILE.DOOR;
+    }
+    tileOf(ent) { return { tx: Math.floor(ent.x), ty: Math.floor(ent.y) }; }
+    monsterAtTile(tx, ty) {
+      return this.monsters.find(m => m.hp > 0 && Math.floor(m.x) === tx && Math.floor(m.y) === ty);
+    }
+    playerAtTile(tx, ty) {
+      return this.players.find(p => p.hp > 0 && Math.floor(p.x) === tx && Math.floor(p.y) === ty);
+    }
+    itemAt(tx, ty) { return this.items.find(it => it.x === tx && it.y === ty); }
+
+    randomFloorCell(opts) {
+      const skipRoom = opts?.skipRoom;
+      const rnd = this.rnd;
+      for (let n = 0; n < 400; n++) {
+        const x = 1 + Math.floor(rnd() * (MAP_W - 2));
+        const y = 1 + Math.floor(rnd() * (MAP_H - 2));
+        if (this.map[y][x] !== TILE.FLOOR) continue;
+        if (skipRoom && inRoom(x, y, skipRoom)) continue;
+        if (this.playerAtTile(x, y)) continue;
+        if (this.monsterAtTile(x, y)) continue;
+        if (this.itemAt(x, y)) continue;
+        if (this.exit && this.exit.x === x && this.exit.y === y) continue;
+        return { x, y };
+      }
+      return null;
+    }
+
+    generateMap() {
+      const rnd = this.rnd;
+      const n = this.solo ? 1 : this.playerCount;
+      const baseHp = this.config.playerBaseHp;
+      const targetRooms = (this.solo ? 6 : 7) + Math.floor(rnd() * 3);
+      let rooms = [];
+
+      for (let tryN = 0; tryN < 24; tryN++) {
+        const built = buildRandomDungeon(MAP_W, MAP_H, targetRooms, rnd);
+        if (built.rooms.length >= 4) {
+          this.map = built.map;
+          rooms = built.rooms;
+          break;
+        }
+      }
+      if (!rooms.length) {
+        const fallback = buildRandomDungeon(MAP_W, MAP_H, 5, rnd);
+        this.map = fallback.map;
+        rooms = fallback.rooms;
+      }
+
+      const spawnRoom = rooms[0];
+      let exitRoom = rooms[0];
+      let bestDist = -1;
+      rooms.forEach(r => {
+        const d = Math.abs(r.cx - spawnRoom.cx) + Math.abs(r.cy - spawnRoom.cy);
+        if (d > bestDist) { bestDist = d; exitRoom = r; }
+      });
+      const exitCells = roomFloorCells(this.map, exitRoom, 1);
+      this.exit = exitCells.length
+        ? exitCells[Math.floor(rnd() * exitCells.length)]
+        : { x: exitRoom.cx, y: exitRoom.cy };
+      placeExitDoor(this.map, exitRoom, this.exit);
+
+      const spawnCells = shuffle(roomFloorCells(this.map, spawnRoom, 1));
+      this.players = [];
+      for (let i = 0; i < n; i++) {
+        const def = PLAYER_DEFS[i];
+        const cell = spawnCells[i] || spawnCells[0] || { x: spawnRoom.cx, y: spawnRoom.cy };
+        let px = cell.x + 0.5, py = cell.y + 0.5;
+        const spawnSafe = nearestWalkable(this.map, px, py);
+        px = spawnSafe.x;
+        py = spawnSafe.y;
+        this.players.push({
+          idx: i, x: px, y: py, lastX: px, lastY: py,
+          predX: px, predY: py, rx: px, ry: py,
+          hp: baseHp, maxHp: baseHp, baseMaxHp: baseHp, baseAtk: 3,
+          emoji: def.emoji, name: def.name,
+          equip: { weapon: null, shield: null, armor: null },
+          atkCd: 0, input: { dx: 0, dy: 0 }
+        });
+      }
+
+      this.monsters = [];
+      const mobCount = this.solo ? 6 + Math.floor(rnd() * 4) : 6 + n * 2 + Math.floor(rnd() * 3);
+      for (let i = 0; i < mobCount; i++) {
+        const cell = this.randomFloorCell({ skipRoom: spawnRoom });
+        if (!cell) break;
+        const def = pickMonsterDef(rnd, this.config.mobHpMult);
+        let mx = cell.x + 0.5, my = cell.y + 0.5;
+        const mobSafe = nearestWalkable(this.map, mx, my);
+        this.monsters.push({
+          ...def, x: mobSafe.x, y: mobSafe.y, lastX: mobSafe.x, lastY: mobSafe.y,
+          id: i, atkCd: rnd() * MOB_ATK_CD
+        });
+      }
+
+      this.items = [];
+      const itemCount = this.solo ? 8 : 6 + n * 2;
+      for (let i = 0; i < itemCount; i++) {
+        const cell = this.randomFloorCell({ skipRoom: spawnRoom });
+        if (!cell) break;
+        const id = pickItemIdRnd(rnd);
+        const def = ITEM_DEFS[id];
+        this.items.push({ x: cell.x, y: cell.y, id, emoji: def.emoji });
+      }
+
+      this.gameOver = false;
+      this.gameResult = null;
+      this.logs = [];
+      this.log(this.solo
+        ? `던전 ${rooms.length}구역 — 연속 이동 (Smooth)`
+        : `던전 ${rooms.length}구역 · ${n}인 · 예측+보정`);
+      this.log(this.fogOfWar ? '🌫️ 전장의 안개 ON' : '👁️ 맵 전체 공개 (쉬움)');
+      this.log(`❤️ HP ${baseHp} · 👹 적×${this.config.mobHpMult}`);
+      const audit = auditMapCollision(this.map);
+      this.log(audit.ok
+        ? `✅ 충돌 v5 타일 (Ctrl+F5)`
+        : `⚠️ 충돌 FAIL c:${audit.badCenter} m:${audit.badMove} w:${audit.inWall}`);
+      this.explored = Array.from({ length: MAP_H }, () => Array(MAP_W).fill(false));
+      this.updateVision();
+    }
+
+    revealAll() {
+      this.explored = Array.from({ length: MAP_H }, () => Array(MAP_W).fill(true));
+      this.visible = new Set();
+      for (let y = 0; y < MAP_H; y++) {
+        for (let x = 0; x < MAP_W; x++) this.visible.add(`${x},${y}`);
+      }
+    }
+
+    recomputeVisible() {
+      if (!this.fogOfWar) { this.revealAll(); return; }
+      this.visible = new Set();
+      this.alivePlayers().forEach(({ p }) => {
+        computeFOV(this.map, Math.floor(p.x), Math.floor(p.y), SIGHT_RADIUS, MAP_W, MAP_H)
+          .forEach(k => this.visible.add(k));
+      });
+    }
+
+    updateVision() {
+      if (!this.fogOfWar) { this.revealAll(); return; }
+      this.recomputeVisible();
+      if (this.solo || this.isHost) {
+        this.visible.forEach(k => {
+          const [x, y] = k.split(',').map(Number);
+          this.explored[y][x] = true;
+        });
+      }
+    }
+
+    isExplored(x, y) { return !this.fogOfWar || !!this.explored[y]?.[x]; }
+    isVisible(x, y) { return !this.fogOfWar || this.visible.has(`${x},${y}`); }
+
+    serialize() {
+      return {
+        map: this.map, players: this.players, monsters: this.monsters, items: this.items,
+        exit: this.exit, logs: this.logs, gameOver: this.gameOver, gameResult: this.gameResult,
+        solo: this.solo, playerCount: this.playerCount, explored: this.explored,
+        fogOfWar: this.fogOfWar, seed: this.seed,
+        config: this.config
+      };
+    }
+
+    pushSnap(p, sp, t) {
+      if (!p.snapCur) {
+        p.snapPrev = { x: sp.x, y: sp.y, t };
+        p.snapCur = { x: sp.x, y: sp.y, t };
+      } else {
+        p.snapPrev = { ...p.snapCur };
+        p.snapCur = { x: sp.x, y: sp.y, t };
+      }
+    }
+
+    applyState(data) {
+      if (data.playerCount) this.playerCount = data.playerCount;
+      if (data.seed && !this.map.length) this.seed = data.seed;
+      if (data.map) this.map = data.map;
+      if (data.players) {
+        data.players.forEach(sp => {
+          let p = this.players.find(x => x.idx === sp.idx);
+          if (!p && sp.idx !== undefined) {
+            p = {
+              ...sp, predX: sp.x, predY: sp.y, rx: sp.x, ry: sp.y,
+              atkCd: 0, input: { dx: 0, dy: 0 }
+            };
+            this.players.push(p);
+          }
+          if (!p) return;
+          const equip = sp.equip || p.equip || { weapon: null, shield: null, armor: null };
+          const baseAtk = sp.baseAtk ?? p.baseAtk ?? 3;
+          const baseMaxHp = sp.baseMaxHp ?? p.baseMaxHp ?? this.config?.playerBaseHp ?? DEFAULT_PLAYER_HP;
+          p.hp = sp.hp;
+          p.maxHp = sp.maxHp ?? calcMaxHp({ baseMaxHp, equip });
+          p.baseAtk = baseAtk;
+          p.baseMaxHp = baseMaxHp;
+          p.equip = equip;
+          p.emoji = sp.emoji ?? p.emoji;
+          p.name = sp.name ?? p.name;
+          if (!this.isHost && sp.idx !== this.myIndex) {
+            p.x = sp.x; p.y = sp.y;
+            this.pushSnap(p, sp, data.t || performance.now());
+          } else if (!this.isHost && sp.idx === this.myIndex) {
+            /* 뒷 넷코드: 호스트 권한 위치로 보정 */
+            p.x = sp.x; p.y = sp.y;
+            const px = p.predX ?? sp.x, py = p.predY ?? sp.y;
+            const err = Math.hypot(px - sp.x, py - sp.y);
+            if (err > RECONCILE_SNAP) {
+              p.predX = sp.x; p.predY = sp.y;
+            } else if (err > 0.04) {
+              p.predX = lerp(px, sp.x, RECONCILE_BLEND);
+              p.predY = lerp(py, sp.y, RECONCILE_BLEND);
+            } else {
+              p.predX = sp.x; p.predY = sp.y;
+            }
+          }
+        });
+      }
+      if (data.monsters) {
+        this.monsters = data.monsters.map(m => ({
+          ...m,
+          maxHp: m.maxHp ?? m.hp,
+          atkCd: m.atkCd ?? 0
+        }));
+      }
+      if (data.items) this.items = data.items;
+      if (data.exit) this.exit = data.exit;
+      if (data.logs) { this.logs = data.logs; logPanel.textContent = this.logs.join('\n'); }
+      if (data.gameOver !== undefined) this.gameOver = data.gameOver;
+      if (data.gameResult !== undefined) this.gameResult = data.gameResult;
+      if (data.fogOfWar !== undefined) this.fogOfWar = data.fogOfWar;
+      if (data.config) {
+        this.config = data.config;
+        syncTuneUi(this.config);
+      }
+      if (data.explored) this.explored = data.explored;
+      else if (!this.explored.length && this.map.length) {
+        this.explored = Array.from({ length: MAP_H }, () => Array(MAP_W).fill(false));
+      }
+      if (!this.fogOfWar) this.revealAll();
+      else this.recomputeVisible();
+      if (!this.running) {
+        this.running = true;
+        this.resize();
+        setDpadEnabled(true);
+        this.lastT = 0;
+        this.lastSync = 0;
+        cancelAnimationFrame(this.rafId);
+        this.rafId = requestAnimationFrame(ts => this.loop(ts));
+      }
+      if (this.gameOver) {
+        this.running = false;
+        cancelAnimationFrame(this.rafId);
+        this.showEndOverlay('', this.gameResult === 'WIN');
+      }
+      this.syncHud();
+    }
+
+    broadcastState() {
+      if (!this.onNet || !this.isHost) return;
+      this.onNet({
+        type: 'STATE', t: Date.now(), ...this.serialize(),
+        players: this.players.map(p => ({
+          idx: p.idx, x: p.x, y: p.y, hp: p.hp, maxHp: p.maxHp,
+          baseAtk: p.baseAtk, baseMaxHp: p.baseMaxHp, emoji: p.emoji, name: p.name,
+          equip: p.equip
+        }))
+      });
+    }
+
+    updateRenderPoses(now) {
+      const clampP = p => {
+        if (p.hp <= 0) return;
+        if (!onWalkableTile(this.map, p.rx ?? p.x, p.ry ?? p.y)) {
+          p.rx = p.lastX ?? p.x;
+          p.ry = p.lastY ?? p.y;
+        }
+      };
+      if (this.isHost || this.solo) {
+        this.players.forEach(p => {
+          if (p.hp <= 0) return;
+          p.rx = p.x;
+          p.ry = p.y;
+          clampP(p);
+        });
+        return;
+      }
+      this.players.forEach(p => {
+        if (p.hp <= 0) return;
+        if (p.idx === this.myIndex) {
+          p.rx = p.predX ?? p.x;
+          p.ry = p.predY ?? p.y;
+        } else if (!p.snapCur) {
+          p.rx = p.x;
+          p.ry = p.y;
+        } else {
+          const span = Math.max(1, p.snapCur.t - p.snapPrev.t);
+          const a = Math.min(1, (now - p.snapPrev.t) / span);
+          p.rx = lerp(p.snapPrev.x, p.snapCur.x, a);
+          p.ry = lerp(p.snapPrev.y, p.snapCur.y, a);
+        }
+        clampP(p);
+      });
+    }
+
+    collectInput() {
+      const me = this.me();
+      if (!me || me.hp <= 0 || this.gameOver) return;
+      let dx = 0, dy = 0;
+      if (lastDir && keysHeld[lastDir] && lastDir !== 'wait') {
+        dx = DIRS[lastDir].dx; dy = DIRS[lastDir].dy;
+      } else {
+        for (const name of Object.keys(DIRS)) {
+          if (name === 'wait') continue;
+          if (keysHeld[name]) { dx = DIRS[name].dx; dy = DIRS[name].dy; lastDir = name; break; }
+        }
+      }
+      me.input = { dx, dy };
+      if (!this.solo && !this.isHost && this.onNet) {
+        this.onNet({ type: 'INPUT', idx: this.myIndex, input: me.input });
+      }
+    }
+
+    predictLocal(dt) {
+      const me = this.me();
+      if (!me || me.hp <= 0) return;
+      const n = normInput(me.input.dx, me.input.dy);
+      let px = me.x, py = me.y;
+      if (n.dx || n.dy) {
+        const ox = me.x, oy = me.y;
+        const m = moveSmooth(this.map, px, py, n.dx * PLAYER_SPEED, n.dy * PLAYER_SPEED, dt);
+        const resolved = this.resolveEntityCollisions(me, m.x, m.y, ox, oy);
+        px = resolved.x;
+        py = resolved.y;
+      }
+      me.predX = px; me.predY = py;
+    }
+
+    applyGuestInput(idx, input) {
+      const p = this.players.find(x => x.idx === idx);
+      if (p && p.hp > 0) p.input = input || { dx: 0, dy: 0 };
+    }
+
+    resolveEntityCollisions(pl, nx, ny, ox, oy) {
+      let x = nx, y = ny;
+      if (!onWalkableTile(this.map, x, y)) { x = ox; y = oy; }
+      for (let pass = 0; pass < 2; pass++) {
+        for (const other of this.players) {
+          if (other === pl || other.hp <= 0) continue;
+          const bx = x, by = y;
+          ({ x, y } = pushApart(x, y, other.x, other.y, PLAYER_SEP));
+          if (!onWalkableTile(this.map, x, y)) { x = bx; y = by; }
+        }
+        for (const m of this.monsters) {
+          if (m.hp <= 0) continue;
+          const bx = x, by = y;
+          ({ x, y } = pushApart(x, y, m.x, m.y, CONTACT_RANGE));
+          if (!onWalkableTile(this.map, x, y)) { x = bx; y = by; }
+        }
+      }
+      if (!onWalkableTile(this.map, x, y)) return { x: ox, y: oy };
+      return { x, y };
+    }
+
+    fixAllWallPenetrations() {
+      this.players.filter(p => p.hp > 0).forEach(p => {
+        snapOffWall(this.map, p);
+        p.rx = p.x;
+        p.ry = p.y;
+        if (this.isHost || this.solo) { p.predX = p.x; p.predY = p.y; }
+      });
+      this.monsters.filter(m => m.hp > 0).forEach(m => snapOffWall(this.map, m));
+    }
+
+    separateAllEntities() {
+      for (let pass = 0; pass < 3; pass++) {
+        const livePlayers = this.players.filter(p => p.hp > 0);
+        for (let i = 0; i < livePlayers.length; i++) {
+          for (let j = i + 1; j < livePlayers.length; j++) {
+            const a = livePlayers[i], b = livePlayers[j];
+            const d = Math.hypot(a.x - b.x, a.y - b.y);
+            if (d >= PLAYER_SEP || d < 1e-4) continue;
+            const overlap = PLAYER_SEP - d;
+            const nx = (a.x - b.x) / d, ny = (a.y - b.y) / d;
+            const ax0 = a.x, ay0 = a.y, bx0 = b.x, by0 = b.y;
+            a.x += nx * overlap * 0.5;
+            a.y += ny * overlap * 0.5;
+            if (!onWalkableTile(this.map, a.x, a.y)) { a.x = ax0; a.y = ay0; }
+            b.x -= nx * overlap * 0.5;
+            b.y -= ny * overlap * 0.5;
+            if (!onWalkableTile(this.map, b.x, b.y)) { b.x = bx0; b.y = by0; }
+          }
+        }
+        for (const pl of livePlayers) {
+          for (const m of this.monsters) {
+            if (m.hp <= 0) continue;
+            const d = Math.hypot(pl.x - m.x, pl.y - m.y);
+            if (d >= CONTACT_RANGE || d < 1e-4) continue;
+            const overlap = CONTACT_RANGE - d;
+            const nx = (pl.x - m.x) / d, ny = (pl.y - m.y) / d;
+            const pbx = pl.x, pby = pl.y;
+            const mbx = m.x, mby = m.y;
+            pl.x += nx * overlap * 0.5;
+            pl.y += ny * overlap * 0.5;
+            m.x -= nx * overlap * 0.5;
+            m.y -= ny * overlap * 0.5;
+            if (!onWalkableTile(this.map, pl.x, pl.y)) { pl.x = pbx; pl.y = pby; }
+            if (!onWalkableTile(this.map, m.x, m.y)) { m.x = mbx; m.y = mby; }
+          }
+        }
+        livePlayers.forEach(pl => snapOffWall(this.map, pl));
+        const liveMobs = this.monsters.filter(m => m.hp > 0);
+        for (let i = 0; i < liveMobs.length; i++) {
+          for (let j = i + 1; j < liveMobs.length; j++) {
+            const a = liveMobs[i], b = liveMobs[j];
+            const d = Math.hypot(a.x - b.x, a.y - b.y);
+            if (d >= MOB_SEP || d < 1e-4) continue;
+            const overlap = MOB_SEP - d;
+            const nx = (a.x - b.x) / d, ny = (a.y - b.y) / d;
+            const ax0 = a.x, ay0 = a.y, bx0 = b.x, by0 = b.y;
+            a.x += nx * overlap * 0.5;
+            a.y += ny * overlap * 0.5;
+            if (!onWalkableTile(this.map, a.x, a.y)) { a.x = ax0; a.y = ay0; }
+            b.x -= nx * overlap * 0.5;
+            b.y -= ny * overlap * 0.5;
+            if (!onWalkableTile(this.map, b.x, b.y)) { b.x = bx0; b.y = by0; }
+          }
+        }
+        liveMobs.forEach(m => snapOffWall(this.map, m));
+      }
+    }
+
+    tryPickup(pl, pi) {
+      const tx = Math.floor(pl.x), ty = Math.floor(pl.y);
+      const it = this.itemAt(tx, ty);
+      if (it) this.pickupItem(it, pi);
+    }
+
+    tryBumpMonsters(pl, pi) {
+      if ((pl.atkCd || 0) > 0) return;
+      for (const m of this.monsters) {
+        if (m.hp <= 0) continue;
+        if (entityTouching(pl.x, pl.y, m.x, m.y, CONTACT_RANGE)) {
+          this.bumpCombat(m, pi);
+          pl.atkCd = ATK_CD;
+          break;
+        }
+      }
+    }
+
+    hostTick(dt) {
+      if (this.gameOver) return;
+
+      this.fixAllWallPenetrations();
+
+      this.players.forEach((pl, pi) => {
+        if (pl.hp <= 0) return;
+        pl.atkCd = Math.max(0, (pl.atkCd || 0) - dt);
+        const n = normInput(pl.input.dx, pl.input.dy);
+        if (!n.dx && !n.dy) return;
+        const ox = pl.x, oy = pl.y;
+        let moved = moveSmooth(this.map, pl.x, pl.y, n.dx * PLAYER_SPEED, n.dy * PLAYER_SPEED, dt);
+        const resolved = this.resolveEntityCollisions(pl, moved.x, moved.y, ox, oy);
+        pl.x = resolved.x;
+        pl.y = resolved.y;
+        if (onWalkableTile(this.map, pl.x, pl.y)) { pl.lastX = pl.x; pl.lastY = pl.y; }
+        if (this.isHost || this.solo) {
+          pl.predX = pl.x; pl.predY = pl.y;
+        }
+        this.tryPickup(pl, pi);
+        this.tryBumpMonsters(pl, pi);
+      });
+
+      this.monsters.filter(m => m.hp > 0).forEach(m => this.tickMonster(m, dt));
+
+      this.separateAllEntities();
+      this.fixAllWallPenetrations();
+
+      const wallBad = countWallViolations(this.map, this.players, this.monsters);
+      if (wallBad > 0) this.log(`⚠️ 벽침범 ${wallBad}`);
+
+      this.updateVision();
+      this.checkWin();
+    }
+
+    tickMonster(m, dt) {
+      if (this.gameOver || m.hp <= 0) return;
+      m.atkCd = Math.max(0, (m.atkCd || 0) - dt);
+      let best = null, bestD = Infinity;
+      for (const pl of this.players) {
+        if (pl.hp <= 0) continue;
+        const d = Math.hypot(pl.x - m.x, pl.y - m.y);
+        if (d < bestD) { bestD = d; best = pl; }
+      }
+      if (!best) return;
+      const dir = normInput(best.x - m.x, best.y - m.y);
+      if (dir.dx || dir.dy) {
+        const ox = m.x, oy = m.y;
+        const moved = moveSmooth(this.map, m.x, m.y, dir.dx * MOB_SPEED, dir.dy * MOB_SPEED, dt);
+        m.x = moved.x;
+        m.y = moved.y;
+        for (const pl of this.players) {
+          if (pl.hp <= 0) continue;
+          const mbx = m.x, mby = m.y;
+          ({ x: m.x, y: m.y } = pushApart(m.x, m.y, pl.x, pl.y, CONTACT_RANGE));
+          if (!onWalkableTile(this.map, m.x, m.y)) { m.x = mbx; m.y = mby; }
+        }
+        snapOffWall(this.map, m);
+      }
+      if (m.atkCd > 0) return;
+      for (const pl of this.players) {
+        if (pl.hp <= 0) continue;
+        if (!entityTouching(pl.x, pl.y, m.x, m.y, CONTACT_RANGE)) continue;
+        if ((pl.atkCd || 0) <= 0) {
+          const pi = this.players.indexOf(pl);
+          if (pi >= 0) {
+            this.bumpCombat(m, pi);
+            pl.atkCd = ATK_CD;
+          }
+        } else {
+          const taken = applyDamage(pl, m.atk);
+          this.log(`${m.name} → ${pl.name} ${taken} 피해`);
+          if (pl.hp <= 0) {
+            this.log(`${pl.name} 쓰러짐`);
+            if (!this.alivePlayers().length) this.endGame(false, '전원 전멸…');
+          }
+        }
+        m.atkCd = MOB_ATK_CD;
+        break;
+      }
+    }
+
+    loop(t) {
+      if (!this.running) return;
+      const dt = Math.min(0.05, (t - this.lastT) / 1000 || 0.016);
+      this.lastT = t;
+      this.collectInput();
+      if (!this.isHost && !this.solo && !this.gameOver) this.predictLocal(dt);
+      if (this.isHost || this.solo) {
+        this.hostTick(dt);
+        if (t - this.lastSync >= SYNC_MS) {
+          this.broadcastState();
+          this.lastSync = t;
+        }
+      }
+      this.draw();
+      this.rafId = requestAnimationFrame(ts => this.loop(ts));
+    }
+
+    alivePlayers() {
+      return this.players.map((p, i) => ({ p, i })).filter(x => x.p.hp > 0);
+    }
+
+    syncHud() {
+      const me = this.me();
+      playerBarsEl.innerHTML = '';
+      const showCount = this.solo ? 1 : this.playerCount;
+      for (let i = 0; i < showCount; i++) {
+        const p = this.players[i];
+        if (!p) continue;
+        const ratio = p.maxHp > 0 ? p.hp / p.maxHp : 0;
+        const barColor = ratio > 0.5 ? '#4ade80' : ratio > 0.25 ? '#fbbf24' : '#f87171';
+        const row = document.createElement('div');
+        row.className = 'pbar' + (p.hp <= 0 ? ' dead' : '') +
+          (i === this.myIndex && !this.gameOver ? ' active' : '');
+        row.innerHTML =
+          `<span class="emoji">${p.emoji}</span>` +
+          `<span class="bar-wrap"><span class="bar-fill" style="width:${Math.round(ratio * 100)}%;background:${barColor}"></span></span>` +
+          `<span class="hp-num">${p.hp}/${p.maxHp}</span>` +
+          (gearIcons(p) ? `<span class="gear">${gearIcons(p)}</span>` : '');
+        playerBarsEl.appendChild(row);
+      }
+
+      if (me && me.hp > 0) {
+        equipStatsEl.innerHTML =
+          `⚔️<b>${playerAtk(me)}</b> ` +
+          `🛡️<b>${playerBlock(me)}</b> ` +
+          `🥋<b>${playerDef(me)}</b>`;
+        equipStatsEl.classList.remove('hidden');
+      } else {
+        equipStatsEl.classList.add('hidden');
+      }
+      mobVal.textContent = this.monsters.filter(m => m.hp > 0).length;
+      turnLabel.textContent = this.solo ? '솔로 · Smooth' : `${this.playerCount}인 · 예측+보정`;
+      setDpadEnabled(this.running && !this.gameOver && me && me.hp > 0);
+    }
+
+    endGame(win, msg) {
+      this.gameOver = true;
+      this.gameResult = win ? 'WIN' : 'LOSE';
+      this.running = false;
+      cancelAnimationFrame(this.rafId);
+      this.showEndOverlay(msg, win);
+      this.syncHud();
+      this.broadcastState();
+    }
+
+    showEndOverlay(msg, win) {
+      overlay.className = win ? 'win show' : 'lose show';
+      overlayTitle.textContent = win ? '1층 클리어!' : '게임 오버';
+      overlayMsg.textContent = msg || '';
+      overlay.classList.add('show');
+    }
+
+    checkWin() {
+      const aliveMobs = this.monsters.filter(m => m.hp > 0).length;
+      const onExit = this.players.some(p =>
+        p.hp > 0 && Math.floor(p.x) === this.exit.x && Math.floor(p.y) === this.exit.y);
+      if (onExit && aliveMobs === 0) {
+        const hpSum = this.players.filter(p => p.hp > 0).map(p => p.hp).join(' / ');
+        this.endGame(true, `클리어! 생존 HP: ${hpSum}`);
+        return true;
+      }
+      if (onExit && aliveMobs > 0) this.log(`적 ${aliveMobs}마리 남음`);
+      return false;
+    }
+
+    bumpCombat(m, pi) {
+      const pl = this.players[pi];
+      const dmg = playerAtk(pl);
+      m.hp -= dmg;
+      this.log(`${pl.emoji} ${pl.equip.weapon?.emoji || '👊'} → ${m.name} ${dmg} 피해`);
+      if (m.hp <= 0) {
+        this.monsters = this.monsters.filter(x => x.id !== m.id);
+        this.log(m.boss ? '🐉 용을 쓰러뜨렸다!' : `${m.name} 처치!`);
+        if (!this.monsters.filter(x => x.hp > 0).length) this.log('적 전멸! 🕳️ 출구로');
+        return;
+      }
+      const taken = applyDamage(pl, m.atk);
+      this.log(`${m.name} 반격 ${taken} (HP ${pl.hp}/${pl.maxHp})`);
+      if (pl.hp <= 0) {
+        this.log(`${pl.name} 쓰러짐…`);
+        if (!this.alivePlayers().length) this.endGame(false, '전원 전멸…');
+      }
+    }
+
+    pickupItem(it, pi) {
+      const pl = this.players[pi];
+      const def = ITEM_DEFS[it.id];
+      if (!def) return;
+
+      if (def.kind === 'consumable') {
+        const before = pl.hp;
+        pl.hp = Math.min(pl.maxHp, pl.hp + def.heal);
+        this.log(`${def.emoji} ${def.name} +${pl.hp - before} (HP ${pl.hp}/${pl.maxHp})`);
+        this.items = this.items.filter(x => x !== it);
+        return;
+      }
+
+      const slot = def.kind;
+      if (pl.equip[slot]) {
+        this.log(`${def.emoji} ${def.name} — 이미 장착 중`);
+        return;
+      }
+
+      if (slot === 'armor') {
+        pl.equip.armor = { id: it.id, ...def };
+        pl.maxHp = calcMaxHp(pl);
+        pl.hp = Math.min(pl.maxHp, pl.hp + (def.maxHp || 0));
+      } else {
+        pl.equip[slot] = { id: it.id, ...def };
+      }
+      this.log(`${def.emoji} ${def.name} 장착! (⚔️${playerAtk(pl)} 🛡️${playerBlock(pl)} 🥋${playerDef(pl)})`);
+      this.items = this.items.filter(x => x !== it);
+    }
+
+    handlePeerLeft(index) {
+      const pl = this.players[index];
+      if (pl && pl.hp > 0) {
+        pl.hp = 0;
+        this.log(`${pl.name} 연결 끊김`);
+        if (!this.alivePlayers().length) this.endGame(false, '전원 이탈…');
+        else this.updateVision();
+      }
+    }
+
+    applyTuneToGame() {
+      if (!this.running || this.gameOver) return;
+      const oldCfg = { ...this.config };
+      const cfg = readGameConfig(true);
+      syncTuneUi(cfg);
+      this.config = cfg;
+
+      this.players.forEach(p => {
+        if (p.hp <= 0) return;
+        const oldBase = p.baseMaxHp;
+        p.baseMaxHp = cfg.playerBaseHp;
+        const oldMax = calcMaxHp({ baseMaxHp: oldBase, equip: p.equip });
+        const newMax = calcMaxHp(p);
+        if (oldMax > 0) p.hp = Math.min(newMax, Math.round(p.hp * newMax / oldMax));
+        else p.hp = Math.min(newMax, cfg.playerBaseHp);
+        p.maxHp = newMax;
+      });
+
+      const mobRatio = cfg.mobHpMult / (oldCfg.mobHpMult || DEFAULT_MOB_HP_MULT);
+      if (mobRatio !== 1) {
+        this.monsters.forEach(m => {
+          if (m.hp <= 0) return;
+          const oldMax = m.maxHp ?? m.hp;
+          m.maxHp = Math.max(1, Math.round(oldMax * mobRatio));
+          m.hp = Math.max(1, Math.round(m.hp * mobRatio));
+        });
+      }
+
+      this.log(`⚙️ 밸런스 적용 — HP ${cfg.playerBaseHp} · 적×${cfg.mobHpMult}`);
+      if (this.isHost || this.solo) this.broadcastState();
+    }
+
+    drawHpBar(cx, cy, hp, maxHp) {
+      const ratio = maxHp > 0 ? Math.max(0, hp / maxHp) : 0;
+      const barW = tilePx * 0.88;
+      const barH = Math.max(3, Math.floor(tilePx * 0.12));
+      const x = cx - barW / 2;
+      const y = cy - tilePx * 0.52;
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(x - 1, y - 1, barW + 2, barH + 2);
+      ctx.fillStyle = '#2a2a40';
+      ctx.fillRect(x, y, barW, barH);
+      ctx.fillStyle = ratio > 0.5 ? '#4ade80' : ratio > 0.25 ? '#fbbf24' : '#f87171';
+      ctx.fillRect(x, y, barW * ratio, barH);
+    }
+
+    drawEmoji(emoji, cx, cy, size) {
+      ctx.font = `${size}px ${EMOJI_FONT}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(emoji, cx, cy);
+    }
+
+    draw() {
+      this.updateRenderPoses(performance.now());
+      ctx.fillStyle = '#050508';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const offX = Math.floor((canvas.width - MAP_W * tilePx) / 2);
+      const offY = Math.floor((canvas.height - MAP_H * tilePx) / 2);
+      const emSize = Math.floor(tilePx * BODY_HALF * 2 * EMOJI_FIT);
+      const mobEmSize = Math.floor(tilePx * MOB_HALF * 2 * EMOJI_FIT);
+      const tileEmSize = Math.floor(tilePx * 0.58);
+
+      const drawTile = (x, y, px, py, lit) => {
+        const t = this.map[y]?.[x];
+        const alpha = lit ? 1 : 0.42;
+        ctx.globalAlpha = alpha;
+        if (t === TILE.WALL) {
+          ctx.fillStyle = lit ? '#2a2a40' : '#181824';
+          ctx.fillRect(px, py, tilePx, tilePx);
+          this.drawEmoji(EMOJI.wall, px + tilePx / 2, py + tilePx / 2, tileEmSize);
+        } else if (t === TILE.DOOR) {
+          ctx.fillStyle = lit ? '#1e3a2f' : '#142820';
+          ctx.fillRect(px, py, tilePx, tilePx);
+          this.drawEmoji(EMOJI.door, px + tilePx / 2, py + tilePx / 2, tileEmSize);
+        } else if (t === TILE.FLOOR) {
+          ctx.fillStyle = lit ? '#1a1a28' : '#101018';
+          ctx.fillRect(px, py, tilePx, tilePx);
+        }
+        ctx.globalAlpha = 1;
+        if (!lit) {
+          ctx.fillStyle = 'rgba(0,0,0,0.48)';
+          ctx.fillRect(px, py, tilePx, tilePx);
+        }
+      };
+
+      for (let y = 0; y < MAP_H; y++) {
+        for (let x = 0; x < MAP_W; x++) {
+          if (!this.isExplored(x, y)) continue;
+          const px = offX + x * tilePx, py = offY + y * tilePx;
+          drawTile(x, y, px, py, this.isVisible(x, y));
+        }
+      }
+
+      const drawEntityAt = (gx, gy, drawFn) => {
+        const tx = Math.round(gx), ty = Math.round(gy);
+        if (!this.isVisible(tx, ty)) return;
+        const cx = offX + gx * tilePx + tilePx / 2;
+        const cy = offY + gy * tilePx + tilePx / 2;
+        drawFn(cx, cy);
+      };
+
+      this.items.forEach(it => {
+        drawEntityAt(it.x, it.y, (cx, cy) => this.drawEmoji(it.emoji, cx, cy, emSize));
+      });
+      if (this.exit) {
+        drawEntityAt(this.exit.x, this.exit.y, (cx, cy) => this.drawEmoji(EMOJI.exit, cx, cy, emSize));
+      }
+      this.monsters.filter(m => m.hp > 0).forEach(m => {
+        drawEntityAt(m.x, m.y, (cx, cy) => {
+          this.drawHpBar(cx, cy, m.hp, m.maxHp ?? m.hp);
+          this.drawEmoji(m.emoji, cx, cy, mobEmSize);
+        });
+      });
+      this.players.forEach((p, i) => {
+        if (p.hp <= 0) return;
+        const gx = (this.isHost || this.solo) ? p.x : (p.rx ?? p.x);
+        const gy = (this.isHost || this.solo) ? p.y : (p.ry ?? p.y);
+        drawEntityAt(gx, gy, (cx, cy) => {
+          this.drawHpBar(cx, cy, p.hp, p.maxHp);
+          if (i === this.myIndex && !this.gameOver) {
+            ctx.strokeStyle = '#60a5fa';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(cx, cy, tilePx * BODY_HALF, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+          this.drawEmoji(p.emoji, cx, cy, emSize);
+          const gear = gearIcons(p);
+          if (gear) {
+            ctx.font = `${Math.floor(tilePx * 0.28)}px ${EMOJI_FONT}`;
+            ctx.textAlign = 'left';
+            ctx.fillText(gear, cx + tilePx * 0.15, cy + tilePx * 0.38);
+          }
+        });
+      });
+      this.syncHud();
+    }
+
+    start() {
+      this.running = true;
+      this.resize();
+      this.generateMap();
+      setDpadEnabled(true);
+      overlay.classList.remove('show', 'win', 'lose');
+      this.lastT = 0;
+      this.lastSync = 0;
+      cancelAnimationFrame(this.rafId);
+      this.rafId = requestAnimationFrame(ts => this.loop(ts));
+      if (this.isHost) this.broadcastState();
+    }
+  }
+
+  function makeNetHandler(isHost) {
+    return (payload) => {
+      if (payload.type === 'STATE') WwNet.broadcastState(payload);
+      else WwNet.broadcast(payload);
+    };
+  }
+
+  function hostBeginGame() {
+    const count = WwNet.playerCount;
+    if (count < 2) return;
+    const fogOfWar = getFogEnabled();
+    const seed = Date.now() % 999999 | 0;
+    const config = readGameConfig(false);
+    syncTuneUi(config);
+    WwNet.startGameBroadcast(count, fogOfWar, seed, config);
+    showGame();
+    game = new RogueGame({
+      solo: false, isHost: true, myIndex: 0, playerCount: count, fogOfWar, seed, config,
+      onNet: makeNetHandler(true)
+    });
+    game.start();
+  }
+
+  function clientBeginGame(playerCount, fogOfWar, seed, config) {
+    showGame();
+    const cfg = config || readGameConfig(false);
+    syncTuneUi(cfg);
+    game = new RogueGame({
+      solo: false, isHost: false, myIndex: WwNet.myIndex, playerCount,
+      fogOfWar: fogOfWar !== false, seed: seed || 0, config: cfg,
+      onNet: (payload) => WwNet.sendToHost(payload)
+    });
+  }
+
+  function startSolo() {
+    const config = readGameConfig(false);
+    syncTuneUi(config);
+    showGame();
+    game = new RogueGame({
+      solo: true, isHost: true, myIndex: 0, playerCount: 1, fogOfWar: getFogEnabled(), config,
+      onNet: null
+    });
+    game.start();
+  }
+
+  function handleNetData(data) {
+    if (data.type === 'LOBBY') {
+      updateRosterUI(data);
+    } else if (data.type === 'WELCOME' && !WwNet.isHost) {
+      showCoopWait(roomInput.value.trim(), false);
+      updateRosterUI({ roster: data.roster, playerCount: data.roster.length });
+      lobbyLog(`대기실 입장 (${PLAYER_DEFS[data.index].emoji} 슬롯 ${data.index + 1})`);
+    } else if (data.type === 'START' && !WwNet.isHost) {
+      clientBeginGame(data.playerCount, data.fogOfWar, data.seed, data.config);
+      lobbyLog(data.fogOfWar !== false ? '실시간 시작! (안개 ON)' : '실시간 시작! (맵 공개)');
+    } else if (data.type === 'STATE' && game) {
+      game.applyState(data);
+    } else if (data.type === 'INPUT' && game && WwNet.isHost) {
+      game.applyGuestInput(data.idx, data.input);
+    } else if (data.type === 'PEER_LEFT' && game && WwNet.isHost) {
+      game.handlePeerLeft(data.index);
+    } else if (data.type === 'REJECT') {
+      lobbyLog('거부: ' + data.reason);
+      if (!WwNet.isHost) showLobby();
+    }
+  }
+
+  function startNet(asHost) {
+    const remoteId = roomInput.value.trim();
+    if (!asHost && !remoteId) {
+      lobbyLog(USE_ROOM_CODE ? '방 코드를 입력하세요' : '초대 링크가 없습니다');
+      return;
+    }
+
+    WwNet.initPeer({
+      asHost,
+      remoteId,
+      handlers: {
+        onOpen: (info) => {
+          if (info.role === 'host' && info.roomReady) {
+            showCoopWait(info.id, true);
+          } else if (info.role === 'host' && info.clientJoined) {
+            lobbyLog(`${PLAYER_DEFS[info.index].emoji} 입장`);
+          } else if (info.role === 'client' && info.connOpen) {
+            lobbyLog('호스트에 연결됨 — 대기실');
+          }
+        },
+        onLobby: updateRosterUI,
+        onData: handleNetData,
+        onClose: () => {
+          if (!WwNet.gameStarted) lobbyLog('연결 종료');
+          else if (game) game.log('연결 종료');
+          else showLobby();
+        },
+        onError: (e) => lobbyLog('Peer 오류: ' + (e.type || e.message))
+      }
+    });
+  }
+
+  function setDirHeld(dir, down) {
+    if (!dir || dir === 'wait') return;
+    keysHeld[dir] = down;
+    if (down) lastDir = dir;
+    else if (lastDir === dir) lastDir = null;
+  }
+
+  function bindInput() {
+    document.querySelectorAll('.dpadKey').forEach(btn => {
+      if (btn.dataset.dir === 'center' || btn.dataset.dir === 'wait') return;
+      const dir = btn.dataset.dir;
+      const onDown = (e) => {
+        e.preventDefault();
+        if (!game || game.gameOver) return;
+        setDirHeld(dir, true);
+        flashKey(dir);
+      };
+      const onUp = (e) => {
+        e.preventDefault();
+        setDirHeld(dir, false);
+      };
+      btn.addEventListener('touchstart', onDown, { passive: false });
+      btn.addEventListener('touchend', onUp, { passive: false });
+      btn.addEventListener('touchcancel', onUp, { passive: false });
+      btn.addEventListener('mousedown', onDown);
+      btn.addEventListener('mouseup', onUp);
+      btn.addEventListener('mouseleave', onUp);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (!game || game.gameOver) return;
+      let dir = KEY_TO_DIR[e.code] || KEY_TO_DIR[e.key];
+      if (!dir && e.key.length === 1) {
+        const k = e.key.toLowerCase();
+        if (WASD_TO_DIR[k]) dir = WASD_TO_DIR[k];
+      }
+      if (!dir && ARROW_TO_DIR[e.code]) dir = ARROW_TO_DIR[e.code];
+      if (!dir || dir === 'wait') return;
+      if (keysHeld[dir]) return;
+      e.preventDefault();
+      setDirHeld(dir, true);
+      flashKey(DIRS[dir].key);
+    });
+    document.addEventListener('keyup', (e) => {
+      let dir = KEY_TO_DIR[e.code] || KEY_TO_DIR[e.key];
+      if (!dir && e.key.length === 1) {
+        const k = e.key.toLowerCase();
+        if (WASD_TO_DIR[k]) dir = WASD_TO_DIR[k];
+      }
+      if (!dir && ARROW_TO_DIR[e.code]) dir = ARROW_TO_DIR[e.code];
+      if (!dir || dir === 'wait') return;
+      e.preventDefault();
+      setDirHeld(dir, false);
+    });
+    window.addEventListener('blur', () => {
+      Object.keys(keysHeld).forEach(k => { keysHeld[k] = false; });
+      lastDir = null;
+    });
+  }
+
+  function initLobbyUi() {
+    if (USE_ROOM_CODE) {
+      document.getElementById('hintWeb').classList.add('hidden');
+      document.getElementById('hintFile').classList.remove('hidden');
+      joinPanel.classList.remove('hidden');
+    }
+  }
+
+  function bootFromInviteUrl() {
+    if (USE_ROOM_CODE) return;
+    const join = new URLSearchParams(location.search).get('join');
+    if (!join) return;
+    roomInput.value = join;
+    lobbyLog('초대 링크 감지 — 연결 중…');
+    startNet(false);
+  }
+
+  document.getElementById('btnSolo').addEventListener('click', startSolo);
+  document.getElementById('btnCoopHost').addEventListener('click', () => startNet(true));
+  document.getElementById('btnJoin').addEventListener('click', () => {
+    roomInput.value = document.getElementById('joinCodeInput').value.trim();
+    startNet(false);
+  });
+  document.getElementById('btnStartGame').addEventListener('click', hostBeginGame);
+  document.getElementById('btnCopyLink').addEventListener('click', () => {
+    if (USE_ROOM_CODE) copyText(roomCode.textContent, '방 코드 복사됨');
+    else if (currentInviteUrl) copyText(currentInviteUrl, '초대 링크 복사됨');
+  });
+  document.getElementById('btnCancelWait').addEventListener('click', showLobby);
+  document.getElementById('backBtn').addEventListener('click', showLobby);
+  document.getElementById('btnToLobby').addEventListener('click', showLobby);
+  document.getElementById('btnRetry').addEventListener('click', () => {
+    overlay.classList.remove('show', 'win', 'lose');
+    if (game?.solo) startSolo();
+    else showLobby();
+  });
+  btnApplyTune?.addEventListener('click', () => {
+    if (!game?.running || game.gameOver) return;
+    if (!game.solo && !game.isHost) {
+      game.log('밸런스 변경은 방장만 적용 가능');
+      return;
+    }
+    game.applyTuneToGame();
+  });
+  window.addEventListener('resize', () => { if (game?.running) game.resize(); });
+
+  bindInput();
+  initLobbyUi();
+  bootFromInviteUrl();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Neon Ruin — 실시간 P2P 슈터</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #030308; color: #eee; font-family: system-ui, sans-serif; overflow: hidden; }
+  .hidden { display: none !important; }
+
+  #lobby {
+    min-height: 100dvh; padding: 20px; max-width: 500px; margin: 0 auto;
+    display: flex; flex-direction: column; gap: 12px; justify-content: center;
+  }
+  #lobby h1 { font-size: 1.45rem; text-align: center; text-shadow: 0 0 16px #0ff; }
+  #lobby p, #lobby .hint { font-size: 0.82rem; color: #888; line-height: 1.5; }
+  #lobby .hint { background: #0a0a18; border: 1px solid #334; border-radius: 10px; padding: 12px; color: #aaa; }
+  #lobby kbd { background: #1a1a30; border: 1px solid #446; border-radius: 4px; padding: 2px 6px; color: #0ff; }
+  .mode-block { background: #16213e; border: 1px solid #334; border-radius: 12px; padding: 14px; }
+  .mode-block h2 { margin: 0 0 6px; font-size: 0.95rem; color: #7ec8e3; }
+  .mode-block p { margin: 0 0 8px; font-size: 0.75rem; color: #666; }
+  button {
+    border: none; border-radius: 10px; padding: 12px 14px; font-size: 0.9rem;
+    cursor: pointer; touch-action: manipulation; font-weight: 600;
+  }
+  .btn-go { background: linear-gradient(135deg, #0ff, #f0f); color: #000; }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-red { background: #dc2626; color: #fff; }
+  .btn-yellow { background: #ca8a04; color: #fff; }
+  .btn-ghost { background: #334; color: #ddd; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #445; background: #1a1a2e; color: #eee; }
+  #roomBox, #waitingBox {
+    background: #0f3460; padding: 12px; border-radius: 8px; font-size: 0.82rem;
+    border: 1px solid #2563eb; word-break: break-all;
+  }
+  #waitingBox { border-color: #ca8a04; }
+  #rosterList { list-style: none; margin: 8px 0; line-height: 1.7; }
+  #log { font-size: 0.72rem; color: #4ade80; max-height: 80px; overflow-y: auto; white-space: pre-wrap; }
+
+  #gameRoot { position: fixed; inset: 0; display: flex; flex-direction: column; }
+  #hud {
+    flex-shrink: 0; padding: 8px 12px; display: flex; flex-wrap: wrap; gap: 8px 14px;
+    align-items: center; background: rgba(3,3,8,0.92); border-bottom: 1px solid #223;
+    font-size: clamp(10px, 2.5vw, 12px);
+  }
+  #hud .hp { color: #f87171; font-weight: 700; }
+  #hud .wave { color: #0ff; }
+  #hud .score { color: #f0f; }
+  .pbar { display: flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 6px; background: #111; border: 1px solid #333; }
+  .pbar.me { border-color: #0ff; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; }
+  #canvasWrap { flex: 1; position: relative; min-height: 0; }
+  #gameCanvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+  #backBtn { position: absolute; top: 8px; right: 8px; z-index: 10; padding: 6px 10px; font-size: 11px; }
+  #overlay {
+    position: absolute; inset: 0; display: none; flex-direction: column; align-items: center;
+    justify-content: center; background: rgba(3,3,8,0.92); text-align: center; padding: 20px; z-index: 20;
+  }
+  #overlay.show { display: flex; }
+  #overlay h2 { color: #0ff; text-shadow: 0 0 12px #0ff; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<div id="lobby">
+  <h1>Neon Ruin</h1>
+  <p style="text-align:center">탑뷰 실시간 · 원거리 사격 · Bullet Echo / DoomRL lite</p>
+  <div class="hint" id="hintWeb">
+    <strong>네온 도형</strong> (이모지 없음 — 가볍게 렌더)<br>
+    <kbd>WASD</kbd> 이동 · <strong>마우스</strong> 조준 · <kbd>클릭</kbd>/<kbd>Space</kbd> 사격<br>
+    시야 밖은 어둠 · 협동 2~4인 P2P
+  </div>
+  <div class="hint hidden" id="hintFile">로컬: 방 코드 공유</div>
+
+  <div class="mode-block">
+    <h2>① 솔로</h2>
+    <button class="btn-go" id="btnSolo">솔로 돌입</button>
+  </div>
+  <div class="mode-block">
+    <h2>② 협동 (2~4인)</h2>
+    <button class="btn-primary" id="btnHost">방 만들기</button>
+  </div>
+  <div class="mode-block hidden" id="joinPanel">
+    <input id="joinCodeInput" placeholder="방 코드">
+    <div style="margin-top:8px"><button class="btn-red" id="btnJoin">참가</button></div>
+  </div>
+  <div id="waitingBox" class="hidden">
+    <div id="waitingTitle">대기실</div>
+    <a id="inviteLink" href="#" style="color:#7ec8e3;font-size:0.78rem"></a>
+    <ul id="rosterList"></ul>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
+      <button class="btn-yellow" id="btnCopyLink">링크 복사</button>
+      <button class="btn-go hidden" id="btnStartGame" disabled>시작 (2인+)</button>
+      <button class="btn-ghost" id="btnCancelWait">나가기</button>
+    </div>
+    <p id="guestWaitHint" class="hidden" style="font-size:0.75rem;color:#666">방장 시작 대기</p>
+  </div>
+  <input id="roomInput" type="hidden">
+  <div id="roomBox" class="hidden">Peer: <b id="roomCode">—</b></div>
+  <div id="log"></div>
+</div>
+
+<div id="gameRoot" class="hidden">
+  <div id="hud">
+    <span class="hp">HP <span id="hpVal">100</span></span>
+    <span class="wave">Wave <span id="waveVal">1</span></span>
+    <span class="score">Kills <span id="killVal">0</span></span>
+    <div id="teamBars" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+  </div>
+  <div id="canvasWrap">
+    <canvas id="gameCanvas"></canvas>
+    <button type="button" id="backBtn" class="btn-ghost">← 로비</button>
+    <div id="overlay">
+      <h2 id="overlayTitle">GAME OVER</h2>
+      <p id="overlayMsg"></p>
+      <button class="btn-go" id="btnRetry">다시</button>
+      <button class="btn-ghost" id="btnMenu">로비</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  const IS_FILE = location.protocol === 'file:';
+  const USE_ROOM_CODE = IS_FILE;
+  const MAX_PLAYERS = 4;
+  const SYNC_HZ = 20;
+  const SYNC_MS = 1000 / SYNC_HZ;
+
+  const MAP_W = 960;
+  const MAP_H = 960;
+  const TILE = 48;
+  const VISION = 200;
+  const PLAYER_R = 14;
+  const BULLET_SPEED = 520;
+  const FIRE_CD = 0.22;
+  const ENEMY_SPEED = 72;
+  const WAVE_BASE = 4;
+
+  const COL = {
+    bg: '#030308', wall: '#141428', wallEdge: '#0ff',
+    player: ['#0ff', '#f87171', '#fbbf24', '#a78bfa'],
+    enemy: '#ff00aa', enemyCore: '#330022',
+    bulletP: '#0ff', bulletE: '#f0f',
+    fog: 'rgba(3,3,8,0.92)'
+  };
+
+  const Net = (function () {
+    let peer, guestConn, clients = new Map();
+    let isHost = false, myIndex = 0, roomId = '', gameStarted = false;
+    let onData, onOpen, onClose, onError, onLobby;
+
+    function allocSlot() {
+      for (let i = 1; i < MAX_PLAYERS; i++) if (!clients.has(i)) return i;
+      return -1;
+    }
+    function buildRoster() {
+      const names = ['마법사', '용사', '공주', '닌자'];
+      const r = [{ index: 0, name: names[0] + (isHost ? ' (방장)' : ''), color: COL.player[0] }];
+      [...clients.keys()].sort((a, b) => a - b).forEach(i => {
+        r.push({ index: i, name: names[i], color: COL.player[i] });
+      });
+      return r;
+    }
+    function broadcast(d) { clients.forEach(({ conn }) => { if (conn.open) conn.send(d); }); }
+    function broadcastLobby() {
+      const p = { type: 'LOBBY', roster: buildRoster(), playerCount: buildRoster().length };
+      broadcast(p); onLobby && onLobby(p);
+    }
+    function sendToHost(d) { if (guestConn?.open) guestConn.send(d); }
+
+    function init(opts) {
+      const { asHost, remoteId, handlers } = opts;
+      isHost = asHost; myIndex = asHost ? 0 : -1; gameStarted = false;
+      clients.clear(); guestConn = null;
+      onData = handlers.onData; onOpen = handlers.onOpen;
+      onClose = handlers.onClose; onError = handlers.onError; onLobby = handlers.onLobby;
+      peer = new Peer({ debug: 0 });
+      peer.on('open', id => {
+        roomId = id;
+        if (asHost) {
+          peer.on('connection', conn => {
+            conn.on('open', () => {
+              if (gameStarted) { conn.send({ type: 'REJECT', reason: '이미 시작' }); conn.close(); return; }
+              const slot = allocSlot();
+              if (slot < 0) { conn.send({ type: 'REJECT', reason: '방 가득' }); conn.close(); return; }
+              clients.set(slot, { conn });
+              conn.send({ type: 'WELCOME', index: slot, roster: buildRoster() });
+              broadcastLobby();
+              onOpen && onOpen({ clientJoined: true, index: slot });
+              conn.on('data', d => onData && onData(d, slot));
+              conn.on('close', () => {
+                clients.delete(slot);
+                if (!gameStarted) broadcastLobby();
+                else onData && onData({ type: 'PEER_LEFT', index: slot });
+              });
+            });
+          });
+          onOpen && onOpen({ id, roomReady: true });
+        } else {
+          guestConn = peer.connect(remoteId.trim(), { reliable: true });
+          guestConn.on('open', () => onOpen && onOpen({ connOpen: true }));
+          guestConn.on('data', d => { if (d.type === 'WELCOME') myIndex = d.index; onData && onData(d); });
+          guestConn.on('close', () => { guestConn = null; onClose && onClose(); });
+        }
+      });
+      peer.on('error', e => onError && onError(e));
+    }
+
+    function startGame(seed) {
+      gameStarted = true;
+      broadcast({ type: 'START', seed, playerCount: buildRoster().length });
+    }
+    function destroy() {
+      clients.forEach(({ conn }) => { try { conn.close(); } catch (e) {} });
+      clients.clear();
+      if (guestConn) guestConn.close();
+      if (peer) peer.destroy();
+      peer = null; gameStarted = false; myIndex = 0;
+    }
+    return {
+      init, broadcast, sendToHost, startGame, destroy, buildRoster,
+      get isHost() { return isHost; },
+      get myIndex() { return myIndex; },
+      get roomId() { return roomId; },
+      get playerCount() { return isHost ? buildRoster().length : 0; }
+    };
+  })();
+
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0, game = null, currentInviteUrl = '';
+  let mouse = { x: 0, y: 0, down: false, worldValid: false };
+  const keys = { w: false, a: false, s: false, d: false, space: false };
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  function buildMap(seed) {
+    const rnd = mulberry32(seed);
+    const cols = Math.floor(MAP_W / TILE);
+    const rows = Math.floor(MAP_H / TILE);
+    const g = [];
+    for (let y = 0; y < rows; y++) {
+      g[y] = [];
+      for (let x = 0; x < cols; x++) {
+        const border = x === 0 || y === 0 || x === cols - 1 || y === rows - 1;
+        g[y][x] = border ? 1 : 0;
+      }
+    }
+    const pillars = 8 + Math.floor(rnd() * 6);
+    for (let i = 0; i < pillars; i++) {
+      const px = 2 + Math.floor(rnd() * (cols - 4));
+      const py = 2 + Math.floor(rnd() * (rows - 4));
+      for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) g[py + dy][px + dx] = 1;
+    }
+    return g;
+  }
+
+  function wallAt(map, x, y) {
+    const cols = map[0].length, rows = map.length;
+    const tx = Math.floor(x / TILE), ty = Math.floor(y / TILE);
+    if (tx < 0 || ty < 0 || tx >= cols || ty >= rows) return true;
+    return map[ty][tx] === 1;
+  }
+
+  function moveCircle(map, x, y, vx, vy, dt, r) {
+    let nx = x + vx * dt, ny = y + vy * dt;
+    if (!wallAt(map, nx - r, y) && !wallAt(map, nx + r, y)) x = nx;
+    if (!wallAt(map, x, ny - r) && !wallAt(map, x, ny + r)) y = ny;
+    return { x, y };
+  }
+
+  function dist(a, b, c, d) { return Math.hypot(a - c, b - d); }
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  class ShooterGame {
+    constructor(opts) {
+      this.solo = opts.solo;
+      this.isHost = opts.isHost;
+      this.myIndex = opts.myIndex;
+      this.playerCount = opts.playerCount || 1;
+      this.seed = opts.seed || (Date.now() % 999999 | 0);
+      this.map = buildMap(this.seed);
+      this.running = false;
+      this.wave = 1;
+      this.kills = 0;
+      this.spawnTimer = 2;
+      this.nextEnemyId = 1;
+      this.nextBulletId = 1;
+      this.players = [];
+      this.enemies = [];
+      this.bullets = [];
+      this.over = false;
+      this.lastSync = 0;
+      this.lastT = 0;
+      this.rafId = 0;
+    }
+
+    spawnPoints(n) {
+      const pts = [
+        [MAP_W * 0.25, MAP_H * 0.25],
+        [MAP_W * 0.75, MAP_H * 0.25],
+        [MAP_W * 0.25, MAP_H * 0.75],
+        [MAP_W * 0.75, MAP_H * 0.75]
+      ];
+      return pts.slice(0, n);
+    }
+
+    initPlayers() {
+      const n = this.solo ? 1 : this.playerCount;
+      const pts = this.spawnPoints(n);
+      this.players = [];
+      for (let i = 0; i < n; i++) {
+        this.players.push({
+          idx: i, x: pts[i][0], y: pts[i][1], hp: 100, maxHp: 100,
+          aim: 0, fireCd: 0, alive: true, kills: 0,
+          input: { mx: 0, my: 0, moveX: 0, moveY: 0, shoot: false },
+          rx: pts[i][0], ry: pts[i][1], raim: 0
+        });
+      }
+    }
+
+    me() { return this.players.find(p => p.idx === this.myIndex); }
+
+    spawnWave() {
+      const rnd = mulberry32(this.seed + this.wave * 7919);
+      const count = WAVE_BASE + this.wave * 2 + (this.solo ? 0 : this.playerCount);
+      for (let i = 0; i < count; i++) {
+        let x, y, tries = 0;
+        do {
+          x = TILE * 2 + rnd() * (MAP_W - TILE * 4);
+          y = TILE * 2 + rnd() * (MAP_H - TILE * 4);
+          tries++;
+        } while (tries < 40 && (wallAt(this.map, x, y) || this.nearestPlayerDist(x, y) < 180));
+        this.enemies.push({
+          id: this.nextEnemyId++, x, y, hp: 20 + this.wave * 4, r: 16, fireCd: 1 + rnd() * 2
+        });
+      }
+    }
+
+    nearestPlayerDist(ex, ey) {
+      let best = Infinity;
+      this.players.forEach(p => {
+        if (!p.alive) return;
+        best = Math.min(best, dist(ex, ey, p.x, p.y));
+      });
+      return best;
+    }
+
+    hostTick(dt) {
+      if (this.over) return;
+
+      this.players.forEach(p => {
+        if (!p.alive) return;
+        const inp = p.input || {};
+        const spd = 180;
+        let vx = inp.moveX * spd, vy = inp.moveY * spd;
+        if (vx !== 0 && vy !== 0) { vx *= 0.707; vy *= 0.707; }
+        const moved = moveCircle(this.map, p.x, p.y, vx, vy, dt, PLAYER_R);
+        p.x = moved.x; p.y = moved.y;
+        if (inp.mx !== 0 || inp.my !== 0) p.aim = Math.atan2(inp.my, inp.mx);
+        p.fireCd = Math.max(0, p.fireCd - dt);
+        if (inp.shoot && p.fireCd <= 0) {
+          p.fireCd = FIRE_CD;
+          this.bullets.push({
+            id: this.nextBulletId++, x: p.x, y: p.y,
+            vx: Math.cos(p.aim) * BULLET_SPEED, vy: Math.sin(p.aim) * BULLET_SPEED,
+            owner: p.idx, life: 1.2
+          });
+        }
+      });
+
+      this.enemies.forEach(e => {
+        let tx = 0, ty = 0, best = Infinity;
+        this.players.forEach(p => {
+          if (!p.alive) return;
+          const d = dist(e.x, e.y, p.x, p.y);
+          if (d < best) { best = d; tx = p.x; ty = p.y; }
+        });
+        if (best < Infinity) {
+          const ang = Math.atan2(ty - e.y, tx - e.x);
+          const moved = moveCircle(this.map, e.x, e.y, Math.cos(ang) * ENEMY_SPEED, Math.sin(ang) * ENEMY_SPEED, dt, e.r);
+          e.x = moved.x; e.y = moved.y;
+        }
+        e.fireCd -= dt;
+        if (e.fireCd <= 0 && best < 320) {
+          e.fireCd = 1.4 + Math.random();
+          const ang = Math.atan2(ty - e.y, tx - e.x);
+          this.bullets.push({
+            id: this.nextBulletId++, x: e.x, y: e.y,
+            vx: Math.cos(ang) * 280, vy: Math.sin(ang) * 280,
+            owner: -1, life: 2
+          });
+        }
+        this.players.forEach(p => {
+          if (!p.alive) return;
+          if (dist(e.x, e.y, p.x, p.y) < e.r + PLAYER_R) {
+            p.hp -= 18 * dt;
+            if (p.hp <= 0) { p.hp = 0; p.alive = false; }
+          }
+        });
+      });
+
+      this.bullets = this.bullets.filter(b => {
+        b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+        if (b.life <= 0 || wallAt(this.map, b.x, b.y)) return false;
+        if (b.owner >= 0) {
+          for (const e of this.enemies) {
+            if (dist(b.x, b.y, e.x, e.y) < e.r + 4) {
+              e.hp -= 14;
+              if (e.hp <= 0) {
+                this.kills++;
+                const shooter = this.players.find(p => p.idx === b.owner);
+                if (shooter) shooter.kills++;
+                this.enemies = this.enemies.filter(x => x.id !== e.id);
+              }
+              return false;
+            }
+          }
+        } else {
+          for (const p of this.players) {
+            if (!p.alive) continue;
+            if (dist(b.x, b.y, p.x, p.y) < PLAYER_R + 4) {
+              p.hp -= 12;
+              if (p.hp <= 0) { p.hp = 0; p.alive = false; }
+              return false;
+            }
+          }
+        }
+        return true;
+      });
+
+      if (this.enemies.length === 0) {
+        this.spawnTimer -= dt;
+        if (this.spawnTimer <= 0) {
+          this.wave++;
+          this.spawnTimer = 3;
+          this.spawnWave();
+        }
+      }
+
+      const alive = this.players.filter(p => p.alive).length;
+      if (alive === 0) this.endGame(false);
+    }
+
+    endGame(win) {
+      this.over = true;
+      this.running = false;
+      cancelAnimationFrame(this.rafId);
+      document.getElementById('overlayTitle').textContent = win ? 'CLEAR!' : 'GAME OVER';
+      document.getElementById('overlayMsg').textContent = win
+        ? `Wave ${this.wave} · 킬 ${this.kills}`
+        : `Wave ${this.wave} · 킬 ${this.kills}`;
+      document.getElementById('overlay').classList.add('show');
+    }
+
+    broadcastState() {
+      if (!this.isHost) return;
+      Net.broadcast({
+        type: 'STATE', t: Date.now(),
+        wave: this.wave, kills: this.kills, over: this.over,
+        enemies: this.enemies.map(e => ({ id: e.id, x: e.x, y: e.y, hp: e.hp })),
+        bullets: this.bullets.map(b => ({ id: b.id, x: b.x, y: b.y, owner: b.owner })),
+        players: this.players.map(p => ({
+          idx: p.idx, x: p.x, y: p.y, hp: p.hp, aim: p.aim, alive: p.alive, kills: p.kills
+        }))
+      });
+    }
+
+    pushSnap(p, sp, t) {
+      if (!p.snapCur) {
+        p.snapPrev = { x: sp.x, y: sp.y, aim: sp.aim, t };
+        p.snapCur = { x: sp.x, y: sp.y, aim: sp.aim, t };
+      } else {
+        p.snapPrev = { ...p.snapCur };
+        p.snapCur = { x: sp.x, y: sp.y, aim: sp.aim, t };
+      }
+    }
+
+    applyState(data) {
+      if (data.wave !== undefined) this.wave = data.wave;
+      if (data.kills !== undefined) this.kills = data.kills;
+      if (data.over) this.endGame(false);
+      const t = data.t || performance.now();
+      if (data.players) {
+        data.players.forEach(sp => {
+          let p = this.players.find(x => x.idx === sp.idx);
+          if (!p) return;
+          p.hp = sp.hp; p.alive = sp.alive; p.kills = sp.kills;
+          if (this.isHost && sp.idx !== this.myIndex) {
+            p.x = sp.x; p.y = sp.y; p.aim = sp.aim;
+          } else if (!this.isHost) {
+            p.x = sp.x; p.y = sp.y; p.aim = sp.aim;
+            this.pushSnap(p, sp, t);
+          }
+        });
+      }
+      if (!this.isHost) {
+        this.enemies = (data.enemies || []).map(e => ({ ...e, r: 16, fireCd: 0 }));
+        this.bullets = (data.bullets || []).map(b => ({ ...b, vx: 0, vy: 0, life: 1 }));
+      }
+    }
+
+    updateRenderPoses(now) {
+      if (this.isHost || this.solo) {
+        this.players.forEach(p => { p.rx = p.x; p.ry = p.y; p.raim = p.aim; });
+        return;
+      }
+      this.players.forEach(p => {
+        if (!p.snapCur) { p.rx = p.x; p.ry = p.y; p.raim = p.aim; return; }
+        const span = Math.max(1, p.snapCur.t - p.snapPrev.t);
+        const a = Math.min(1, (now - p.snapPrev.t) / span);
+        p.rx = lerp(p.snapPrev.x, p.snapCur.x, a);
+        p.ry = lerp(p.snapPrev.y, p.snapCur.y, a);
+        p.raim = lerp(p.snapPrev.aim, p.snapCur.aim, a);
+      });
+    }
+
+    collectInput() {
+      const me = this.me();
+      if (!me || !me.alive) return;
+      let mx = 0, my = 0;
+      if (mouse.worldValid) {
+        mx = mouse.x - me.rx;
+        my = mouse.y - me.ry;
+      } else {
+        if (keys.d) mx += 1;
+        if (keys.a) mx -= 1;
+        if (keys.s) my += 1;
+        if (keys.w) my -= 1;
+      }
+      let moveX = 0, moveY = 0;
+      if (keys.w) moveY -= 1;
+      if (keys.s) moveY += 1;
+      if (keys.a) moveX -= 1;
+      if (keys.d) moveX += 1;
+      const shoot = mouse.down || keys.space;
+      me.input = { mx, my, moveX, moveY, shoot };
+      if (this.isHost) Object.assign(me.input, me.input);
+      else if (!this.solo) Net.sendToHost({ type: 'INPUT', input: me.input });
+    }
+
+    draw() {
+      const me = this.me();
+      if (!me) return;
+      this.updateRenderPoses(performance.now());
+
+      const camX = me.rx - W / 2;
+      const camY = me.ry - H / 2;
+      const wx = x => x - camX;
+      const wy = y => y - camY;
+
+      ctx.fillStyle = COL.bg;
+      ctx.fillRect(0, 0, W, H);
+
+      const cols = this.map[0].length, rows = this.map.length;
+      ctx.strokeStyle = COL.wallEdge;
+      ctx.lineWidth = 1;
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          if (!this.map[y][x]) continue;
+          const px = wx(x * TILE), py = wy(y * TILE);
+          if (px + TILE < 0 || py + TILE < 0 || px > W || py > H) continue;
+          ctx.fillStyle = COL.wall;
+          ctx.fillRect(px, py, TILE, TILE);
+          ctx.strokeRect(px + 0.5, py + 0.5, TILE - 1, TILE - 1);
+        }
+      }
+
+      this.bullets.forEach(b => {
+        const sx = wx(b.x), sy = wy(b.y);
+        if (sx < -20 || sy < -20 || sx > W + 20 || sy > H + 20) return;
+        ctx.fillStyle = b.owner >= 0 ? COL.bulletP : COL.bulletE;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 4, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      this.enemies.forEach(e => {
+        const sx = wx(e.x), sy = wy(e.y);
+        if (sx < -40 || sy < -40 || sx > W + 40 || sy > H + 40) return;
+        ctx.fillStyle = COL.enemyCore;
+        ctx.beginPath();
+        ctx.arc(sx, sy, e.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = COL.enemy;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      });
+
+      this.players.forEach(p => {
+        if (!p.alive) return;
+        const sx = wx(p.rx), sy = wy(p.ry);
+        const c = COL.player[p.idx % COL.player.length];
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.beginPath();
+        ctx.arc(sx, sy, PLAYER_R + 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = c;
+        ctx.beginPath();
+        ctx.arc(sx, sy, PLAYER_R, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx + Math.cos(p.raim) * 22, sy + Math.sin(p.raim) * 22);
+        ctx.stroke();
+      });
+
+      const grd = ctx.createRadialGradient(W / 2, H / 2, VISION * 0.35, W / 2, H / 2, VISION);
+      grd.addColorStop(0, 'rgba(3,3,8,0)');
+      grd.addColorStop(1, COL.fog);
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, W, H);
+
+      document.getElementById('hpVal').textContent = Math.max(0, Math.round(me.hp));
+      document.getElementById('waveVal').textContent = this.wave;
+      document.getElementById('killVal').textContent = this.kills;
+      const bars = document.getElementById('teamBars');
+      bars.innerHTML = '';
+      this.players.forEach(p => {
+        const el = document.createElement('span');
+        el.className = 'pbar' + (p.idx === this.myIndex ? ' me' : '');
+        el.innerHTML = `<span class="dot" style="background:${COL.player[p.idx]}"></span>${Math.round(p.hp)}`;
+        if (!p.alive) el.style.opacity = '0.35';
+        bars.appendChild(el);
+      });
+    }
+
+    loop(t) {
+      if (!this.running) return;
+      const dt = Math.min(0.05, (t - this.lastT) / 1000 || 0.016);
+      this.lastT = t;
+
+      this.collectInput();
+
+      if (this.isHost || this.solo) {
+        this.hostTick(dt);
+        if (t - this.lastSync >= SYNC_MS) {
+          this.broadcastState();
+          this.lastSync = t;
+        }
+      }
+
+      this.draw();
+      this.rafId = requestAnimationFrame(ts => this.loop(ts));
+    }
+
+    start() {
+      this.map = buildMap(this.seed);
+      this.initPlayers();
+      this.enemies = [];
+      this.bullets = [];
+      this.wave = 1;
+      this.kills = 0;
+      this.spawnTimer = 0.5;
+      this.over = false;
+      this.spawnWave();
+      resize();
+      this.running = true;
+      this.lastT = 0;
+      this.lastSync = 0;
+      document.getElementById('overlay').classList.remove('show');
+      cancelAnimationFrame(this.rafId);
+      this.rafId = requestAnimationFrame(ts => this.loop(ts));
+    }
+
+    stop() {
+      this.running = false;
+      cancelAnimationFrame(this.rafId);
+    }
+  }
+
+  function resize() {
+    const wrap = document.getElementById('canvasWrap');
+    W = wrap.clientWidth;
+    H = wrap.clientHeight;
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    canvas.width = Math.floor(W * dpr);
+    canvas.height = Math.floor(H * dpr);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function lobbyLog(m) {
+    const el = document.getElementById('log');
+    el.textContent = (el.textContent ? el.textContent + '\n' : '') + m;
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function showLobby() {
+    if (game) game.stop();
+    game = null;
+    Net.destroy();
+    document.getElementById('waitingBox').classList.add('hidden');
+    document.getElementById('gameRoot').classList.add('hidden');
+    document.getElementById('lobby').classList.remove('hidden');
+    document.getElementById('overlay').classList.remove('show');
+  }
+
+  function showGame() {
+    document.getElementById('lobby').classList.add('hidden');
+    document.getElementById('gameRoot').classList.remove('hidden');
+    resize();
+  }
+
+  function showWait(hostId, asHost) {
+    document.getElementById('roomCode').textContent = hostId;
+    document.getElementById('roomBox').classList.remove('hidden');
+    document.getElementById('waitingBox').classList.remove('hidden');
+    document.getElementById('btnStartGame').classList.toggle('hidden', !asHost);
+    document.getElementById('guestWaitHint').classList.toggle('hidden', asHost);
+    document.getElementById('btnCopyLink').classList.toggle('hidden', !asHost);
+    const link = document.getElementById('inviteLink');
+    if (asHost) {
+      currentInviteUrl = USE_ROOM_CODE ? hostId : (() => {
+        const u = new URL(location.href); u.search = ''; u.searchParams.set('join', hostId); return u.toString();
+      })();
+      link.textContent = USE_ROOM_CODE ? '코드: ' + hostId : currentInviteUrl;
+    }
+    updateRoster({ roster: Net.buildRoster(), playerCount: Net.isHost ? 1 : 0 });
+  }
+
+  function updateRoster(data) {
+    const ul = document.getElementById('rosterList');
+    const count = data.playerCount || data.roster.length;
+    ul.innerHTML = '';
+    (data.roster || Net.buildRoster()).forEach(r => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span style="color:${r.color}">●</span> ${r.name}`;
+      ul.appendChild(li);
+    });
+    for (let i = count; i < MAX_PLAYERS; i++) {
+      const li = document.createElement('li');
+      li.style.color = '#555';
+      li.textContent = '● (빈)';
+      ul.appendChild(li);
+    }
+    document.getElementById('waitingTitle').textContent = `대기실 ${count}/${MAX_PLAYERS}`;
+    const btn = document.getElementById('btnStartGame');
+    btn.disabled = count < 2;
+    btn.textContent = count < 2 ? '시작 (2인+)' : `시작 (${count}인)`;
+  }
+
+  function handleNet(d, slot) {
+    if (d.type === 'LOBBY') updateRoster(d);
+    else if (d.type === 'WELCOME' && !Net.isHost) {
+      showWait(document.getElementById('roomInput').value, false);
+      updateRoster({ roster: d.roster, playerCount: d.roster.length });
+    } else if (d.type === 'START' && !Net.isHost) {
+      showGame();
+      game = new ShooterGame({
+        solo: false, isHost: false, myIndex: Net.myIndex,
+        playerCount: d.playerCount, seed: d.seed
+      });
+      game.start();
+      lobbyLog('전투 시작');
+    } else if (d.type === 'STATE' && game) game.applyState(d);
+    else if (d.type === 'INPUT' && game?.isHost) {
+      const p = game.players.find(x => x.idx === slot);
+      if (p) p.input = d.input;
+    } else if (d.type === 'REJECT') { lobbyLog('거부: ' + d.reason); if (!Net.isHost) showLobby(); }
+    else if (d.type === 'PEER_LEFT' && game?.isHost) {
+      const p = game.players.find(x => x.idx === d.index);
+      if (p) { p.alive = false; p.hp = 0; }
+      game.broadcastState();
+    }
+  }
+
+  document.getElementById('btnSolo').onclick = () => {
+    showGame();
+    game = new ShooterGame({ solo: true, isHost: true, myIndex: 0, playerCount: 1 });
+    game.start();
+  };
+
+  document.getElementById('btnHost').onclick = () => {
+    document.getElementById('roomInput').value = '';
+    Net.init({
+      asHost: true, remoteId: '',
+      handlers: {
+        onOpen: info => {
+          if (info.roomReady) showWait(info.id, true);
+          else if (info.clientJoined) lobbyLog('플레이어 입장');
+        },
+        onLobby: updateRoster,
+        onData: handleNet,
+        onClose: () => lobbyLog('연결 종료'),
+        onError: e => lobbyLog('Peer: ' + (e.type || e.message))
+      }
+    });
+  };
+
+  document.getElementById('btnJoin').onclick = () => {
+    const code = document.getElementById('joinCodeInput').value.trim();
+    if (!code) return;
+    document.getElementById('roomInput').value = code;
+    Net.init({
+      asHost: false, remoteId: code,
+      handlers: {
+        onOpen: () => lobbyLog('연결됨'),
+        onData: handleNet,
+        onError: e => lobbyLog('Peer: ' + e.type)
+      }
+    });
+  };
+
+  document.getElementById('btnStartGame').onclick = () => {
+    const seed = Date.now() % 999999 | 0;
+    Net.startGame(seed);
+    showGame();
+    game = new ShooterGame({
+      solo: false, isHost: true, myIndex: 0,
+      playerCount: Net.playerCount, seed
+    });
+    game.start();
+  };
+
+  document.getElementById('btnCopyLink').onclick = () => {
+    navigator.clipboard?.writeText(currentInviteUrl || document.getElementById('roomCode').textContent);
+    lobbyLog('복사됨');
+  };
+  document.getElementById('btnCancelWait').onclick = showLobby;
+  document.getElementById('backBtn').onclick = showLobby;
+  document.getElementById('btnMenu').onclick = showLobby;
+  document.getElementById('btnRetry').onclick = () => { if (game) game.start(); };
+
+  canvas.addEventListener('mousemove', e => {
+    const me = game?.me();
+    if (!me) return;
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = e.clientX - rect.left + (me.rx - W / 2);
+    mouse.y = e.clientY - rect.top + (me.ry - H / 2);
+    mouse.worldValid = true;
+  });
+  canvas.addEventListener('mousedown', () => { mouse.down = true; });
+  window.addEventListener('mouseup', () => { mouse.down = false; });
+
+  window.addEventListener('keydown', e => {
+    const k = e.code;
+    if (k === 'KeyW') keys.w = true;
+    if (k === 'KeyA') keys.a = true;
+    if (k === 'KeyS') keys.s = true;
+    if (k === 'KeyD') keys.d = true;
+    if (k === 'Space') { keys.space = true; e.preventDefault(); }
+  });
+  window.addEventListener('keyup', e => {
+    const k = e.code;
+    if (k === 'KeyW') keys.w = false;
+    if (k === 'KeyA') keys.a = false;
+    if (k === 'KeyS') keys.s = false;
+    if (k === 'KeyD') keys.d = false;
+    if (k === 'Space') keys.space = false;
+  });
+
+  window.addEventListener('resize', () => { if (game) resize(); });
+
+  document.getElementById('hintWeb').classList.toggle('hidden', IS_FILE);
+  document.getElementById('hintFile').classList.toggle('hidden', !IS_FILE);
+  document.getElementById('joinPanel').classList.toggle('hidden', !USE_ROOM_CODE);
+
+  const join = new URLSearchParams(location.search).get('join');
+  if (join) {
+    document.getElementById('joinCodeInput').value = join;
+    document.getElementById('joinPanel').classList.remove('hidden');
+  }
+})();
+</script>
+</body>
+</html>

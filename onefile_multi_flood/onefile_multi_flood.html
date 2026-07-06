@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Flood — P2P FFA (최대 4인)</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #1a1a2e; color: #eee; font-family: system-ui, sans-serif; }
+  .hidden { display: none !important; }
+
+  #lobby {
+    min-height: 100dvh; padding: 20px; max-width: 520px; margin: 0 auto;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  #lobby h1 { font-size: 1.35rem; margin: 0; }
+  #lobby .sub { color: #aaa; font-size: 0.85rem; line-height: 1.5; }
+  #lobby .hint {
+    background: #16213e; border: 1px solid #334; border-radius: 10px;
+    padding: 12px 14px; font-size: 0.82rem; color: #bbb; line-height: 1.55;
+  }
+  .mode-block { background: #16213e; border: 1px solid #334; border-radius: 12px; padding: 14px; }
+  .mode-block h2 { margin: 0 0 8px; font-size: 1rem; color: #7ec8e3; }
+  .mode-block p { margin: 0 0 10px; font-size: 0.78rem; color: #888; line-height: 1.4; }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  button {
+    border: none; border-radius: 8px; padding: 10px 14px; font-size: 0.85rem;
+    cursor: pointer; touch-action: manipulation;
+  }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-green { background: #059669; color: #fff; }
+  .btn-red { background: #dc2626; color: #fff; }
+  .btn-yellow { background: #ca8a04; color: #fff; }
+  .btn-ghost { background: #334; color: #ddd; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  input {
+    width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #445;
+    background: #1a1a2e; color: #eee; font-size: 0.9rem;
+  }
+  #roomBox, #waitingBox {
+    background: #0f3460; padding: 12px; border-radius: 8px; font-size: 0.82rem;
+    word-break: break-all; border: 1px solid #2563eb; color: #ddd;
+  }
+  #waitingBox { border-color: #ca8a04; }
+  #inviteLink { color: #7ec8e3; font-size: 0.78rem; display: block; margin: 8px 0; }
+  #rosterList { margin: 10px 0; padding: 0; list-style: none; line-height: 1.8; }
+  #rosterList .empty { color: #666; font-style: italic; }
+  #log { font-size: 0.75rem; color: #4ade80; max-height: 90px; overflow-y: auto; white-space: pre-wrap; }
+
+  #gameRoot { display: flex; flex-direction: column; height: 100dvh; width: 100vw; }
+  #fieldWrap { flex: 1; position: relative; background: #0f0f1a; display: flex; flex-direction: column; min-height: 0; }
+  #hud {
+    flex-shrink: 0; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center;
+    padding: 8px 10px; font-size: clamp(10px, 2.6vw, 12px);
+    background: rgba(15,15,26,0.95); border-bottom: 1px solid #334;
+  }
+  #hud .turn { color: #60a5fa; font-weight: bold; }
+  #hud .timer { color: #60a5fa; font-variant-numeric: tabular-nums; }
+  #hud .timer.urgent { color: #f87171; }
+  #scoreRow { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+  .score-chip {
+    display: flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px;
+    background: rgba(30,30,50,0.9); border: 2px solid transparent; font-size: clamp(10px, 2.5vw, 12px);
+  }
+  .score-chip.active { border-color: #60a5fa; }
+  .score-chip .pct { font-variant-numeric: tabular-nums; opacity: 0.85; }
+
+  #boardWrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 8px; min-height: 0; }
+  #fieldCanvas { display: block; max-width: 100%; max-height: 100%; border-radius: 8px; box-shadow: 0 0 0 2px #334; }
+
+  #palette {
+    flex-shrink: 0; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
+    padding: 12px; background: #16213e; border-top: 2px solid #334;
+  }
+  .colorBtn {
+    width: clamp(44px, 12vw, 56px); height: clamp(44px, 12vw, 56px);
+    border-radius: 12px; border: 3px solid rgba(255,255,255,0.25);
+    cursor: pointer; touch-action: manipulation; transition: transform 0.1s, box-shadow 0.1s;
+  }
+  .colorBtn:active:not(:disabled) { transform: scale(0.94); }
+  .colorBtn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .colorBtn.highlight { box-shadow: 0 0 0 3px #fff, 0 0 12px rgba(255,255,255,0.5); }
+
+  #logPanel {
+    flex-shrink: 0; max-height: 48px; overflow-y: auto; padding: 4px 10px;
+    font-size: 11px; color: #888; background: rgba(15,15,26,0.9); border-top: 1px solid #334;
+  }
+  #backBtn { position: absolute; top: 8px; right: 8px; z-index: 10; padding: 5px 10px; font-size: 11px; }
+
+  #overlay {
+    position: absolute; inset: 0; z-index: 20; display: none; flex-direction: column;
+    align-items: center; justify-content: center; background: rgba(10,10,20,0.92);
+    text-align: center; padding: 20px;
+  }
+  #overlay.show { display: flex; }
+  #overlay h2 { margin: 0 0 8px; font-size: 1.5rem; color: #4ade80; }
+  #overlay p { color: #aaa; margin: 0 0 16px; }
+</style>
+</head>
+<body>
+
+<div id="lobby">
+  <h1>🎨 Flood</h1>
+  <p class="sub">색으로 땅따먹기 · 턴제 FFA · 최대 4인 P2P</p>
+  <div class="hint" id="hintWeb">
+    <strong>규칙:</strong> 턴마다 색 1개 → 내 영역 확장. <strong>다른 사람 땅은 빼앗을 수 없음</strong> (중립 칸만).
+    <strong>웹:</strong> 방 만들기 → 링크 공유 → 2~4인 FFA.
+  </div>
+  <div class="hint hidden" id="hintFile">
+    <strong>로컬:</strong> 방 코드 공유 → 대기실 → 방장 시작.
+  </div>
+
+  <div class="mode-block">
+    <h2>① 솔로 vs AI</h2>
+    <p>클래식 2인 Flood (대각 코너)</p>
+    <button class="btn-green" id="btnSolo">솔로 시작</button>
+  </div>
+
+  <div class="mode-block">
+    <h2>② FFA (2~4인)</h2>
+    <p>네 코너에서 영역 확장 · 최다 점유 승리</p>
+    <button class="btn-primary" id="btnHost">방 만들기</button>
+  </div>
+
+  <div class="mode-block hidden" id="joinPanel">
+    <h2>참가</h2>
+    <input id="joinCodeInput" placeholder="방 코드" autocomplete="off">
+    <div class="btn-row" style="margin-top:8px"><button class="btn-red" id="btnJoin">참가</button></div>
+  </div>
+
+  <div id="waitingBox" class="hidden">
+    <div id="waitingTitle">대기실</div>
+    <a id="inviteLink" href="#"></a>
+    <ul id="rosterList"></ul>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn-yellow" id="btnCopyLink">링크 복사</button>
+      <button class="btn-green hidden" id="btnStartGame" disabled>게임 시작 (2인+)</button>
+      <button class="btn-ghost" id="btnCancelWait">나가기</button>
+    </div>
+    <p id="guestWaitHint" class="hidden" style="font-size:0.78rem;color:#888">방장 시작 대기…</p>
+  </div>
+
+  <input id="roomInput" type="hidden">
+  <div id="roomBox" class="hidden">Peer: <b id="roomCode">—</b></div>
+  <div id="log"></div>
+</div>
+
+<div id="gameRoot" class="hidden">
+  <div id="fieldWrap">
+    <button type="button" id="backBtn" class="btn-ghost">← 로비</button>
+    <div id="hud">
+      <span class="turn" id="turnLabel">내 턴</span>
+      <span class="timer" id="turnTimer">5s</span>
+      <span id="turnsLeft"></span>
+      <div id="scoreRow"></div>
+    </div>
+    <div id="boardWrap"><canvas id="fieldCanvas"></canvas></div>
+    <div id="logPanel"></div>
+    <div id="overlay">
+      <h2 id="overlayTitle">승리!</h2>
+      <p id="overlayMsg"></p>
+      <button class="btn-green" id="btnRetry">다시</button>
+      <button class="btn-ghost" id="btnToLobby">로비</button>
+    </div>
+  </div>
+  <div id="palette"></div>
+</div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  const IS_FILE = location.protocol === 'file:';
+  const USE_ROOM_CODE = IS_FILE;
+  const MAX_PLAYERS = 4;
+  const TURN_SECONDS = 5;
+  const TURN_MS = TURN_SECONDS * 1000;
+  const GRID_W = 14;
+  const GRID_H = 14;
+  const NUM_COLORS = 6;
+  const MAX_TURNS = 22;
+
+  /* 파스텔·밝은 6색 — 서로 겹치지 않게 hue 분리 */
+  const PALETTE = [
+    '#FF6B9D', /* 핑크 */
+    '#FFB347', /* 오렌지 */
+    '#FFEB3B', /* 레몬 */
+    '#69F0AE', /* 민트 */
+    '#40C4FF', /* 하늘 */
+    '#B388FF'  /* 라벤더 */
+  ];
+
+  const PLAYER_DEFS = [
+    { emoji: '🧙', name: '마법사', border: '#60a5fa' },
+    { emoji: '🦸', name: '용사',   border: '#f87171' },
+    { emoji: '👸', name: '공주',   border: '#fbbf24' },
+    { emoji: '🥷', name: '닌자',   border: '#a78bfa' }
+  ];
+
+  /* 코너: 좌하, 우하, 우상, 좌상 */
+  const CORNERS = [
+    { x: 0, y: GRID_H - 1 },
+    { x: GRID_W - 1, y: GRID_H - 1 },
+    { x: GRID_W - 1, y: 0 },
+    { x: 0, y: 0 }
+  ];
+
+  const SLOT_FOR_COUNT = {
+    1: [0, 2],
+    2: [0, 2],
+    3: [0, 1, 2],
+    4: [0, 1, 2, 3]
+  };
+
+  /* ── PeerJS ── */
+  const WwNet = (function () {
+    let peer = null, guestConn = null;
+    const clients = new Map();
+    let isHost = false, myIndex = 0, roomId = '', gameStarted = false;
+    let onData = null, onOpen = null, onClose = null, onError = null, onLobby = null;
+
+    function allocSlot() {
+      for (let i = 1; i < MAX_PLAYERS; i++) if (!clients.has(i)) return i;
+      return -1;
+    }
+
+    function buildRoster() {
+      const roster = [{ index: 0, emoji: PLAYER_DEFS[0].emoji, name: PLAYER_DEFS[0].name + (isHost ? ' (방장)' : ''), connected: true }];
+      [...clients.keys()].sort((a, b) => a - b).forEach(i => {
+        roster.push({ index: i, emoji: PLAYER_DEFS[i].emoji, name: PLAYER_DEFS[i].name, connected: true });
+      });
+      return roster;
+    }
+
+    function broadcast(data) { clients.forEach(({ conn }) => { if (conn.open) conn.send(data); }); }
+    function broadcastLobby() {
+      const payload = { type: 'LOBBY', roster: buildRoster(), playerCount: buildRoster().length };
+      broadcast(payload);
+      onLobby && onLobby(payload);
+    }
+    function sendToHost(data) { if (guestConn?.open) guestConn.send(data); }
+
+    function initPeer(opts) {
+      const { asHost, remoteId, handlers } = opts;
+      isHost = asHost; myIndex = asHost ? 0 : -1; gameStarted = false;
+      clients.clear(); guestConn = null;
+      onData = handlers.onData; onOpen = handlers.onOpen;
+      onClose = handlers.onClose; onError = handlers.onError; onLobby = handlers.onLobby;
+
+      peer = new Peer({ debug: 1 });
+      peer.on('open', id => {
+        roomId = id;
+        if (asHost) {
+          peer.on('connection', conn => {
+            conn.on('open', () => {
+              if (gameStarted) {
+                conn.send({ type: 'REJECT', reason: '이미 시작됨' });
+                setTimeout(() => conn.close(), 300);
+                return;
+              }
+              const slot = allocSlot();
+              if (slot < 0) {
+                conn.send({ type: 'REJECT', reason: '방 가득 참' });
+                setTimeout(() => conn.close(), 300);
+                return;
+              }
+              clients.set(slot, { conn });
+              conn.send({ type: 'WELCOME', index: slot, roster: buildRoster() });
+              broadcastLobby();
+              onOpen && onOpen({ role: 'host', clientJoined: true, index: slot });
+              conn.on('data', d => onData && onData(d));
+              conn.on('close', () => {
+                clients.delete(slot);
+                if (!gameStarted) broadcastLobby();
+                else onData && onData({ type: 'PEER_LEFT', index: slot });
+              });
+            });
+          });
+          onOpen && onOpen({ id, role: 'host', roomReady: true });
+        } else {
+          guestConn = peer.connect(remoteId.trim(), { reliable: true });
+          guestConn.on('open', () => onOpen && onOpen({ role: 'client', connOpen: true }));
+          guestConn.on('data', d => {
+            if (d.type === 'WELCOME') myIndex = d.index;
+            onData && onData(d);
+          });
+          guestConn.on('close', () => { guestConn = null; onClose && onClose(); });
+        }
+      });
+      peer.on('error', e => onError && onError(e));
+    }
+
+    function startGameBroadcast(playerCount) {
+      gameStarted = true;
+      broadcast({ type: 'START', playerCount });
+    }
+
+    function destroy() {
+      clients.forEach(({ conn }) => { try { conn.close(); } catch (e) {} });
+      clients.clear();
+      if (guestConn) guestConn.close();
+      if (peer) peer.destroy();
+      peer = null; guestConn = null; gameStarted = false; myIndex = 0;
+    }
+
+    return {
+      initPeer, broadcast, sendToHost, startGameBroadcast, destroy, buildRoster,
+      get isHost() { return isHost; },
+      get myIndex() { return myIndex; },
+      get roomId() { return roomId; },
+      get gameStarted() { return gameStarted; },
+      get playerCount() { return isHost ? buildRoster().length : 0; }
+    };
+  })();
+
+  /* ── DOM ── */
+  const lobby = document.getElementById('lobby');
+  const gameRoot = document.getElementById('gameRoot');
+  const canvas = document.getElementById('fieldCanvas');
+  const ctx = canvas.getContext('2d');
+  const paletteEl = document.getElementById('palette');
+  const logPanel = document.getElementById('logPanel');
+  const overlay = document.getElementById('overlay');
+  const turnLabel = document.getElementById('turnLabel');
+  const turnTimerEl = document.getElementById('turnTimer');
+  const scoreRow = document.getElementById('scoreRow');
+  const logEl = document.getElementById('log');
+  const roomInput = document.getElementById('roomInput');
+  const joinPanel = document.getElementById('joinPanel');
+
+  let game = null;
+  let inCoopWait = false;
+  let currentInviteUrl = '';
+
+  function lobbyLog(msg) { logEl.textContent = (logEl.textContent ? logEl.textContent + '\n' : '') + msg; logEl.scrollTop = logEl.scrollHeight; }
+  function copyText(t, msg) {
+    (navigator.clipboard?.writeText ? navigator.clipboard.writeText(t) : Promise.reject())
+      .then(() => lobbyLog(msg)).catch(() => {
+        const ta = document.createElement('textarea'); ta.value = t;
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+        lobbyLog(msg);
+      });
+  }
+  function getInviteUrl(id) {
+    const u = new URL(location.href); u.search = ''; u.searchParams.set('join', id); return u.toString();
+  }
+
+  function showLobby() {
+    if (game) { game.stop(); game = null; }
+    WwNet.destroy();
+    inCoopWait = false;
+    document.getElementById('waitingBox').classList.add('hidden');
+    gameRoot.classList.add('hidden');
+    lobby.classList.remove('hidden');
+    if (!IS_FILE) history.replaceState(null, '', location.pathname);
+  }
+
+  function showGame() {
+    lobby.classList.add('hidden');
+    gameRoot.classList.remove('hidden');
+    overlay.classList.remove('show');
+  }
+
+  function showCoopWait(hostId, asHost) {
+    inCoopWait = true;
+    document.getElementById('roomCode').textContent = hostId;
+    document.getElementById('roomBox').classList.remove('hidden');
+    document.getElementById('waitingBox').classList.remove('hidden');
+    document.getElementById('btnStartGame').classList.toggle('hidden', !asHost);
+    document.getElementById('guestWaitHint').classList.toggle('hidden', asHost);
+    document.getElementById('btnCopyLink').classList.toggle('hidden', !asHost);
+    if (asHost) {
+      currentInviteUrl = USE_ROOM_CODE ? hostId : getInviteUrl(hostId);
+      const link = document.getElementById('inviteLink');
+      link.textContent = USE_ROOM_CODE ? '코드: ' + hostId : currentInviteUrl;
+      if (!USE_ROOM_CODE) {
+        const u = new URL(location.href); u.search = ''; u.searchParams.set('host', hostId);
+        history.replaceState(null, '', u.toString());
+      }
+    }
+    updateRosterUI({ roster: WwNet.buildRoster(), playerCount: WwNet.isHost ? 1 : 0 });
+  }
+
+  function updateRosterUI(data) {
+    const roster = data.roster || WwNet.buildRoster();
+    const count = data.playerCount || roster.length;
+    const ul = document.getElementById('rosterList');
+    ul.innerHTML = '';
+    roster.forEach(r => {
+      const li = document.createElement('li');
+      li.textContent = `${r.emoji} ${r.name}`;
+      ul.appendChild(li);
+    });
+    for (let i = count; i < MAX_PLAYERS; i++) {
+      const li = document.createElement('li');
+      li.className = 'empty';
+      li.textContent = `${PLAYER_DEFS[i].emoji} (빈)`;
+      ul.appendChild(li);
+    }
+    document.getElementById('waitingTitle').textContent = `대기실 — ${count}/${MAX_PLAYERS}`;
+    const btn = document.getElementById('btnStartGame');
+    if (WwNet.isHost) {
+      btn.disabled = count < 2;
+      btn.textContent = count < 2 ? '게임 시작 (2인+)' : `게임 시작 (${count}인 FFA)`;
+    }
+  }
+
+  /* ── Flood logic ── */
+  function randomBoard() {
+    const board = [];
+    for (let y = 0; y < GRID_H; y++) {
+      const row = [];
+      for (let x = 0; x < GRID_W; x++) row.push(Math.floor(Math.random() * NUM_COLORS));
+      board.push(row);
+    }
+    return board;
+  }
+
+  function initOwners(slots) {
+    const owner = Array.from({ length: GRID_H }, () => Array(GRID_W).fill(-1));
+    slots.forEach((cornerIdx, pi) => {
+      const c = CORNERS[cornerIdx];
+      owner[c.y][c.x] = pi;
+    });
+    return owner;
+  }
+
+  function playerRegionColor(board, owner, player) {
+    for (let y = 0; y < GRID_H; y++)
+      for (let x = 0; x < GRID_W; x++)
+        if (owner[y][x] === player) return board[y][x];
+    return -1;
+  }
+
+  function simulateExpand(board, owner, player, color) {
+    const b = board.map(r => r.slice());
+    const o = owner.map(r => r.slice());
+    for (let y = 0; y < GRID_H; y++)
+      for (let x = 0; x < GRID_W; x++)
+        if (o[y][x] === player) b[y][x] = color;
+
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (let y = 0; y < GRID_H; y++) {
+        for (let x = 0; x < GRID_W; x++) {
+          if (o[y][x] !== player) continue;
+          [[0, 1], [0, -1], [1, 0], [-1, 0]].forEach(([dx, dy]) => {
+            const nx = x + dx, ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= GRID_W || ny >= GRID_H) return;
+            /* 중립(-1) 칸만 흡수 — 다른 플레이어 점유 칸은 불가 */
+            if (b[ny][nx] === color && o[ny][nx] === -1) {
+              o[ny][nx] = player;
+              b[ny][nx] = color;
+              changed = true;
+            }
+          });
+        }
+      }
+    }
+    return { board: b, owner: o, gained: countOwned(o, player) };
+  }
+
+  function countOwned(owner, player) {
+    let n = 0;
+    for (let y = 0; y < GRID_H; y++)
+      for (let x = 0; x < GRID_W; x++)
+        if (owner[y][x] === player) n++;
+    return n;
+  }
+
+  function countAllScores(owner) {
+    const s = [0, 0, 0, 0];
+    for (let y = 0; y < GRID_H; y++)
+      for (let x = 0; x < GRID_W; x++) {
+        const p = owner[y][x];
+        if (p >= 0) s[p]++;
+      }
+    return s;
+  }
+
+  function validColors(board, owner, player) {
+    const cur = playerRegionColor(board, owner, player);
+    const before = countOwned(owner, player);
+    const valid = [];
+    for (let c = 0; c < NUM_COLORS; c++) {
+      if (c === cur) continue;
+      const { gained } = simulateExpand(board, owner, player, c);
+      if (gained > before) valid.push(c);
+    }
+    return valid;
+  }
+
+  function applyExpand(board, owner, player, color) {
+    const r = simulateExpand(board, owner, player, color);
+    for (let y = 0; y < GRID_H; y++) {
+      for (let x = 0; x < GRID_W; x++) {
+        board[y][x] = r.board[y][x];
+        owner[y][x] = r.owner[y][x];
+      }
+    }
+    return r.gained;
+  }
+
+  function aiPickColor(board, owner, aiPlayer) {
+    const cur = playerRegionColor(board, owner, aiPlayer);
+    const before = countOwned(owner, aiPlayer);
+    let best = -1, bestGain = -1;
+    for (let c = 0; c < NUM_COLORS; c++) {
+      if (c === cur) continue;
+      const { gained } = simulateExpand(board, owner, aiPlayer, c);
+      const gain = gained - before;
+      if (gain > bestGain) { bestGain = gain; best = c; }
+    }
+    return best >= 0 ? best : 0;
+  }
+
+  function drawFrontier(ctx, owner, player, t) {
+    ctx.strokeStyle = PLAYER_DEFS[player].border;
+    ctx.lineWidth = Math.max(3, t * 0.14);
+    ctx.lineCap = 'square';
+    for (let y = 0; y < GRID_H; y++) {
+      for (let x = 0; x < GRID_W; x++) {
+        if (owner[y][x] !== player) continue;
+        const px = x * t, py = y * t;
+        const edges = [
+          [0, -1, px, py, px + t, py],
+          [0, 1, px, py + t, px + t, py + t],
+          [-1, 0, px, py, px, py + t],
+          [1, 0, px + t, py, px + t, py + t]
+        ];
+        edges.forEach(([dx, dy, x1, y1, x2, y2]) => {
+          const nx = x + dx, ny = y + dy;
+          if (nx >= 0 && ny >= 0 && nx < GRID_W && ny < GRID_H && owner[ny][nx] === player) return;
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+        });
+      }
+    }
+  }
+
+  class FloodGame {
+    constructor(opts) {
+      this.solo = opts.solo;
+      this.isHost = opts.isHost;
+      this.myIndex = opts.myIndex;
+      this.playerCount = opts.playerCount || 1;
+      this.onNet = opts.onNet;
+      this.board = [];
+      this.owner = [];
+      this.slots = [];
+      this.activePlayer = 0;
+      this.turnsUsed = 0;
+      this.gameOver = false;
+      this.winner = -1;
+      this.turnDeadline = 0;
+      this._timerId = null;
+      this.aiPlayers = opts.aiPlayers || [];
+      this.running = false;
+    }
+
+    stop() {
+      this.running = false;
+      this.stopTurnTimer();
+    }
+
+    stopTurnTimer() {
+      if (this._timerId) { clearInterval(this._timerId); this._timerId = null; }
+    }
+
+    startTurnTimer() {
+      this.stopTurnTimer();
+      if (this.gameOver) return;
+      /* 솔로: AI 턴에는 타이머 없음 · 멀티만 시간 초과 자동 선택 */
+      if (this.solo) {
+        if (this.activePlayer !== 0) return;
+        this._timerId = setInterval(() => this.syncHud(), 100);
+        return;
+      }
+
+      if (!this.isHost) {
+        this._timerId = setInterval(() => this.syncHud(), 100);
+        return;
+      }
+
+      this.turnDeadline = Date.now() + TURN_MS;
+      this._timerId = setInterval(() => {
+        this.syncHud();
+        if (this.gameOver || !this.isHost) return;
+        if (Date.now() >= this.turnDeadline) this.hostPick(this.activePlayer, null, true);
+      }, 100);
+    }
+
+    initBoard() {
+      this.board = randomBoard();
+      const n = this.solo ? 2 : this.playerCount;
+      this.slots = SLOT_FOR_COUNT[n] || SLOT_FOR_COUNT[4];
+      this.owner = initOwners(this.slots.slice(0, n));
+      this.activePlayer = 0;
+      this.turnsUsed = 0;
+      this.gameOver = false;
+      this.winner = -1;
+      if (this.solo) this.aiPlayers = [1];
+    }
+
+    totalCells() { return GRID_W * GRID_H; }
+
+    activeSlots() {
+      const n = this.solo ? 2 : this.playerCount;
+      return this.slots.slice(0, n);
+    }
+
+    nextPlayer() {
+      const n = this.solo ? 2 : this.playerCount;
+      for (let i = 1; i <= n; i++) {
+        const next = (this.activePlayer + i) % n;
+        if (countOwned(this.owner, next) > 0) { this.activePlayer = next; return; }
+      }
+    }
+
+    checkEnd() {
+      const scores = countAllScores(this.owner);
+      const total = this.totalCells();
+      const n = this.solo ? 2 : this.playerCount;
+
+      if (this.turnsUsed >= MAX_TURNS * n) {
+        let best = 0, bestScore = -1;
+        for (let i = 0; i < n; i++) if (scores[i] > bestScore) { bestScore = scores[i]; best = i; }
+        this.endGame(best, `턴 제한! ${PLAYER_DEFS[best].emoji} ${Math.round(scores[best] / total * 100)}%`);
+        return true;
+      }
+
+      for (let i = 0; i < n; i++) {
+        if (scores[i] > total / 2) {
+          this.endGame(i, `${PLAYER_DEFS[i].emoji} 과반 점유! (${Math.round(scores[i] / total * 100)}%)`);
+          return true;
+        }
+      }
+
+      if (validColors(this.board, this.owner, this.activePlayer).length === 0) {
+        let skipped = 0;
+        const n = this.solo ? 2 : this.playerCount;
+        while (skipped < n && validColors(this.board, this.owner, this.activePlayer).length === 0) {
+          this.nextPlayer();
+          skipped++;
+        }
+        if (skipped >= n) {
+          const scores = countAllScores(this.owner);
+          let best = 0, bestScore = -1;
+          for (let i = 0; i < n; i++) if (scores[i] > bestScore) { bestScore = scores[i]; best = i; }
+          this.endGame(best, '모두 확장 불가 — 최다 점유');
+          return true;
+        }
+      }
+      return false;
+    }
+
+    endGame(winner, msg) {
+      this.gameOver = true;
+      this.winner = winner;
+      this.stop();
+      overlay.classList.add('show');
+      document.getElementById('overlayTitle').textContent =
+        (this.solo && winner === 0) || (!this.solo && winner === this.myIndex) ? '승리!' : '패배…';
+      document.getElementById('overlayMsg').textContent = msg;
+      this.syncHud();
+      this.broadcast();
+    }
+
+    log(msg) {
+      logPanel.textContent = msg;
+    }
+
+    serialize() {
+      return {
+        board: this.board, owner: this.owner, slots: this.slots,
+        activePlayer: this.activePlayer, turnsUsed: this.turnsUsed,
+        gameOver: this.gameOver, winner: this.winner,
+        turnDeadline: this.turnDeadline, solo: this.solo, playerCount: this.playerCount
+      };
+    }
+
+    applyState(data) {
+      Object.assign(this, {
+        board: data.board, owner: data.owner, slots: data.slots,
+        activePlayer: data.activePlayer, turnsUsed: data.turnsUsed,
+        gameOver: data.gameOver, winner: data.winner,
+        turnDeadline: data.turnDeadline
+      });
+      if (!this.running) { this.running = true; this.resize(); buildPalette(this); }
+      if (!this.solo && !this.gameOver) this.startTurnTimer();
+      this.syncHud();
+      this.draw();
+      if (this.gameOver) {
+        overlay.classList.add('show');
+        const won = this.winner === this.myIndex;
+        document.getElementById('overlayTitle').textContent = won ? '승리!' : '패배…';
+        const scores = countAllScores(this.owner);
+        document.getElementById('overlayMsg').textContent =
+          `${PLAYER_DEFS[this.winner].emoji} ${Math.round(scores[this.winner] / this.totalCells() * 100)}%`;
+      }
+    }
+
+    broadcast() {
+      if (this.onNet) this.onNet({ type: 'STATE', ...this.serialize() });
+    }
+
+    isMyTurn() {
+      if (this.gameOver || this.solo) return !this.gameOver && this.activePlayer === 0;
+      return this.myIndex === this.activePlayer;
+    }
+
+    hostPick(playerIdx, color, timeout) {
+      if (!this.isHost || this.gameOver || playerIdx !== this.activePlayer) return;
+
+      const valid = validColors(this.board, this.owner, playerIdx);
+      let pick = color;
+      if (pick === null || pick === undefined || !valid.includes(pick)) {
+        pick = valid.length ? valid[Math.floor(Math.random() * valid.length)] : null;
+      }
+      if (pick === null) {
+        this.nextPlayer();
+        this.finishTurn();
+        return;
+      }
+
+      if (timeout) this.log(`⏱ ${PLAYER_DEFS[playerIdx].emoji} 시간 초과 — 자동 선택`);
+
+      const before = countOwned(this.owner, playerIdx);
+      applyExpand(this.board, this.owner, playerIdx, pick);
+      const after = countOwned(this.owner, playerIdx);
+      this.log(`${PLAYER_DEFS[playerIdx].emoji} → ${PALETTE[pick]} (+${after - before})`);
+      this.turnsUsed++;
+      if (this.checkEnd()) { this.draw(); this.broadcast(); return; }
+      this.nextPlayer();
+      this.finishTurn();
+    }
+
+    finishTurn() {
+      if (this.gameOver) return;
+      if (this.solo && this.aiPlayers.includes(this.activePlayer)) {
+        this.stopTurnTimer();
+        this.syncHud();
+        this.draw();
+        this.log('🤖 AI 턴…');
+        setTimeout(() => this.runAiTurn(), 900);
+        return;
+      }
+      this.startTurnTimer();
+      this.syncHud();
+      this.draw();
+      this.broadcast();
+    }
+
+    runAiTurn() {
+      if (this.gameOver || this.activePlayer !== 1) return;
+      const pick = aiPickColor(this.board, this.owner, 1);
+      const before = countOwned(this.owner, 1);
+      applyExpand(this.board, this.owner, 1, pick);
+      this.log(`🤖 AI → ${PALETTE[pick]} (+${countOwned(this.owner, 1) - before})`);
+      this.turnsUsed++;
+      if (this.checkEnd()) { this.draw(); return; }
+      this.nextPlayer();
+      this.syncHud();
+      this.draw();
+      if (this.activePlayer === 0) {
+        this.log('내 턴 — 색을 골라주세요');
+        this.startTurnTimer();
+      }
+    }
+
+    requestPick(color) {
+      if (!this.isMyTurn() || this.gameOver) return;
+      const valid = validColors(this.board, this.owner, this.activePlayer);
+      if (!valid.includes(color)) return;
+      if (this.solo || this.isHost) {
+        this.hostPick(this.activePlayer, color);
+        this.draw();
+      } else {
+        this.onNet && this.onNet({ type: 'PICK', playerIdx: this.myIndex, color });
+      }
+    }
+
+    handlePeerLeft(index) {
+      for (let y = 0; y < GRID_H; y++)
+        for (let x = 0; x < GRID_W; x++)
+          if (this.owner[y][x] === index) this.owner[y][x] = -1;
+      this.log(`${PLAYER_DEFS[index].name} 이탈`);
+      if (this.activePlayer === index) this.nextPlayer();
+      this.broadcast();
+    }
+
+    syncHud() {
+      const scores = countAllScores(this.owner);
+      const total = this.totalCells();
+      const n = this.solo ? 2 : this.playerCount;
+      scoreRow.innerHTML = '';
+      for (let i = 0; i < n; i++) {
+        const chip = document.createElement('div');
+        chip.className = 'score-chip' + (i === this.activePlayer && !this.gameOver ? ' active' : '');
+        chip.style.borderColor = i === this.activePlayer ? PLAYER_DEFS[i].border : 'transparent';
+        const pct = Math.round(scores[i] / total * 100);
+        chip.innerHTML = `${PLAYER_DEFS[i].emoji} <b>${scores[i]}</b> <span class="pct">(${pct}%)</span>`;
+        scoreRow.appendChild(chip);
+      }
+
+      document.getElementById('turnsLeft').textContent =
+        `턴 ${this.turnsUsed}/${MAX_TURNS * n}`;
+
+      if (this.solo) {
+        turnLabel.textContent = this.activePlayer === 0 ? '내 턴 ▶' : '🤖 AI 턴…';
+        turnTimerEl.classList.add('hidden');
+      } else {
+        const remain = this.turnDeadline
+          ? Math.max(0, Math.ceil((this.turnDeadline - Date.now()) / 1000)) : TURN_SECONDS;
+        turnTimerEl.textContent = remain + 's';
+        turnTimerEl.classList.toggle('urgent', remain <= 3);
+        turnLabel.textContent = this.isMyTurn() ? '내 턴 ▶' : `${PLAYER_DEFS[this.activePlayer].emoji} 턴…`;
+      }
+
+      const valid = this.isMyTurn() ? validColors(this.board, this.owner, this.activePlayer) : [];
+      paletteEl.querySelectorAll('.colorBtn').forEach((btn, i) => {
+        btn.disabled = !valid.includes(i);
+        btn.classList.toggle('highlight', valid.includes(i) && this.isMyTurn());
+      });
+    }
+
+    resize() {
+      const wrap = document.getElementById('boardWrap');
+      const maxW = wrap.clientWidth - 16;
+      const maxH = wrap.clientHeight - 16;
+      const tile = Math.floor(Math.min(maxW / GRID_W, maxH / GRID_H, 36));
+      canvas.width = GRID_W * tile;
+      canvas.height = GRID_H * tile;
+      this.tilePx = tile;
+    }
+
+    draw() {
+      const t = this.tilePx || 24;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (let y = 0; y < GRID_H; y++) {
+        for (let x = 0; x < GRID_W; x++) {
+          ctx.fillStyle = PALETTE[this.board[y][x]];
+          ctx.fillRect(x * t, y * t, t, t);
+        }
+      }
+      if (!this.gameOver) drawFrontier(ctx, this.owner, this.activePlayer, t);
+      /* 코너 마커 */
+      const n = this.solo ? 2 : this.playerCount;
+      for (let i = 0; i < n; i++) {
+        const c = CORNERS[this.slots[i]];
+        ctx.font = `${Math.floor(t * 0.55)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(PLAYER_DEFS[i].emoji, c.x * t + t / 2, c.y * t + t / 2);
+      }
+      this.syncHud();
+    }
+
+    startAsHost() {
+      this.running = true;
+      this.initBoard();
+      this.resize();
+      buildPalette(this);
+      this.log('색을 골라 영역을 넓히세요!');
+      this.draw();
+      if (this.solo && this.activePlayer === 1) this.runAiTurn();
+      else this.startTurnTimer();
+      this.broadcast();
+    }
+  }
+
+  function buildPalette(g) {
+    paletteEl.innerHTML = '';
+    PALETTE.forEach((col, i) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'colorBtn';
+      btn.style.background = col;
+      btn.title = '색 ' + (i + 1);
+      btn.addEventListener('click', () => g.requestPick(i));
+      paletteEl.appendChild(btn);
+    });
+  }
+
+  function makeNetHandler() {
+    return payload => {
+      if (payload.type === 'STATE') WwNet.broadcast({ type: 'STATE', ...payload });
+    };
+  }
+
+  function hostBeginGame() {
+    const count = WwNet.playerCount;
+    if (count < 2) return;
+    WwNet.startGameBroadcast(count);
+    showGame();
+    game = new FloodGame({ solo: false, isHost: true, myIndex: 0, playerCount: count, onNet: makeNetHandler() });
+    game.startAsHost();
+  }
+
+  function clientBeginGame(playerCount) {
+    showGame();
+    game = new FloodGame({
+      solo: false, isHost: false, myIndex: WwNet.myIndex, playerCount,
+      onNet: d => WwNet.sendToHost(d)
+    });
+  }
+
+  function startSolo() {
+    showGame();
+    game = new FloodGame({ solo: true, isHost: true, myIndex: 0, playerCount: 1, onNet: null });
+    game.startAsHost();
+  }
+
+  function handleNetData(data) {
+    if (data.type === 'LOBBY') updateRosterUI(data);
+    else if (data.type === 'WELCOME' && !WwNet.isHost) {
+      showCoopWait(roomInput.value.trim(), false);
+      updateRosterUI({ roster: data.roster, playerCount: data.roster.length });
+    } else if (data.type === 'START' && !WwNet.isHost) {
+      clientBeginGame(data.playerCount);
+      lobbyLog('FFA 시작!');
+    } else if (data.type === 'STATE' && game) game.applyState(data);
+    else if (data.type === 'PICK' && game?.isHost) {
+      game.hostPick(data.playerIdx, data.color);
+      game.draw();
+    } else if (data.type === 'PEER_LEFT' && game?.isHost) {
+      game.handlePeerLeft(data.index);
+      game.draw();
+    } else if (data.type === 'REJECT') {
+      lobbyLog('거부: ' + data.reason);
+      if (!WwNet.isHost) showLobby();
+    }
+  }
+
+  document.getElementById('btnSolo').onclick = startSolo;
+  document.getElementById('btnHost').onclick = () => {
+    roomInput.value = '';
+    WwNet.initPeer({ asHost: true, remoteId: '', handlers: {
+      onOpen: info => { if (info.roomReady) showCoopWait(info.id, true); else if (info.clientJoined) lobbyLog(PLAYER_DEFS[info.index].emoji + ' 입장'); },
+      onLobby: updateRosterUI, onData: handleNetData,
+      onClose: () => lobbyLog('연결 종료'), onError: e => lobbyLog('Peer: ' + (e.type || e.message))
+    }});
+  };
+  document.getElementById('btnJoin').onclick = () => {
+    roomInput.value = document.getElementById('joinCodeInput').value.trim();
+    WwNet.initPeer({ asHost: false, remoteId: roomInput.value, handlers: {
+      onOpen: info => { if (info.connOpen) lobbyLog('연결됨'); },
+      onData: handleNetData, onClose: () => lobbyLog('끊김'), onError: e => lobbyLog('Peer: ' + (e.type || e.message))
+    }});
+  };
+  document.getElementById('btnStartGame').onclick = hostBeginGame;
+  document.getElementById('btnCopyLink').onclick = () => copyText(currentInviteUrl || document.getElementById('roomCode').textContent, '복사됨');
+  document.getElementById('btnCancelWait').onclick = showLobby;
+  document.getElementById('backBtn').onclick = showLobby;
+  document.getElementById('btnToLobby').onclick = showLobby;
+  document.getElementById('btnRetry').onclick = () => {
+    overlay.classList.remove('show');
+    if (game?.solo) startSolo();
+    else showLobby();
+  };
+
+  if (USE_ROOM_CODE) {
+    document.getElementById('hintWeb').classList.add('hidden');
+    document.getElementById('hintFile').classList.remove('hidden');
+    joinPanel.classList.remove('hidden');
+  } else {
+    const join = new URLSearchParams(location.search).get('join');
+    if (join) { roomInput.value = join; lobbyLog('초대 링크 — 연결 중…');
+      WwNet.initPeer({ asHost: false, remoteId: join, handlers: {
+        onData: handleNetData, onError: e => lobbyLog('Peer: ' + e.type)
+      }});
+    }
+  }
+
+  window.addEventListener('resize', () => { if (game?.running) { game.resize(); game.draw(); } });
+})();
+</script>
+</body>
+</html>

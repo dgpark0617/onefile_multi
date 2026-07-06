@@ -1,0 +1,2735 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>미니 사커 택틱스 — Mini Soccer Tactics</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; min-height: 100%; background: #0f172a; color: #e2e8f0;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+  }
+  .hidden { display: none !important; }
+
+  #lobby {
+    min-height: 100dvh; padding: 20px; max-width: 560px; margin: 0 auto;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  #lobby h1 {
+    font-size: 1.45rem; margin: 0;
+    background: linear-gradient(90deg, #4ade80, #22d3ee);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  #lobby .sub { color: #94a3b8; font-size: 0.84rem; line-height: 1.55; margin: 0; }
+  .mode-block { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 14px; }
+  .mode-block h2 { margin: 0 0 6px; font-size: 1rem; color: #7ec8e3; }
+  .mode-block p { margin: 0 0 10px; font-size: 0.78rem; color: #94a3b8; line-height: 1.45; }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  button, select {
+    border: none; border-radius: 8px; padding: 10px 14px; font-size: 0.85rem;
+    cursor: pointer; touch-action: manipulation; font-weight: 600;
+  }
+  select { background: #1e293b; color: #e2e8f0; border: 1px solid #475569; }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-green { background: #4ade80; color: #0f172a; }
+  .btn-red { background: #dc2626; color: #fff; }
+  .btn-ghost { background: #334155; color: #e2e8f0; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  input {
+    width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #475569;
+    background: #0f172a; color: #e2e8f0; font-size: 0.9rem;
+  }
+  #waitingBox {
+    background: #0f3460; padding: 12px; border-radius: 10px; font-size: 0.82rem;
+    word-break: break-all; border: 1px solid #2563eb;
+  }
+  #inviteLink { color: #7ec8e3; font-size: 0.78rem; display: block; margin: 8px 0; }
+  #rosterList { margin: 10px 0; padding: 0; list-style: none; line-height: 1.7; max-height: 200px; overflow-y: auto; }
+  #rosterList .empty { color: #64748b; font-style: italic; }
+  #lobbyLog { font-size: 0.72rem; color: #4ade80; max-height: 80px; overflow-y: auto; white-space: pre-wrap; }
+
+  #gameRoot {
+    min-height: 100dvh; padding: 8px; display: flex; flex-direction: column; align-items: center;
+    position: relative;
+  }
+  #backBtn { position: absolute; top: 8px; right: 8px; z-index: 30; padding: 6px 12px; font-size: 11px; }
+  #hud {
+    display: flex; gap: 12px; margin: 4px 0 8px; font-size: 0.82rem; flex-wrap: wrap;
+    justify-content: center; align-items: center;
+  }
+  #hud .val { color: #4ade80; font-weight: bold; }
+  #phaseTag {
+    padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: bold;
+    background: rgba(37,99,235,0.25); color: #93c5fd;
+  }
+  #holdStreakWrap { font-size: 0.82rem; color: #fbbf24; }
+  #holdStreakWrap.warn { color: #f87171; }
+  #gameLayout {
+    display: flex; justify-content: center; align-items: flex-start; gap: 12px;
+    width: 100%; max-width: 1280px; margin: 0 auto;
+  }
+  #fieldWrap { position: relative; flex: 1 1 640px; max-width: 1000px; width: 100%; min-width: 0; }
+  canvas#game {
+    border: 2px solid #334155; border-radius: 8px; display: block; width: 100%; height: auto;
+    touch-action: none; box-shadow: 0 0 24px rgba(74,222,128,0.12);
+  }
+  #btnKick { background: #f59e0b; color: #0f172a; }
+  #btnKick:disabled { opacity: 0.35; }
+  .possess-overlay {
+    position: absolute; inset: 0; display: none; border-radius: 8px; z-index: 7;
+    pointer-events: none;
+  }
+  .possess-overlay.show { display: flex; }
+  #possessChoiceOverlay {
+    align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.78); pointer-events: auto;
+  }
+  .possess-panel {
+    background: #1e293b; border: 1px solid #475569; border-radius: 14px;
+    padding: 22px 26px; text-align: center; max-width: 340px;
+  }
+  .possess-panel h3 { margin: 0 0 8px; color: #fbbf24; font-size: 1.05rem; }
+  .possess-panel p { margin: 0 0 16px; font-size: 0.82rem; color: #94a3b8; line-height: 1.45; }
+  .possess-panel .btn-row { justify-content: center; gap: 10px; }
+  #dribbleOverlay {
+    flex-direction: column; justify-content: flex-start; align-items: stretch;
+  }
+  .possess-hud {
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    padding: 10px; background: rgba(15,23,42,0.88); border-bottom: 1px solid #334155;
+    pointer-events: auto;
+  }
+  #dribbleTimer { font-weight: bold; color: #4ade80; min-width: 48px; }
+  .possess-hint {
+    margin: 8px auto 0; padding: 6px 12px; font-size: 0.78rem; color: #cbd5e1;
+    background: rgba(15,23,42,0.72); border-radius: 8px; width: fit-content;
+    pointer-events: none;
+  }
+  #kickOverlay {
+    position: absolute; inset: 0; display: none; flex-direction: column;
+    align-items: center; justify-content: center; border-radius: 8px; z-index: 8;
+    background: rgba(0,0,0,0.72); touch-action: none;
+  }
+  #kickOverlay.show { display: flex; }
+  #kickStepHint {
+    color: #e2e8f0; font-size: 0.88rem; margin-bottom: 12px; text-align: center;
+    padding: 0 12px; line-height: 1.45;
+  }
+  canvas#zoomBallCanvas {
+    width: 260px; height: 260px; display: block; touch-action: none; cursor: crosshair;
+  }
+  #kickCancelBtn { margin-top: 12px; }
+  #playerTabs {
+    display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; max-width: 1000px; justify-content: center;
+  }
+  .player-tab {
+    padding: 4px 8px; font-size: 0.72rem; border-radius: 6px; background: #334155; color: #cbd5e1;
+    border: 2px solid transparent; cursor: pointer;
+  }
+  .player-tab.active { border-color: #4ade80; color: #4ade80; }
+  .player-tab.has-cmd { background: #1e3a5f; }
+  #resolveOverlay {
+    position: absolute; inset: 0; background: rgba(0,0,0,0.55); display: none;
+    align-items: center; justify-content: center; border-radius: 8px; z-index: 5;
+    font-size: 1.2rem; font-weight: bold; color: #93c5fd;
+  }
+  #resolveOverlay.show { display: flex; }
+  #popup {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.5);
+    font-size: 2.2rem; font-weight: bold; color: #4ade80; pointer-events: none; opacity: 0;
+    text-shadow: 0 0 20px rgba(74,222,128,0.8); transition: transform 0.15s, opacity 0.15s; white-space: nowrap;
+  }
+  #popup.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  #overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none;
+    align-items: center; justify-content: center; flex-direction: column; z-index: 50;
+  }
+  #overlay.show { display: flex; }
+  #overlay h2 { font-size: 1.8rem; margin-bottom: 10px; }
+  #overlay p { color: #94a3b8; margin-bottom: 18px; text-align: center; max-width: 90%; }
+  #actionQueuePanel {
+    flex: 0 0 280px; max-width: 300px; width: 100%;
+    background: #1e293b; border: 1px solid #334155; border-radius: 10px;
+    padding: 12px; max-height: min(680px, calc(100vh - 120px)); overflow: hidden;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  #actionQueuePanel h3 {
+    margin: 0; font-size: 0.92rem; color: #e2e8f0; display: flex; justify-content: space-between; align-items: center;
+  }
+  #actionQueuePanel .sub-h {
+    margin: 0; font-size: 0.72rem; color: #64748b; font-weight: normal;
+  }
+  #actionQueueList, #previewActionList {
+    list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1 1 auto; min-height: 0;
+  }
+  #actionQueueList li, #previewActionList li {
+    padding: 8px 10px; margin-bottom: 6px; border-radius: 8px; font-size: 0.78rem; line-height: 1.4;
+    background: #0f172a; border-left: 3px solid #475569;
+  }
+  #actionQueueList li.human { border-left-color: #4ade80; }
+  #actionQueueList li.remote { border-left-color: #60a5fa; }
+  #actionQueueList li .ord { color: #64748b; margin-right: 6px; font-size: 0.7rem; }
+  #actionQueueList li .tag {
+    display: inline-block; font-size: 0.65rem; padding: 1px 5px; border-radius: 4px;
+    background: #334155; color: #94a3b8; margin-left: 4px;
+  }
+  #previewActionList li.home { border-left-color: #2563eb; }
+  #previewActionList li.away { border-left-color: #dc2626; }
+  #previewActionList li.ai-est { opacity: 0.82; }
+  #previewActionList li .act { color: #cbd5e1; }
+  #actionQueueEmpty {
+    font-size: 0.76rem; color: #64748b; padding: 8px 4px; line-height: 1.45;
+  }
+  @media (max-width: 900px) {
+    #gameLayout { flex-direction: column; align-items: stretch; }
+    #actionQueuePanel { flex: 1 1 auto; max-width: none; max-height: 240px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="lobby">
+  <h1>⚽ 미니 사커 택틱스</h1>
+  <p class="sub">10초 계획 → 동시 정산 → 3초 연출. 점유자는 드리블 또는 킥(줌인) 필수 선택.</p>
+
+  <div class="mode-block">
+    <h2>① 솔로 모드</h2>
+    <p>우리 팀 10명 전체 조작 또는 에이스 1명 + AI 팀원. 상대는 AI.</p>
+    <div class="btn-row">
+      <select id="soloModeSelect">
+        <option value="ace">에이스 모드 (1명 조작)</option>
+        <option value="full">전체 조작 (10명)</option>
+      </select>
+      <select id="aiDifficulty">
+        <option value="easy">AI 하급</option>
+        <option value="medium" selected>AI 중급</option>
+        <option value="hard">AI 월드클래스</option>
+      </select>
+      <button class="btn-green" id="btnSolo">솔로 시작</button>
+    </div>
+  </div>
+
+  <div class="mode-block">
+    <h2>② 멀티플레이 (10 vs 10)</h2>
+    <p>PeerJS Star 구조 · 방장이 물리 연산 · 각자 담당 선수 1명 조작 (최대 20인)</p>
+    <div class="btn-row">
+      <button class="btn-primary" id="btnHost">방 만들기</button>
+    </div>
+  </div>
+
+  <div class="mode-block" id="joinPanel">
+    <h2>참가하기</h2>
+    <input id="joinCodeInput" placeholder="방 코드 입력" autocomplete="off">
+    <div class="btn-row" style="margin-top:8px"><button class="btn-red" id="btnJoin">참가</button></div>
+  </div>
+
+  <div id="waitingBox" class="hidden">
+    <div id="waitingTitle">대기실</div>
+    <span id="inviteLink"></span>
+    <ul id="rosterList"></ul>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn-green hidden" id="btnStartGame" disabled>경기 시작</button>
+      <button class="btn-ghost" id="btnCancelWait">나가기</button>
+    </div>
+    <p id="guestWaitHint" class="hidden" style="font-size:0.78rem;color:#888">방장이 시작하길 기다리는 중…</p>
+  </div>
+
+  <div id="lobbyLog"></div>
+</div>
+
+<div id="gameRoot" class="hidden">
+  <button type="button" id="backBtn" class="btn-ghost">← 로비</button>
+  <div id="hud">
+    <span id="phaseTag">계획</span>
+    <span>턴 <span class="val" id="turnNum">1</span></span>
+    <span>스코어 <span class="val" id="scoreHome">0</span> : <span class="val" id="scoreAway">0</span></span>
+    <span id="timerWrap">남은 시간 <span class="val" id="planTimer">—</span></span>
+    <span id="holdStreakWrap" class="hidden">연속 점유 <span class="val" id="holdStreak">0</span>/<span id="holdStreakMax">3</span></span>
+    <button type="button" id="btnKick" class="hidden" disabled>킥</button>
+    <button class="btn-green" id="btnCommit">명령 완료</button>
+  </div>
+  <div id="playerTabs" class="hidden"></div>
+  <div id="gameLayout">
+    <div id="fieldWrap">
+      <canvas id="game" width="1000" height="650"></canvas>
+      <div id="possessChoiceOverlay" class="possess-overlay">
+        <div class="possess-panel">
+          <h3>공 점유 — 행동 필수</h3>
+          <p>드리블로 돌파하거나, 킥 줌인으로 공을 차세요. 선택·완료 전까지 턴을 진행할 수 없습니다.</p>
+          <div class="btn-row">
+            <button type="button" id="btnChooseDribble" class="btn-green">드리블</button>
+            <button type="button" id="btnChooseKick" class="btn-primary">킥 (줌인)</button>
+          </div>
+        </div>
+      </div>
+      <div id="dribbleOverlay" class="possess-overlay">
+        <div class="possess-hud">
+          <span id="dribbleTimer">5.0s</span>
+          <button type="button" id="btnDribbleDone" class="btn-green">드리블 완료</button>
+        </div>
+        <p class="possess-hint">드래그로 드리블 · 이동 범위 안의 선수가 실시간으로 움직입니다</p>
+      </div>
+      <div id="kickOverlay">
+        <div id="kickStepHint">공 표면을 터치하세요 · 중앙=땅볼 · 아래=칩 · 좌우=커브</div>
+        <canvas id="zoomBallCanvas" width="260" height="260"></canvas>
+        <button type="button" id="kickCancelBtn" class="btn-ghost">취소</button>
+      </div>
+      <div id="resolveOverlay">정산 중…</div>
+      <div id="popup"></div>
+    </div>
+    <aside id="actionQueuePanel">
+      <div>
+        <h3>선택 명령 큐 <span class="sub-h" id="queueCount">0</span></h3>
+      </div>
+      <ul id="actionQueueList"></ul>
+      <p id="actionQueueEmpty">선수를 탭한 뒤 필드에 목적지를 지정하면 여기에 쌓입니다.</p>
+      <div>
+        <h3>전원 다음 행동 <span class="sub-h">미리보기</span></h3>
+      </div>
+      <ul id="previewActionList"></ul>
+    </aside>
+  </div>
+</div>
+
+<div id="overlay">
+  <h2 id="overlayTitle">경기 종료</h2>
+  <p id="overlayMsg"></p>
+  <div class="btn-row">
+    <button class="btn-green" id="restartBtn">다시 시작</button>
+    <button class="btn-ghost" id="toLobbyBtn">로비로</button>
+  </div>
+</div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ══════════════════ Config ══════════════════ */
+  const CFG = {
+    FIELD_W: 1000,
+    FIELD_H: 650,
+    PITCH_LENGTH_M: 105,
+    PITCH_WIDTH_M: 68,
+    PLAYER_HEIGHT_M: 1.75,
+    BALL_DIAMETER_M: 0.22,
+    GOAL_WIDTH_M: 7.32,
+    GOAL_DEPTH_M: 2.0,
+    GOAL_HEIGHT_M: 2.44,
+    // 실제 축구 참고: 스프린트 ~7.5m/s, 턴당 질주 ~10m, 숏패스 ~6m/s, 슛 ~28m/s
+    SPRINT_M_S: 7.5,
+    MOVE_CAP_M: 10,
+    KICK_PASS_MIN_M_S: 6,
+    KICK_SHOT_MAX_M_S: 28,
+    DRIBBLE_MAX_BALL_M_S: 5,
+    CHIP_V_M_S: 11,
+    BALL_DECEL_M_S2: 4.0,
+    PLAYERS_PER_TEAM: 10,
+    PLAYER_R: 8,
+    BALL_R: 1,
+    SIM_TIME: 10,
+    MAX_MOVE_PER_TURN: 95,
+    PLAYER_SPEED: 71,
+    GK_SPEED: 66,
+    SIM_DT: 1 / 120,
+    PLAYBACK_TIME: 3,
+    PLANNING_TIME: 10,
+    KEYFRAME_EVERY: 4,
+    MIN_KICK: 57,
+    MAX_KICK: 267,
+    SPIN_COEFF: 0.028,
+    MAGNUS: 0.85,
+    GRAVITY: 93,
+    AIR_DRAG: 0.9985,
+    GROUND_FRICTION: 0.992,
+    DRIBBLE_DIST: 11,
+    KICK_RANGE: 11,
+    GOAL_HALF: 35,
+    GOAL_DEPTH: 19,
+    MAX_TURNS: 30,
+    MAX_SLOTS: 20,
+    MAX_AIM_PULL: 150,
+    MIN_AIM_PULL: 28,
+    ZOOM_BALL_R: 108,
+    WAYPOINT_COLLIDE_DIST: 29,
+    PLAYER_SEP_PAD: 2,
+    COLLISION_SOLVE_ITERS: 8,
+    COLLISION_SUBSTEPS: 6,
+    SLIDE_FRICTION: 0.62,
+    SEPARATION_SLIDE: 0.4,
+    SCRUM_RADIUS: 76,
+    SCRUM_MAX_NEAR: 5,
+    SCRUM_PUSH_DIST: 38,
+    PRESS_COUNT: 3,
+    SHAPE_PULL: 0.22,
+    TEAM_SPREAD_MIN: 38,
+    MAX_POSSESSION_TURNS: 3,
+    DRIBBLE_REALTIME_SEC: 5
+  };
+
+  (function applyPitchScale() {
+    const pxL = CFG.FIELD_W / CFG.PITCH_LENGTH_M;
+    const pxW = CFG.FIELD_H / CFG.PITCH_WIDTH_M;
+    CFG.PX_PER_M = pxL;
+    CFG.PLAYER_R = Math.round(0.5 * CFG.PLAYER_HEIGHT_M * pxL);
+    CFG.BALL_R = Math.max(1, Math.round(0.5 * CFG.BALL_DIAMETER_M * pxL));
+    CFG.GOAL_HALF = Math.round(0.5 * CFG.GOAL_WIDTH_M * pxW);
+    CFG.GOAL_DEPTH = Math.round(CFG.GOAL_DEPTH_M * pxL);
+    CFG.GOAL_HEIGHT = CFG.GOAL_HEIGHT_M * pxL;
+    CFG.MAX_MOVE_PER_TURN = Math.round(CFG.MOVE_CAP_M * pxL);
+    CFG.PLAYER_SPEED = CFG.SPRINT_M_S * pxL;
+    CFG.GK_SPEED = CFG.PLAYER_SPEED * 0.92;
+    CFG.MIN_KICK = CFG.KICK_PASS_MIN_M_S * pxL;
+    CFG.MAX_KICK = CFG.KICK_SHOT_MAX_M_S * pxL;
+    CFG.DRIBBLE_DIST = Math.round(CFG.PLAYER_R + CFG.BALL_R + 2);
+    CFG.KICK_RANGE = CFG.DRIBBLE_DIST;
+    CFG.POSSESSION_ACQUIRE_DIST = CFG.DRIBBLE_DIST + 1;
+    CFG.POSSESSION_LOSE_DIST = CFG.DRIBBLE_DIST + 5;
+    CFG.POSSESSION_MAX_BALL_SPEED = CFG.DRIBBLE_MAX_BALL_M_S * pxL;
+    CFG.GRAVITY = 9.8 * pxL;
+    CFG.BALL_DECEL = CFG.BALL_DECEL_M_S2 * pxL;
+    CFG.LOB_CLEAR_Z = 2.2 * pxL;
+    CFG.LOB_VIS_Z = 5 * pxL;
+    CFG.WAYPOINT_COLLIDE_DIST = Math.round(3 * pxL);
+    CFG.SCRUM_RADIUS = Math.round(8 * pxL);
+    CFG.SCRUM_PUSH_DIST = Math.round(4 * pxL);
+    CFG.TEAM_SPREAD_MIN = Math.round(4 * pxL);
+    CFG.CENTER_CIRCLE_R = Math.round(9.15 * pxL);
+  })();
+
+  const PHASE = { PLANNING: 'PLANNING', RESOLVING: 'RESOLVING', PLAYBACK: 'PLAYBACK' };
+  const TEAM_HOME = 0, TEAM_AWAY = 1;
+
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const zoomBallCanvas = document.getElementById('zoomBallCanvas');
+  const zctx = zoomBallCanvas.getContext('2d');
+  const W = CFG.FIELD_W, H = CFG.FIELD_H;
+
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function dist(x1, y1, x2, y2) { return Math.hypot(x2 - x1, y2 - y1); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function makeSeededRand(seed) {
+    let s = (seed >>> 0) || 1;
+    return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+  }
+
+  function canvasPos(e, el) {
+    const rect = el.getBoundingClientRect();
+    const scaleX = el.width / rect.width;
+    const scaleY = el.height / rect.height;
+    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+    return { x: (cx - rect.left) * scaleX, y: (cy - rect.top) * scaleY };
+  }
+
+  function normToField(nx, ny) {
+    return { x: nx * W, y: ny * H };
+  }
+
+  function fieldToNorm(x, y) {
+    return { x: x / W, y: y / H };
+  }
+
+  function clampToField(wx, wy) {
+    return {
+      wx: clamp(wx, CFG.PLAYER_R, W - CFG.PLAYER_R),
+      wy: clamp(wy, CFG.PLAYER_R, H - CFG.PLAYER_R)
+    };
+  }
+
+  function clampMoveFrom(sx, sy, wx, wy) {
+    let tx = wx, ty = wy;
+    const dx = tx - sx, dy = ty - sy;
+    const d = Math.hypot(dx, dy);
+    if (d > CFG.MAX_MOVE_PER_TURN && d > 0.01) {
+      const t = CFG.MAX_MOVE_PER_TURN / d;
+      tx = sx + dx * t;
+      ty = sy + dy * t;
+    }
+    return clampToField(tx, ty);
+  }
+
+  function clampCommandMove(p, cmd) {
+    const w = clampMoveFrom(p.x, p.y, cmd.wx, cmd.wy);
+    cmd.wx = w.wx;
+    cmd.wy = w.wy;
+    return cmd;
+  }
+
+  const FORMATION_SLOTS = [
+    { x: 0.05, y: 0.5, gk: true },
+    { x: 0.18, y: 0.15 }, { x: 0.18, y: 0.35 }, { x: 0.18, y: 0.65 }, { x: 0.18, y: 0.85 },
+    { x: 0.32, y: 0.22 }, { x: 0.32, y: 0.45 }, { x: 0.32, y: 0.55 }, { x: 0.32, y: 0.78 },
+    { x: 0.46, y: 0.38 }, { x: 0.46, y: 0.62 }
+  ];
+
+  function formationAnchor(team, slotIndex) {
+    const s = FORMATION_SLOTS[slotIndex];
+    const nx = team === TEAM_HOME ? s.x : 1 - s.x;
+    return normToField(nx, s.y);
+  }
+
+  function defaultFormation(team) {
+    const players = [];
+    for (let i = 0; i < CFG.PLAYERS_PER_TEAM; i++) {
+      const s = FORMATION_SLOTS[i];
+      const nx = team === TEAM_HOME ? s.x : 1 - s.x;
+      const p = normToField(nx, s.y);
+      players.push({
+        id: team * CFG.PLAYERS_PER_TEAM + i,
+        team,
+        number: i + 1,
+        isGK: !!s.gk,
+        x: p.x,
+        y: p.y,
+        wx: p.x,
+        wy: p.y
+      });
+    }
+    return players;
+  }
+
+  function cloneWorld(w) {
+    return {
+      players: w.players.map(p => ({ ...p })),
+      ball: { ...w.ball },
+      score: [...w.score],
+      possession: w.possession,
+      lastTouch: w.lastTouch,
+      possessionStreak: w.possessionStreak != null ? w.possessionStreak : 1,
+      holdTeam: w.holdTeam != null ? w.holdTeam : w.lastTouch
+    };
+  }
+
+  /* ══════════════════ PhysicsEngine ══════════════════ */
+  const PhysicsEngine = {
+    makeBall(x, y) {
+      return { x, y, vx: 0, vy: 0, spin: 0, z: 0, vz: 0 };
+    },
+
+    kickBall(ball, aim, impactX, impactY, power) {
+      const spd = CFG.MIN_KICK + power * (CFG.MAX_KICK - CFG.MIN_KICK);
+      const lob = clamp(impactY, 0, 1) * power;
+      const launchAngle = lob * 0.52;
+      const horiz = spd * Math.cos(launchAngle);
+      ball.vx = Math.cos(aim) * horiz;
+      ball.vy = Math.sin(aim) * horiz;
+      ball.spin = impactX * power * CFG.SPIN_COEFF * 120;
+      const pxL = CFG.PX_PER_M || (W / CFG.PITCH_LENGTH_M);
+      const chipVmps = lob * CFG.CHIP_V_M_S * (0.4 + power * 0.6);
+      ball.vz = chipVmps * pxL;
+      ball.z = ball.vz > pxL * 0.25 ? 1.2 : 0;
+    },
+
+    forceFumble(world, seed) {
+      const rand = makeSeededRand((seed >>> 0) * 7919 + 13);
+      const angle = rand() * Math.PI * 2;
+      const power = 0.32 + rand() * 0.38;
+      const carrier = world.possession != null
+        ? world.players.find(p => p.id === world.possession)
+        : null;
+      const bx = carrier ? carrier.x : world.ball.x;
+      const by = carrier ? carrier.y : world.ball.y;
+      const ball = world.ball;
+      ball.x = bx + Math.cos(angle) * (CFG.PLAYER_R + CFG.BALL_R + 1);
+      ball.y = by + Math.sin(angle) * (CFG.PLAYER_R + CFG.BALL_R + 1);
+      ball.z = 0;
+      ball.vz = 0;
+      const speed = (4 + power * 3) * (CFG.PX_PER_M || 9.5);
+      ball.vx = Math.cos(angle) * speed;
+      ball.vy = Math.sin(angle) * speed;
+      ball.spin = (rand() - 0.5) * 2.5;
+      world.possession = null;
+      return angle;
+    },
+
+    stepBall(ball) {
+      const inAir = ball.z > 0.5 || ball.vz > 0.5;
+      if (inAir) {
+        ball.vz -= CFG.GRAVITY * CFG.SIM_DT;
+        ball.z += ball.vz * CFG.SIM_DT;
+        ball.vx *= CFG.AIR_DRAG;
+        ball.vy *= CFG.AIR_DRAG;
+        if (ball.z <= 0) {
+          ball.z = 0;
+          if (ball.vz < -40) {
+            ball.vz *= -0.35;
+            ball.vx *= 0.85;
+            ball.vy *= 0.85;
+          } else ball.vz = 0;
+        }
+      } else {
+        ball.z = 0;
+        const spd = Math.hypot(ball.vx, ball.vy);
+        if (spd > 0.5) {
+          const drop = (CFG.BALL_DECEL || 38) * CFG.SIM_DT;
+          const scale = Math.max(0, (spd - drop) / spd);
+          ball.vx *= scale;
+          ball.vy *= scale;
+        }
+        ball.vx *= CFG.GROUND_FRICTION;
+        ball.vy *= CFG.GROUND_FRICTION;
+      }
+      const spd = Math.hypot(ball.vx, ball.vy);
+      if (spd > 0.5 && Math.abs(ball.spin) > 0.01) {
+        const nx = -ball.vy / spd, ny = ball.vx / spd;
+        const m = ball.spin * CFG.MAGNUS * CFG.SIM_DT;
+        ball.vx += nx * m;
+        ball.vy += ny * m;
+        ball.spin *= 0.9995;
+      }
+      ball.x += ball.vx * CFG.SIM_DT;
+      ball.y += ball.vy * CFG.SIM_DT;
+      this.clampBallField(ball);
+    },
+
+    clampBallField(ball) {
+      if (ball.y < CFG.BALL_R) { ball.y = CFG.BALL_R; ball.vy *= -0.65; }
+      if (ball.y > H - CFG.BALL_R) { ball.y = H - CFG.BALL_R; ball.vy *= -0.65; }
+      const goalTop = H / 2 - CFG.GOAL_HALF;
+      const goalBot = H / 2 + CFG.GOAL_HALF;
+      const inGoalY = ball.y > goalTop + CFG.BALL_R && ball.y < goalBot - CFG.BALL_R;
+      if (ball.x < CFG.BALL_R) {
+        if (!inGoalY) { ball.x = CFG.BALL_R; ball.vx *= -0.7; }
+      }
+      if (ball.x > W - CFG.BALL_R) {
+        if (!inGoalY) { ball.x = W - CFG.BALL_R; ball.vx *= -0.7; }
+      }
+    },
+
+    checkGoal(ball) {
+      const goalTop = H / 2 - CFG.GOAL_HALF;
+      const goalBot = H / 2 + CFG.GOAL_HALF;
+      if (ball.y < goalTop || ball.y > goalBot) return null;
+      if (ball.x < CFG.GOAL_DEPTH && ball.z < (CFG.GOAL_HEIGHT || 23)) return TEAM_AWAY;
+      if (ball.x > W - CFG.GOAL_DEPTH && ball.z < (CFG.GOAL_HEIGHT || 23)) return TEAM_HOME;
+      return null;
+    },
+
+    playerRadius(p) {
+      return CFG.PLAYER_R;
+    },
+
+    clampPlayerPos(p) {
+      const r = this.playerRadius(p);
+      p.x = clamp(p.x, r, W - r);
+      p.y = clamp(p.y, r, H - r);
+    },
+
+    minSeparation(a, b) {
+      return this.playerRadius(a) + this.playerRadius(b) + CFG.PLAYER_SEP_PAD;
+    },
+
+    waypointsConflict(a, b) {
+      return dist(a.wx, a.wy, b.wx, b.wy) < CFG.WAYPOINT_COLLIDE_DIST;
+    },
+
+    pathsInteract(a, b) {
+      if (this.waypointsConflict(a, b)) return true;
+      const minD = this.minSeparation(a, b);
+      if (dist(a.x, a.y, b.x, b.y) < minD) return true;
+      const samples = 8;
+      for (let i = 1; i <= samples; i++) {
+        const t = i / samples;
+        const ax = lerp(a.x, a.wx, t), ay = lerp(a.y, a.wy, t);
+        const bx = lerp(b.x, b.wx, t), by = lerp(b.y, b.wy, t);
+        if (dist(ax, ay, bx, by) < minD) return true;
+      }
+      return false;
+    },
+
+    wouldOverlapAt(px, py, p, ox, oy, other) {
+      return dist(px, py, ox, oy) < this.minSeparation(p, other);
+    },
+
+    headingToWaypoint(p) {
+      const dx = p.wx - p.x, dy = p.wy - p.y;
+      const d = Math.hypot(dx, dy);
+      if (d < 0.01) return { x: 0, y: 0 };
+      return { x: dx / d, y: dy / d };
+    },
+
+    isBlockedAt(px, py, p, players, posAt) {
+      for (const other of players) {
+        if (other.id === p.id) continue;
+        const op = posAt(other.id);
+        if (dist(px, py, op.x, op.y) < this.minSeparation(p, other)) return true;
+      }
+      return false;
+    },
+
+    advanceWithSlide(sx, sy, tx, ty, p, players, posAt) {
+      let cx = sx, cy = sy;
+      const dx = tx - sx, dy = ty - sy;
+      const len = Math.hypot(dx, dy);
+      if (len < 0.01) return { x: cx, y: cy };
+      const dirX = dx / len, dirY = dy / len;
+      const perpX = -dirY, perpY = dirX;
+      const fr = CFG.SLIDE_FRICTION;
+      const n = CFG.COLLISION_SUBSTEPS;
+
+      for (let i = 0; i < n; i++) {
+        const seg = len / n;
+        const tries = [
+          [dirX * seg, dirY * seg],
+          [dirX * seg * 0.5 + perpX * seg * fr, dirY * seg * 0.5 + perpY * seg * fr],
+          [dirX * seg * 0.5 - perpX * seg * fr, dirY * seg * 0.5 - perpY * seg * fr],
+          [perpX * seg * fr, perpY * seg * fr],
+          [-perpX * seg * fr, -perpY * seg * fr],
+          [dirX * seg * 0.25, dirY * seg * 0.25]
+        ];
+        let moved = false;
+        for (const [vx, vy] of tries) {
+          const nx = cx + vx, ny = cy + vy;
+          if (!this.isBlockedAt(nx, ny, p, players, posAt)) {
+            cx = nx;
+            cy = ny;
+            moved = true;
+            break;
+          }
+        }
+        if (!moved) break;
+      }
+      return { x: cx, y: cy };
+    },
+
+    projectMove(p, dt) {
+      const speed = CFG.PLAYER_SPEED;
+      const d = dist(p.x, p.y, p.wx, p.wy);
+      if (d < 2) return { x: p.x, y: p.y, moving: false };
+      const step = speed * dt;
+      const t = Math.min(1, step / d);
+      return {
+        x: p.x + (p.wx - p.x) * t,
+        y: p.y + (p.wy - p.y) * t,
+        moving: true
+      };
+    },
+
+    moveAllPlayers(players, dt) {
+      const startPos = new Map(players.map(p => [p.id, { x: p.x, y: p.y }]));
+      const posAt = (id) => startPos.get(id);
+      const intents = new Map();
+      for (const p of players) intents.set(p.id, this.projectMove(p, dt));
+
+      for (const p of players) {
+        const intent = intents.get(p.id);
+        const s = startPos.get(p.id);
+        let nx = s.x, ny = s.y;
+        if (intent.moving) {
+          const end = this.advanceWithSlide(s.x, s.y, intent.x, intent.y, p, players, posAt);
+          nx = end.x;
+          ny = end.y;
+        }
+        p.x = nx;
+        p.y = ny;
+        this.clampPlayerPos(p);
+      }
+    },
+
+    resolvePlayerCollisions(players) {
+      for (let iter = 0; iter < CFG.COLLISION_SOLVE_ITERS; iter++) {
+        const list = players.slice().sort((a, b) => a.id - b.id);
+        let moved = false;
+        for (let i = 0; i < list.length; i++) {
+          for (let j = i + 1; j < list.length; j++) {
+            if (this.separatePlayers(list[i], list[j])) moved = true;
+          }
+        }
+        if (!moved) break;
+      }
+    },
+
+    deoverlapAll(players) {
+      for (let i = 0; i < 8; i++) this.resolvePlayerCollisions(players);
+    },
+
+    decrowdBall(world) {
+      const ball = world.ball;
+      if (ball.z > (CFG.LOB_CLEAR_Z || 16)) return;
+      const near = world.players.filter(p => dist(p.x, p.y, ball.x, ball.y) < CFG.SCRUM_RADIUS);
+      if (near.length <= CFG.SCRUM_MAX_NEAR) return;
+      const possessor = world.possession;
+      near.sort((a, b) => dist(a.x, a.y, ball.x, ball.y) - dist(b.x, b.y, ball.x, ball.y));
+      for (let i = 0; i < near.length; i++) {
+        const p = near[i];
+        if (p.id === possessor && i === 0) continue;
+        const dx = p.x - ball.x, dy = p.y - ball.y;
+        let d = Math.hypot(dx, dy);
+        if (d < 0.01) {
+          const ang = p.id * 2.1;
+          dx = Math.cos(ang);
+          dy = Math.sin(ang);
+          d = 1;
+        }
+        const push = CFG.SCRUM_PUSH_DIST + (i % 3) * 8;
+        p.x = ball.x + (dx / d) * push;
+        p.y = ball.y + (dy / d) * push;
+        this.clampPlayerPos(p);
+      }
+      this.resolvePlayerCollisions(world.players);
+    },
+
+    separatePlayers(a, b) {
+      const minD = this.minSeparation(a, b);
+      let dx = a.x - b.x, dy = a.y - b.y;
+      let d = Math.hypot(dx, dy);
+      if (d >= minD) return false;
+      if (d < 0.01) {
+        const angle = a.id * 1.7 + b.id * 2.3;
+        dx = Math.cos(angle);
+        dy = Math.sin(angle);
+        d = 1;
+      }
+      const nx = dx / d, ny = dy / d;
+      const tanX = -ny, tanY = nx;
+      const overlap = minD - d;
+      const headA = this.headingToWaypoint(a);
+      const headB = this.headingToWaypoint(b);
+      const slideA = (headA.x * tanX + headA.y * tanY) * CFG.SEPARATION_SLIDE * overlap;
+      const slideB = (headB.x * tanX + headB.y * tanY) * CFG.SEPARATION_SLIDE * overlap;
+      const push = overlap * 0.5;
+      a.x += nx * push + tanX * slideA;
+      a.y += ny * push + tanY * slideA;
+      b.x -= nx * push - tanX * slideB;
+      b.y -= ny * push - tanY * slideB;
+      this.clampPlayerPos(a);
+      this.clampPlayerPos(b);
+      return true;
+    },
+
+    resolvePossession(world) {
+      const ball = world.ball;
+      if (ball.z > CFG.LOB_CLEAR_Z) return;
+
+      const pid = world.possession;
+      if (pid != null) {
+        const holder = world.players.find(p => p.id === pid);
+        if (!holder || dist(holder.x, holder.y, ball.x, ball.y) > CFG.POSSESSION_LOSE_DIST) {
+          world.possession = null;
+        }
+      }
+
+      const ballSpd = Math.hypot(ball.vx, ball.vy);
+      if (ballSpd > CFG.POSSESSION_MAX_BALL_SPEED) return;
+
+      let best = null, bestD = CFG.POSSESSION_ACQUIRE_DIST;
+      for (const p of world.players) {
+        const d = dist(p.x, p.y, ball.x, ball.y);
+        if (d < bestD) { bestD = d; best = p; }
+      }
+      if (best) {
+        world.possession = best.id;
+        world.lastTouch = best.team;
+      }
+    },
+
+    dribbleAttach(world) {
+      const pid = world.possession;
+      if (pid == null) return;
+      const p = world.players.find(pl => pl.id === pid);
+      if (!p) return;
+      const b = world.ball;
+      if (b.z > CFG.LOB_CLEAR_Z * 0.55) return;
+
+      const ballSpd = Math.hypot(b.vx, b.vy);
+      if (ballSpd > CFG.POSSESSION_MAX_BALL_SPEED) return;
+
+      const d = dist(p.x, p.y, b.x, b.y);
+      if (d > CFG.POSSESSION_LOSE_DIST) {
+        world.possession = null;
+        return;
+      }
+
+      const mdx = p.wx - p.x, mdy = p.wy - p.y;
+      const md = Math.hypot(mdx, mdy);
+      let hx, hy;
+      if (md > 2) {
+        hx = mdx / md;
+        hy = mdy / md;
+      } else {
+        hx = p.team === TEAM_HOME ? 1 : -1;
+        hy = 0;
+      }
+      const pad = CFG.PLAYER_R + CFG.BALL_R + 1.5;
+      b.x = p.x + hx * pad;
+      b.y = p.y + hy * pad;
+      b.z = 0;
+      b.vz = 0;
+      b.vx = hx * CFG.PLAYER_SPEED * 0.92;
+      b.vy = hy * CFG.PLAYER_SPEED * 0.92;
+    },
+
+    playerNearBall(p, ball) {
+      return dist(p.x, p.y, ball.x, ball.y) <= CFG.KICK_RANGE;
+    },
+
+    playerCanKick(p, ball) {
+      return dist(p.x, p.y, ball.x, ball.y) <= CFG.POSSESSION_LOSE_DIST;
+    },
+
+    playerBallCollision(world, p) {
+      const r = this.playerRadius(p);
+      const b = world.ball;
+      if (b.z > CFG.LOB_CLEAR_Z) return;
+      const d = dist(p.x, p.y, b.x, b.y);
+      if (d >= r + CFG.BALL_R || d < 0.01) return;
+
+      const ballSpd = Math.hypot(b.vx, b.vy);
+      const rel = (b.vx * (b.x - p.x) + b.vy * (b.y - p.y)) / d;
+      if (ballSpd > CFG.POSSESSION_MAX_BALL_SPEED) return;
+
+      const nx = (b.x - p.x) / d, ny = (b.y - p.y) / d;
+      const overlap = r + CFG.BALL_R - d;
+      b.x += nx * overlap;
+      b.y += ny * overlap;
+      const relN = b.vx * nx + b.vy * ny;
+      if (relN < 0) {
+        b.vx -= nx * relN * 1.4;
+        b.vy -= ny * relN * 1.4;
+      }
+      if (ballSpd <= CFG.POSSESSION_MAX_BALL_SPEED) {
+        world.possession = p.id;
+        world.lastTouch = p.team;
+      }
+    },
+
+    playersInMoveRange(cx, cy, players) {
+      const ids = new Set();
+      for (const p of players) {
+        if (dist(p.x, p.y, cx, cy) <= CFG.MAX_MOVE_PER_TURN) ids.add(p.id);
+      }
+      return ids;
+    },
+
+    stepDribbleZone(world, liveIds, carrierId, dt) {
+      const carrier = world.players.find(p => p.id === carrierId);
+      if (!carrier) return;
+      const live = world.players.filter(p => liveIds.has(p.id));
+      const ball = world.ball;
+
+      for (const p of live) {
+        if (p.id === carrierId) continue;
+        if (p.team !== carrier.team) {
+          p.wx = ball.x;
+          p.wy = ball.y;
+        } else {
+          const ahead = carrier.team === TEAM_HOME ? CFG.MAX_MOVE_PER_TURN * 0.35 : -CFG.MAX_MOVE_PER_TURN * 0.35;
+          p.wx = clamp(carrier.x + ahead, CFG.PLAYER_R, W - CFG.PLAYER_R);
+          p.wy = carrier.y;
+        }
+      }
+
+      this.moveAllPlayers(live, dt);
+      this.dribbleAttach(world);
+      for (const p of live) this.playerBallCollision(world, p);
+      this.decrowdBall(world);
+      this.resolvePlayerCollisions(live);
+      this.clampPlayerPos(carrier);
+    },
+
+    simulate(initialWorld, commands) {
+      const world = cloneWorld(initialWorld);
+      const startPos = new Map(world.players.map(p => [p.id, { x: p.x, y: p.y }]));
+      const cmdMap = new Map();
+      for (const c of commands) {
+        const start = startPos.get(c.playerId);
+        if (start) {
+          const w = clampMoveFrom(start.x, start.y, c.wx, c.wy);
+          cmdMap.set(c.playerId, { ...c, wx: w.wx, wy: w.wy });
+        } else {
+          cmdMap.set(c.playerId, c);
+        }
+      }
+
+      const kicked = new Set();
+      const steps = Math.round(CFG.SIM_TIME / CFG.SIM_DT);
+      const keyframes = [];
+      let goalTeam = null;
+
+      for (let step = 0; step < steps; step++) {
+        const t = step * CFG.SIM_DT;
+        for (const p of world.players) {
+          const cmd = cmdMap.get(p.id);
+          if (cmd) {
+            p.wx = cmd.wx;
+            p.wy = cmd.wy;
+          }
+        }
+        this.moveAllPlayers(world.players, CFG.SIM_DT);
+
+        let kickThisStep = false;
+        for (const p of world.players) {
+          const cmd = cmdMap.get(p.id);
+          if (!cmd || !cmd.kick || kicked.has(p.id)) continue;
+          const kickAt = cmd.kick.kickAt != null ? cmd.kick.kickAt : 0;
+          if (t >= kickAt - 1e-6 && this.playerNearBall(p, world.ball) && world.ball.z < CFG.LOB_CLEAR_Z) {
+            kickThisStep = true;
+            break;
+          }
+        }
+        if (!kickThisStep) this.dribbleAttach(world);
+
+        for (const p of world.players) {
+          const cmd = cmdMap.get(p.id);
+          if (cmd && cmd.kick && !kicked.has(p.id)) {
+            const kickAt = cmd.kick.kickAt != null ? cmd.kick.kickAt : 0;
+            const hasBall = this.playerNearBall(p, world.ball) && world.ball.z < CFG.LOB_CLEAR_Z;
+            if (hasBall && t >= kickAt - 1e-6) {
+              world.ball.x = p.x + Math.cos(cmd.kick.aim) * (CFG.PLAYER_R + 2);
+              world.ball.y = p.y + Math.sin(cmd.kick.aim) * (CFG.PLAYER_R + 2);
+              this.kickBall(world.ball, cmd.kick.aim, cmd.kick.impactX, cmd.kick.impactY, cmd.kick.power);
+              kicked.add(p.id);
+              world.possession = null;
+              world.lastTouch = p.team;
+            }
+          }
+        }
+
+        this.resolvePlayerCollisions(world.players);
+        this.decrowdBall(world);
+
+        const dribbled = world.possession != null && world.ball.z < CFG.LOB_CLEAR_Z * 0.55;
+        if (!dribbled) this.stepBall(world.ball);
+        for (const p of world.players) this.playerBallCollision(world, p);
+        this.resolvePossession(world);
+
+        const g = this.checkGoal(world.ball);
+        if (g !== null) {
+          goalTeam = g;
+          world.score[g]++;
+          keyframes.push(this.snapshot(world, t));
+          break;
+        }
+
+        if (step % CFG.KEYFRAME_EVERY === 0) {
+          keyframes.push(this.snapshot(world, t));
+        }
+      }
+      if (keyframes.length === 0 || keyframes[keyframes.length - 1].t < CFG.SIM_TIME - 0.01) {
+        keyframes.push(this.snapshot(world, CFG.SIM_TIME));
+      }
+      return { keyframes, goalTeam, finalWorld: world };
+    },
+
+    snapshot(world, t) {
+      return {
+        t,
+        players: world.players.map(p => ({ id: p.id, x: p.x, y: p.y })),
+        ball: { x: world.ball.x, y: world.ball.y, z: world.ball.z },
+        score: [...world.score]
+      };
+    },
+
+    sampleKeyframes(keyframes, alpha) {
+      const endT = keyframes[keyframes.length - 1].t;
+      const t = alpha * endT;
+      let i = 0;
+      while (i < keyframes.length - 2 && keyframes[i + 1].t < t) i++;
+      const a = keyframes[i], b = keyframes[i + 1];
+      const span = b.t - a.t || 1;
+      const u = clamp((t - a.t) / span, 0, 1);
+      const players = a.players.map((pa, idx) => {
+        const pb = b.players[idx];
+        return { id: pa.id, x: lerp(pa.x, pb.x, u), y: lerp(pa.y, pb.y, u) };
+      });
+      const ball = {
+        x: lerp(a.ball.x, b.ball.x, u),
+        y: lerp(a.ball.y, b.ball.y, u),
+        z: lerp(a.ball.z, b.ball.z, u)
+      };
+      return { players, ball, score: b.score };
+    }
+  };
+
+  /* ══════════════════ AIController ══════════════════ */
+  const AIController = {
+    difficulty: 'medium',
+
+    params() {
+      const m = { easy: { react: 0.45, accuracy: 0.5 }, medium: { react: 0.72, accuracy: 0.78 }, hard: { react: 0.95, accuracy: 0.95 } };
+      return m[this.difficulty] || m.medium;
+    },
+
+    shapeAnchor(p) {
+      const idx = p.id % CFG.PLAYERS_PER_TEAM;
+      return formationAnchor(p.team, idx);
+    },
+
+    spacingOffset(tx, ty, mates, minD) {
+      let x = tx, y = ty;
+      for (const m of mates) {
+        const d = dist(x, y, m.x, m.y);
+        if (d < minD && d > 0.01) {
+          const push = (minD - d) * 0.6;
+          x += ((x - m.x) / d) * push;
+          y += ((y - m.y) / d) * push;
+        }
+      }
+      return { x, y };
+    },
+
+    pressersForTeam(world, team) {
+      const mates = world.players.filter(p => p.team === team && !p.isGK);
+      return mates
+        .slice()
+        .sort((a, b) => dist(a.x, a.y, world.ball.x, world.ball.y) - dist(b.x, b.y, world.ball.x, world.ball.y))
+        .slice(0, CFG.PRESS_COUNT)
+        .map(p => p.id);
+    },
+
+    generateCommands(world, playerIds, userKickHint, rand) {
+      const r = rand || Math.random;
+      const cmds = [];
+      const ball = world.ball;
+      const carrier = world.players.find(p => p.id === world.possession);
+      for (const pid of playerIds) {
+        const p = world.players.find(pl => pl.id === pid);
+        if (!p) continue;
+        const cmd = { playerId: pid, wx: p.x, wy: p.y };
+        if (p.team === TEAM_HOME && carrier && carrier.team === TEAM_HOME && p.id !== carrier.id) {
+          Object.assign(cmd, this.supportRun(p, carrier, world));
+        } else if (p.team === TEAM_AWAY) {
+          Object.assign(cmd, this.defendRun(p, carrier, world, userKickHint, r));
+        } else if (carrier && carrier.id === p.id) {
+          const baseAim = carrier.team === TEAM_HOME ? 0 : Math.PI;
+          const par = this.params();
+          cmd.kick = {
+            aim: baseAim + (r() - 0.5) * 0.5 * (1 - par.accuracy + 0.2),
+            power: 0.45 + r() * 0.4 * par.accuracy,
+            impactX: clamp((r() - 0.5) * 1.4, -1, 1),
+            impactY: r() > 0.75 ? -0.35 - r() * 0.4 : (r() - 0.5) * 0.2,
+            kickAt: 0
+          };
+          cmd.wx = clamp(p.x + Math.cos(cmd.kick.aim) * 40, CFG.PLAYER_R, W - CFG.PLAYER_R);
+          cmd.wy = p.y;
+        }
+        const w = clampMoveFrom(p.x, p.y, cmd.wx, cmd.wy);
+        cmd.wx = w.wx;
+        cmd.wy = w.wy;
+        cmds.push(cmd);
+      }
+      return cmds;
+    },
+
+    previewCommands(world, playerIds, userKickHint, seed) {
+      return this.generateCommands(world, playerIds, userKickHint, makeSeededRand(seed));
+    },
+
+    supportRun(p, carrier, world) {
+      const ahead = carrier.team === TEAM_HOME ? 1 : -1;
+      const lane = (p.number % 2 === 0 ? -1 : 1);
+      let tx = carrier.x + ahead * 110;
+      let ty = carrier.y + lane * 75;
+      const mates = world.players.filter(m => m.team === p.team && m.id !== p.id);
+      const spaced = this.spacingOffset(tx, ty, mates, CFG.TEAM_SPREAD_MIN);
+      tx = spaced.x;
+      ty = spaced.y;
+      const foes = world.players.filter(f => f.team !== p.team);
+      for (const f of foes) {
+        if (dist(tx, ty, f.x, f.y) < 55) ty += ty > carrier.y ? 45 : -45;
+      }
+      return {
+        wx: clamp(tx, CFG.PLAYER_R, W - CFG.PLAYER_R),
+        wy: clamp(ty, CFG.PLAYER_R, H - CFG.PLAYER_R)
+      };
+    },
+
+    defendRun(p, carrier, world, kickHint, rand) {
+      const r = rand || Math.random;
+      const par = this.params();
+      if (p.isGK) {
+        const by = clamp(
+          lerp(p.y, world.ball.y, 0.25),
+          H / 2 - CFG.GOAL_HALF + 10,
+          H / 2 + CFG.GOAL_HALF - 10
+        );
+        return {
+          wx: p.team === TEAM_AWAY ? 48 : W - 48,
+          wy: by
+        };
+      }
+
+      const anchor = this.shapeAnchor(p);
+      const pressIds = this.pressersForTeam(world, p.team);
+      const mates = world.players.filter(m => m.team === p.team && m.id !== p.id);
+
+      if (!pressIds.includes(p.id)) {
+        let tx = lerp(anchor.x, world.ball.x, CFG.SHAPE_PULL);
+        let ty = lerp(anchor.y, world.ball.y, CFG.SHAPE_PULL);
+        const spaced = this.spacingOffset(tx, ty, mates, CFG.TEAM_SPREAD_MIN);
+        return {
+          wx: clamp(spaced.x, CFG.PLAYER_R, W - CFG.PLAYER_R),
+          wy: clamp(spaced.y, CFG.PLAYER_R, H - CFG.PLAYER_R)
+        };
+      }
+
+      let bx = world.ball.x, by = world.ball.y;
+      const useKickHint = kickHint && carrier && pressIds.includes(p.id) &&
+        p.id === pressIds[0] && dist(p.x, p.y, carrier.x, carrier.y) < 220;
+      if (useKickHint) {
+        const aim = kickHint.aim;
+        const power = kickHint.power * par.accuracy;
+        const lead = 50 + power * 100;
+        bx = carrier.x + Math.cos(aim) * lead * par.react;
+        by = carrier.y + Math.sin(aim) * lead * par.react;
+        if (r() > par.accuracy) {
+          bx += (r() - 0.5) * 60;
+          by += (r() - 0.5) * 60;
+        }
+      } else {
+        bx = lerp(p.x, world.ball.x, 0.28 + par.react * 0.22);
+        by = lerp(p.y, world.ball.y, 0.28 + par.react * 0.22);
+      }
+      const spaced = this.spacingOffset(bx, by, mates, CFG.TEAM_SPREAD_MIN);
+      return {
+        wx: clamp(spaced.x, CFG.PLAYER_R, W - CFG.PLAYER_R),
+        wy: clamp(spaced.y, CFG.PLAYER_R, H - CFG.PLAYER_R)
+      };
+    }
+  };
+
+  /* ══════════════════ Renderer ══════════════════ */
+  const Renderer = {
+    drawField() {
+      ctx.fillStyle = '#1a5c2e';
+      ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(30, 30, W - 60, H - 60);
+      ctx.beginPath();
+      ctx.moveTo(W / 2, 30);
+      ctx.lineTo(W / 2, H - 30);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(W / 2, H / 2, CFG.CENTER_CIRCLE_R || 87, 0, Math.PI * 2);
+      ctx.stroke();
+      const gt = H / 2 - CFG.GOAL_HALF, gb = H / 2 + CFG.GOAL_HALF;
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(0, gt, CFG.GOAL_DEPTH, gb - gt);
+      ctx.strokeRect(W - CFG.GOAL_DEPTH, gt, CFG.GOAL_DEPTH, gb - gt);
+    },
+
+    drawMoveRange(px, py) {
+      ctx.fillStyle = 'rgba(250,204,21,0.07)';
+      ctx.strokeStyle = 'rgba(250,204,21,0.4)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([7, 5]);
+      ctx.beginPath();
+      ctx.arc(px, py, CFG.MAX_MOVE_PER_TURN, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.setLineDash([]);
+    },
+
+    drawDribbleZone(cx, cy, liveIds, players) {
+      ctx.fillStyle = 'rgba(74,222,128,0.08)';
+      ctx.strokeStyle = 'rgba(74,222,128,0.55)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.arc(cx, cy, CFG.MAX_MOVE_PER_TURN, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.setLineDash([]);
+      for (const p of players) {
+        if (!liveIds.has(p.id)) continue;
+        ctx.strokeStyle = 'rgba(250,204,21,0.85)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, CFG.PLAYER_R + 3, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    },
+
+    drawWorld(world, options) {
+      options = options || {};
+      const pmap = new Map(world.players.map(p => [p.id, p]));
+      for (const p of world.players) {
+        const pos = options.playback
+          ? world.players.find(pp => pp.id === p.id) || p
+          : p;
+        const px = pos.x !== undefined ? pos.x : p.x;
+        const py = pos.y !== undefined ? pos.y : p.y;
+        const r = CFG.PLAYER_R;
+        const home = p.team === TEAM_HOME;
+        ctx.fillStyle = home ? '#2563eb' : '#dc2626';
+        ctx.beginPath();
+        ctx.arc(px, py, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 8px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(p.number), px, py);
+        if (options.selectedId === p.id) {
+          ctx.strokeStyle = '#fbbf24';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        }
+        if (options.possession === p.id) {
+          ctx.strokeStyle = '#4ade80';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([4, 4]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+        if (options.waypoints && options.waypoints[p.id]) {
+          const w = options.waypoints[p.id];
+          const cmd = typeof w === 'object' && w.wx != null ? w : { wx: w.wx, wy: w.wy };
+          const src = options.waypointSources && options.waypointSources[p.id];
+          const moveD = dist(px, py, cmd.wx, cmd.wy);
+          const lineColor = home ? 'rgba(96,165,250,0.85)' : 'rgba(248,113,113,0.85)';
+          const destColor = home ? 'rgba(59,130,246,0.95)' : 'rgba(239,68,68,0.95)';
+          if (moveD > 6) {
+            ctx.strokeStyle = lineColor;
+            ctx.lineWidth = src === 'human' ? 2.5 : 1.8;
+            if (src === 'ai') ctx.setLineDash([6, 5]);
+            else if (src === 'remote') ctx.setLineDash([3, 4]);
+            else ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.moveTo(px, py);
+            ctx.lineTo(cmd.wx, cmd.wy);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = destColor;
+            ctx.globalAlpha = src === 'ai' ? 0.55 : 0.85;
+            ctx.beginPath();
+            ctx.arc(cmd.wx, cmd.wy, 7, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 9px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(String(p.number), cmd.wx, cmd.wy);
+          }
+          if (cmd.kick) {
+            const kickFromX = moveD > 6 ? cmd.wx : px;
+            const kickFromY = moveD > 6 ? cmd.wy : py;
+            const aim = cmd.kick.aim;
+            const power = cmd.kick.power != null ? cmd.kick.power : 0.5;
+            const len = 28 + power * 72;
+            const kx = kickFromX + Math.cos(aim) * len;
+            const ky = kickFromY + Math.sin(aim) * len;
+            const hue = 140 - power * 140;
+            ctx.strokeStyle = 'hsl(' + hue + ', 90%, 58%)';
+            ctx.lineWidth = 2.5;
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.moveTo(kickFromX, kickFromY);
+            ctx.lineTo(kx, ky);
+            ctx.stroke();
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath();
+            ctx.moveTo(kx, ky);
+            ctx.lineTo(kx - Math.cos(aim) * 10 - Math.sin(aim) * 5, ky - Math.sin(aim) * 10 + Math.cos(aim) * 5);
+            ctx.lineTo(kx - Math.cos(aim) * 10 + Math.sin(aim) * 5, ky - Math.sin(aim) * 10 - Math.cos(aim) * 5);
+            ctx.closePath();
+            ctx.fill();
+            if (src === 'human') {
+              ctx.fillStyle = '#fde68a';
+              ctx.font = 'bold 10px sans-serif';
+              ctx.textAlign = 'center';
+              ctx.fillText('킥 ' + Math.round(power * 100) + '%', kickFromX, kickFromY - 18);
+            }
+          }
+        }
+      }
+      const ball = world.ball;
+      const zNorm = clamp(ball.z / (CFG.LOB_VIS_Z || 48), 0, 1);
+      const drawR = CFG.BALL_R * (1 + zNorm * 1.15);
+      const liftY = ball.y - ball.z * 0.42;
+      if (ball.z > 1) {
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.beginPath();
+        ctx.ellipse(ball.x, ball.y, drawR * 0.75, drawR * 0.32, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(ball.x, liftY, drawR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = drawR < 2 ? 2 : 1;
+      ctx.stroke();
+    },
+
+    drawFieldAimArrow(ballX, ballY, dragX, dragY) {
+      const dx = dragX - ballX, dy = dragY - ballY;
+      const pullDist = Math.hypot(dx, dy);
+      const power = clamp(pullDist / CFG.MAX_AIM_PULL, 0, 1);
+      if (pullDist < 4) return;
+      const dirX = dx / pullDist, dirY = dy / pullDist;
+      const arrowLen = 36 + power * 110;
+      const ax = ballX + dirX * arrowLen, ay = ballY + dirY * arrowLen;
+      const hue = 140 - power * 140;
+      ctx.strokeStyle = 'hsl(' + hue + ', 85%, 55%)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(ballX, ballY);
+      ctx.lineTo(ax, ay);
+      ctx.stroke();
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(Math.round(power * 100) + '%', ballX, ballY - 22);
+    },
+
+    drawKickDim() {
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.fillRect(0, 0, W, H);
+    },
+
+    drawZoomBall(state) {
+      const kw = zoomBallCanvas.width, kh = zoomBallCanvas.height;
+      const cx = kw / 2, cy = kh / 2, rad = CFG.ZOOM_BALL_R;
+      zctx.clearRect(0, 0, kw, kh);
+      zctx.fillStyle = 'rgba(15,23,42,0.6)';
+      zctx.fillRect(0, 0, kw, kh);
+      zctx.fillStyle = '#1a5c2e';
+      zctx.beginPath();
+      zctx.arc(cx, cy, rad + 8, 0, Math.PI * 2);
+      zctx.fill();
+      zctx.fillStyle = '#fff';
+      zctx.beginPath();
+      zctx.arc(cx, cy, rad, 0, Math.PI * 2);
+      zctx.fill();
+      zctx.strokeStyle = '#475569';
+      zctx.lineWidth = 2;
+      zctx.stroke();
+      zctx.strokeStyle = 'rgba(148,163,184,0.45)';
+      zctx.beginPath();
+      zctx.moveTo(cx - rad, cy);
+      zctx.lineTo(cx + rad, cy);
+      zctx.moveTo(cx, cy - rad);
+      zctx.lineTo(cx, cy + rad);
+      zctx.stroke();
+      if (state.impactX != null) {
+        const ix = state.impactX * rad * 0.82;
+        const iy = state.impactY * rad * 0.82;
+        zctx.fillStyle = '#ef4444';
+        zctx.beginPath();
+        zctx.arc(cx + ix, cy + iy, 9, 0, Math.PI * 2);
+        zctx.fill();
+      }
+    }
+  };
+
+  /* ══════════════════ PeerJS NetHost (Star, 20 slots) ══════════════════ */
+  const NetHost = (function () {
+    let peer = null;
+    let guestConns = [];
+    let hostConnAsGuest = null;
+    let isHost = false;
+    let mySlot = -1;
+    let gameStarted = false;
+    let handlers = {};
+    const slotMap = new Array(CFG.MAX_SLOTS).fill(null);
+
+    function rosterPayload() {
+      const roster = [];
+      for (let i = 0; i < CFG.MAX_SLOTS; i++) {
+        roster.push({
+          slot: i,
+          team: i < CFG.PLAYERS_PER_TEAM ? TEAM_HOME : TEAM_AWAY,
+          number: (i % CFG.PLAYERS_PER_TEAM) + 1,
+          name: slotMap[i] || null,
+          occupied: !!slotMap[i]
+        });
+      }
+      return roster;
+    }
+
+    function broadcast(data) {
+      const payload = JSON.parse(JSON.stringify(data));
+      guestConns.forEach(c => { if (c.open) c.send(payload); });
+    }
+
+    function sendToHost(data) {
+      if (hostConnAsGuest && hostConnAsGuest.open) hostConnAsGuest.send(data);
+    }
+
+    return {
+      init(opts) {
+        handlers = opts.handlers || {};
+        isHost = opts.asHost;
+        gameStarted = false;
+        guestConns = [];
+        hostConnAsGuest = null;
+        mySlot = opts.asHost ? 0 : -1;
+        slotMap.fill(null);
+        if (isHost) slotMap[0] = 'Host';
+
+        peer = new Peer({ debug: 1 });
+        peer.on('open', id => {
+          if (isHost) {
+            peer.on('connection', conn => {
+              if (guestConns.length >= CFG.MAX_SLOTS - 1) {
+                conn.on('open', () => { conn.send({ type: 'REJECT', reason: '방이 가득 찼습니다' }); setTimeout(() => conn.close(), 200); });
+                return;
+              }
+              guestConns.push(conn);
+              conn.on('open', () => {
+                let slot = slotMap.findIndex((s, i) => i > 0 && !s);
+                if (slot < 0) slot = guestConns.length;
+                slotMap[slot] = 'Player' + slot;
+                conn.send({ type: 'WELCOME', slot, roster: rosterPayload() });
+                broadcast({ type: 'LOBBY', roster: rosterPayload() });
+                handlers.onOpen && handlers.onOpen({ id, role: 'host', joined: true });
+              });
+              conn.on('data', d => handlers.onData && handlers.onData(d, conn));
+              conn.on('close', () => {
+                guestConns = guestConns.filter(c => c !== conn);
+                if (!gameStarted) broadcast({ type: 'LOBBY', roster: rosterPayload() });
+              });
+            });
+            handlers.onOpen && handlers.onOpen({ id, role: 'host', roomReady: true });
+          } else {
+            hostConnAsGuest = peer.connect(opts.remoteId.trim(), { reliable: true });
+            hostConnAsGuest.on('open', () => handlers.onOpen && handlers.onOpen({ role: 'client', connOpen: true }));
+            hostConnAsGuest.on('data', d => handlers.onData && handlers.onData(d));
+            hostConnAsGuest.on('close', () => handlers.onClose && handlers.onClose());
+          }
+        });
+        peer.on('error', e => handlers.onError && handlers.onError(e));
+      },
+
+      destroy() {
+        guestConns.forEach(c => { try { c.close(); } catch (e) {} });
+        try { if (hostConnAsGuest) hostConnAsGuest.close(); } catch (e) {}
+        try { if (peer) peer.destroy(); } catch (e) {}
+        peer = null;
+        guestConns = [];
+        hostConnAsGuest = null;
+        gameStarted = false;
+        mySlot = -1;
+      },
+
+      send(data) {
+        if (isHost) broadcast(data);
+        else sendToHost(data);
+      },
+
+      sendCommand(cmd) { this.send({ type: 'COMMAND', slot: mySlot, cmd }); },
+
+      startGame() {
+        gameStarted = true;
+        if (isHost) broadcast({ type: 'START', roster: rosterPayload() });
+      },
+
+      get isHost() { return isHost; },
+      get mySlot() { return mySlot; },
+      set mySlot(v) { mySlot = v; },
+      get playerCount() { return slotMap.filter(Boolean).length; },
+      get gameStarted() { return gameStarted; },
+      get occupiedSlots() {
+        const s = [];
+        for (let i = 0; i < CFG.MAX_SLOTS; i++) if (slotMap[i]) s.push(i);
+        return s;
+      },
+      rosterPayload,
+      broadcast
+    };
+  })();
+
+  /* ══════════════════ TacticsGame ══════════════════ */
+  class TacticsGame {
+    constructor(opts) {
+      this.mode = opts.mode;
+      this.soloSubMode = opts.soloSubMode || 'ace';
+      this.aiDifficulty = opts.aiDifficulty || 'medium';
+      this.isOnline = opts.mode === 'multi';
+      this.isHost = !this.isOnline || NetHost.isHost;
+      this.mySlot = this.isOnline ? NetHost.mySlot : -1;
+
+      this.phase = PHASE.PLANNING;
+      this.turn = 1;
+      this.planDeadline = 0;
+      this.useTimer = this.isOnline;
+
+      this.world = this.createInitialWorld();
+      this.commands = new Map();
+      this.actionQueue = [];
+      this.pendingRemote = new Map();
+      this.keyframes = [];
+      this.playbackStart = 0;
+      this.selectedId = this.pickInitialSelection();
+      this.kickMode = null;
+      this.kickState = { aim: 0, impactX: 0, impactY: 0, power: 0.5 };
+      this.aimDragging = false;
+      this.aimDragX = 0;
+      this.aimDragY = 0;
+      this.possessorPhase = null;
+      this.dribbleLiveIds = null;
+      this.dribbleCarrierStart = null;
+      this.dribbleElapsed = 0;
+      this.dribbleLastTick = 0;
+      this.dribbleDragging = false;
+      this._raf = null;
+
+      AIController.difficulty = this.aiDifficulty;
+      this.setupUI();
+      this.bindInput();
+      this.remoteCommitted = new Set();
+      if (this.isOnline) {
+        this.useTimer = true;
+        this.planDeadline = Date.now() + CFG.PLANNING_TIME * 1000;
+      }
+      this.beginPossessorChoiceIfNeeded();
+      this.loop();
+    }
+
+    createInitialWorld() {
+      const home = defaultFormation(TEAM_HOME);
+      const away = defaultFormation(TEAM_AWAY);
+      const players = [...home, ...away];
+      PhysicsEngine.deoverlapAll(players);
+      const carrier = home[5];
+      const kickDir = 1;
+      const ball = PhysicsEngine.makeBall(
+        carrier.x + kickDir * (CFG.PLAYER_R + CFG.BALL_R + 2),
+        carrier.y
+      );
+      return {
+        players,
+        ball,
+        score: [0, 0],
+        possession: carrier.id,
+        lastTouch: TEAM_HOME,
+        possessionStreak: 1,
+        holdTeam: TEAM_HOME
+      };
+    }
+
+    possessionTeam() {
+      if (this.world.possession == null) return null;
+      const p = this.world.players.find(pl => pl.id === this.world.possession);
+      return p ? p.team : this.world.holdTeam;
+    }
+
+    updatePossessionStreakAfterTurn() {
+      const team = this.possessionTeam();
+      if (team == null) {
+        this.world.holdTeam = null;
+        this.world.possessionStreak = 0;
+        return;
+      }
+      if (team === this.world.holdTeam) {
+        this.world.possessionStreak = (this.world.possessionStreak || 0) + 1;
+      } else {
+        this.world.holdTeam = team;
+        this.world.possessionStreak = 1;
+      }
+    }
+
+    checkPossessionPenalty() {
+      if ((this.world.possessionStreak || 0) < CFG.MAX_POSSESSION_TURNS) return false;
+      if (this.possessionTeam() == null) return false;
+      PhysicsEngine.forceFumble(this.world, this.turn * 997 + this.world.holdTeam);
+      this.world.holdTeam = null;
+      this.world.possessionStreak = 0;
+      return true;
+    }
+
+    pickInitialSelection() {
+      if (this.soloSubMode === 'full') return TEAM_HOME * CFG.PLAYERS_PER_TEAM;
+      if (this.isOnline && this.mySlot >= 0) {
+        const team = this.mySlot < CFG.PLAYERS_PER_TEAM ? TEAM_HOME : TEAM_AWAY;
+        return team * CFG.PLAYERS_PER_TEAM + (this.mySlot % CFG.PLAYERS_PER_TEAM);
+      }
+      return TEAM_HOME * CFG.PLAYERS_PER_TEAM + 5;
+    }
+
+    humanPlayerIds() {
+      if (this.mode === 'solo') {
+        if (this.soloSubMode === 'full') {
+          return this.world.players.filter(p => p.team === TEAM_HOME).map(p => p.id);
+        }
+        return [this.selectedId];
+      }
+      if (this.mySlot >= 0) return [this.mySlot];
+      return [];
+    }
+
+    aiPlayerIds() {
+      const human = new Set(this.humanPlayerIds());
+      if (this.isOnline) {
+        NetHost.occupiedSlots.forEach(s => human.add(s));
+        this.pendingRemote.forEach((_, slot) => human.add(slot));
+      }
+      const ids = [];
+      for (const p of this.world.players) {
+        if (!human.has(p.id)) ids.push(p.id);
+      }
+      return ids;
+    }
+
+    controllable(id) {
+      if (this.phase !== PHASE.PLANNING) return false;
+      if (this.possessorActionBlocking()) return false;
+      return this.humanPlayerIds().includes(id);
+    }
+
+    humanPossessorId() {
+      const pid = this.world.possession;
+      if (pid == null) return null;
+      if (!this.humanPlayerIds().includes(pid)) return null;
+      const p = this.world.players.find(pl => pl.id === pid);
+      if (!p || this.world.ball.z >= (CFG.LOB_CLEAR_Z || 16)) return null;
+      if (!PhysicsEngine.playerCanKick(p, this.world.ball)) return null;
+      return pid;
+    }
+
+    possessorActionBlocking() {
+      if (this.phase !== PHASE.PLANNING) return false;
+      if (this.humanPossessorId() == null) return false;
+      return this.possessorPhase !== 'done';
+    }
+
+    possessorActionRequired() {
+      return this.possessorActionBlocking();
+    }
+
+    beginPossessorChoiceIfNeeded() {
+      if (this.phase !== PHASE.PLANNING) return;
+      if (this.humanPossessorId() == null) {
+        this.possessorPhase = null;
+        this.hidePossessorOverlays();
+        return;
+      }
+      if (this.possessorPhase === 'done') return;
+      this.possessorPhase = 'choice';
+      this.selectedId = this.humanPossessorId();
+      this.buildPlayerTabs();
+      document.getElementById('possessChoiceOverlay').classList.add('show');
+      document.getElementById('dribbleOverlay').classList.remove('show');
+      this.updateHUD();
+      this.updateKickButton();
+    }
+
+    hidePossessorOverlays() {
+      document.getElementById('possessChoiceOverlay').classList.remove('show');
+      document.getElementById('dribbleOverlay').classList.remove('show');
+    }
+
+    chooseDribble() {
+      if (this.possessorPhase !== 'choice') return;
+      const carrier = this.possessorPlayer();
+      if (!carrier) return;
+      this.possessorPhase = 'dribble';
+      this.hidePossessorOverlays();
+      this.dribbleCarrierStart = { x: carrier.x, y: carrier.y };
+      this.dribbleLiveIds = PhysicsEngine.playersInMoveRange(carrier.x, carrier.y, this.world.players);
+      this.dribbleElapsed = 0;
+      this.dribbleLastTick = performance.now();
+      this.dribbleDragging = false;
+      const cmd = this.getCommand(carrier.id);
+      cmd.wx = carrier.x;
+      cmd.wy = carrier.y;
+      carrier.wx = carrier.x;
+      carrier.wy = carrier.y;
+      this.setCommand(cmd);
+      document.getElementById('dribbleOverlay').classList.add('show');
+      document.getElementById('dribbleTimer').textContent = CFG.DRIBBLE_REALTIME_SEC.toFixed(1) + 's';
+      this.showPopup('드리블 시작', '#4ade80');
+      this.updateHUD();
+    }
+
+    chooseKick() {
+      if (this.possessorPhase !== 'choice') return;
+      this.hidePossessorOverlays();
+      this.possessorPhase = 'kick';
+      this.enterKickMode();
+    }
+
+    finishDribbleRealtime() {
+      if (this.possessorPhase !== 'dribble') return;
+      const live = this.dribbleLiveIds || new Set();
+      for (const pid of live) {
+        const p = this.world.players.find(pl => pl.id === pid);
+        if (!p) continue;
+        const cmd = this.getCommand(pid);
+        cmd.wx = p.x;
+        cmd.wy = p.y;
+        this.setCommand(cmd);
+      }
+      this.dribbleLiveIds = null;
+      this.dribbleCarrierStart = null;
+      this.dribbleDragging = false;
+      this.possessorPhase = 'done';
+      document.getElementById('dribbleOverlay').classList.remove('show');
+      this.validatePossession();
+      this.updateHUD();
+      this.updateActionQueueUI();
+      this.showPopup('드리블 완료', '#4ade80');
+    }
+
+    tickDribbleRealtime() {
+      if (this.possessorPhase !== 'dribble') return;
+      const now = performance.now();
+      const dt = Math.min(0.05, (now - this.dribbleLastTick) / 1000);
+      this.dribbleLastTick = now;
+      this.dribbleElapsed += dt;
+
+      const carrier = this.possessorPlayer();
+      if (!carrier || this.world.possession !== carrier.id) {
+        this.finishDribbleRealtime();
+        return;
+      }
+
+      if (this.dribbleDragging) {
+        const w = clampMoveFrom(
+          this.dribbleCarrierStart.x,
+          this.dribbleCarrierStart.y,
+          carrier.wx,
+          carrier.wy
+        );
+        carrier.wx = w.wx;
+        carrier.wy = w.wy;
+      }
+
+      PhysicsEngine.stepDribbleZone(this.world, this.dribbleLiveIds, carrier.id, dt);
+
+      const left = Math.max(0, CFG.DRIBBLE_REALTIME_SEC - this.dribbleElapsed);
+      document.getElementById('dribbleTimer').textContent = left.toFixed(1) + 's';
+      if (this.dribbleElapsed >= CFG.DRIBBLE_REALTIME_SEC) this.finishDribbleRealtime();
+    }
+
+    markPossessorActionDone() {
+      this.possessorPhase = 'done';
+      this.hidePossessorOverlays();
+      this.updateHUD();
+      this.updateKickButton();
+    }
+
+    isPossessor() {
+      const pid = this.isOnline && this.mySlot >= 0 ? this.mySlot : this.selectedId;
+      if (this.world.possession !== pid || !this.humanPlayerIds().includes(pid)) return false;
+      const p = this.world.players.find(pl => pl.id === pid);
+      if (!p) return false;
+      return PhysicsEngine.playerCanKick(p, this.world.ball) &&
+        this.world.ball.z < (CFG.LOB_CLEAR_Z || 16);
+    }
+
+    validatePossession() {
+      const pid = this.world.possession;
+      if (pid == null) return;
+      const p = this.world.players.find(pl => pl.id === pid);
+      if (!p || !PhysicsEngine.playerCanKick(p, this.world.ball) ||
+          this.world.ball.z >= (CFG.LOB_CLEAR_Z || 16)) {
+        this.world.possession = null;
+        if (this.possessorPhase === 'choice' || this.possessorPhase === 'dribble' || this.possessorPhase === 'kick') {
+          this.possessorPhase = null;
+          this.kickMode = null;
+          this.hidePossessorOverlays();
+          document.getElementById('kickOverlay').classList.remove('show');
+        }
+      }
+    }
+
+    possessorPlayer() {
+      return this.world.players.find(p => p.id === this.world.possession);
+    }
+
+    setupUI() {
+      document.getElementById('playerTabs').classList.toggle('hidden', this.soloSubMode !== 'full');
+      document.getElementById('timerWrap').style.display = this.useTimer ? '' : 'none';
+      this.buildPlayerTabs();
+      this.updateKickButton();
+      this.updateHUD();
+      this.updateActionQueueUI();
+      this.beginPossessorChoiceIfNeeded();
+    }
+
+    buildPlayerTabs() {
+      const el = document.getElementById('playerTabs');
+      el.innerHTML = '';
+      if (this.soloSubMode !== 'full') return;
+      for (const p of this.world.players.filter(pl => pl.team === TEAM_HOME)) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'player-tab' + (p.id === this.selectedId ? ' active' : '') + (this.commands.has(p.id) ? ' has-cmd' : '');
+        btn.textContent = '#' + p.number;
+        btn.onclick = () => { this.selectedId = p.id; this.buildPlayerTabs(); this.updateKickButton(); };
+        el.appendChild(btn);
+      }
+    }
+
+    defaultCommand(p) {
+      return { playerId: p.id, wx: p.x, wy: p.y };
+    }
+
+    getCommand(pid) {
+      if (this.commands.has(pid)) return this.commands.get(pid);
+      const p = this.world.players.find(pl => pl.id === pid);
+      return p ? this.defaultCommand(p) : null;
+    }
+
+    setCommand(cmd) {
+      const had = this.commands.has(cmd.playerId);
+      this.commands.set(cmd.playerId, cmd);
+      if (!had) this.actionQueue.push(cmd.playerId);
+      else {
+        this.actionQueue = this.actionQueue.filter(id => id !== cmd.playerId);
+        this.actionQueue.push(cmd.playerId);
+      }
+      if (this.soloSubMode === 'full') this.buildPlayerTabs();
+      this.updateActionQueueUI();
+      this.updateKickButton();
+    }
+
+    describeCommand(cmd, p) {
+      const parts = [];
+      const moved = dist(p.x, p.y, cmd.wx, cmd.wy);
+      if (moved > 8) {
+        const pct = Math.round((moved / CFG.MAX_MOVE_PER_TURN) * 100);
+        parts.push('이동 ' + pct + '%');
+      }
+      if (cmd.kick) {
+        const pw = Math.round((cmd.kick.power != null ? cmd.kick.power : 0.5) * 100);
+        const deg = Math.round(((cmd.kick.aim * 180 / Math.PI) % 360 + 360) % 360);
+        parts.push('킥 ' + pw + '% · ' + deg + '°');
+      }
+      if (!parts.length) parts.push('제자리');
+      return parts.join(' + ');
+    }
+
+    previewKickHint() {
+      if (this.kickMode || this.possessorPhase === 'choice' ||
+          this.possessorPhase === 'dribble' || this.possessorPhase === 'kick') {
+        return null;
+      }
+      const kickCmd = this.commands.get(this.world.possession)?.kick ||
+        this.pendingRemote.get(this.world.possession)?.kick;
+      return kickCmd || null;
+    }
+
+    getKickHint() {
+      if (this.kickMode === 'aim' && this.aimDragging) {
+        const bx = this.world.ball.x, by = this.world.ball.y;
+        const pull = Math.hypot(this.aimDragX - bx, this.aimDragY - by);
+        if (pull >= 8) {
+          return {
+            aim: Math.atan2(this.aimDragY - by, this.aimDragX - bx),
+            power: clamp(pull / CFG.MAX_AIM_PULL, 0.08, 1)
+          };
+        }
+      }
+      return this.commands.get(this.world.possession)?.kick ||
+        this.pendingRemote.get(this.world.possession)?.kick ||
+        (this.kickMode === 'zoom' || this.kickMode === 'impact'
+          ? { aim: this.kickState.aim, power: this.kickState.power }
+          : null);
+    }
+
+    getPlanningPreview() {
+      const commands = new Map();
+      const sources = new Map();
+      for (const p of this.world.players) {
+        commands.set(p.id, this.defaultCommand(p));
+        sources.set(p.id, 'default');
+      }
+      const kickHint = this.previewKickHint();
+      const aiIds = this.aiPlayerIds();
+      const aiCmds = AIController.previewCommands(this.world, aiIds, kickHint, this.turn * 9973 + 17);
+      for (const c of aiCmds) {
+        if (!this.commands.has(c.playerId) && !this.pendingRemote.has(c.playerId)) {
+          commands.set(c.playerId, c);
+          sources.set(c.playerId, 'ai');
+        }
+      }
+      for (const [pid, c] of this.pendingRemote) {
+        commands.set(pid, c);
+        sources.set(pid, 'remote');
+      }
+      for (const [pid, c] of this.commands) {
+        commands.set(pid, c);
+        sources.set(pid, 'human');
+      }
+      if (this.kickMode && this.isPossessor()) {
+        const pid = this.world.possession;
+        const cmd = { ...commands.get(pid) };
+        cmd.kick = {
+          aim: this.kickState.aim,
+          impactX: this.kickState.impactX,
+          impactY: this.kickState.impactY,
+          power: this.kickState.power,
+          kickAt: 0
+        };
+        commands.set(pid, cmd);
+        sources.set(pid, 'human');
+      }
+      return { commands, sources };
+    }
+
+    updateActionQueueUI() {
+      const listEl = document.getElementById('actionQueueList');
+      const previewEl = document.getElementById('previewActionList');
+      const emptyEl = document.getElementById('actionQueueEmpty');
+      const countEl = document.getElementById('queueCount');
+      if (!listEl || !previewEl) return;
+
+      const panel = document.getElementById('actionQueuePanel');
+      const showPanel = this.phase === PHASE.PLANNING;
+      if (panel) panel.style.display = showPanel ? '' : 'none';
+
+      listEl.innerHTML = '';
+      const queued = this.actionQueue.filter(pid => this.commands.has(pid));
+      countEl.textContent = '(' + queued.length + ')';
+      emptyEl.style.display = queued.length ? 'none' : '';
+
+      queued.forEach((pid, idx) => {
+        const p = this.world.players.find(pl => pl.id === pid);
+        const cmd = this.commands.get(pid);
+        if (!p || !cmd) return;
+        const li = document.createElement('li');
+        const src = this.pendingRemote.has(pid) ? 'remote' : 'human';
+        li.className = src;
+        const team = p.team === TEAM_HOME ? '홈' : '원정';
+        const tag = src === 'remote' ? '<span class="tag">원격</span>' : '<span class="tag">내 선택</span>';
+        li.innerHTML = '<span class="ord">' + (idx + 1) + '.</span>#' + p.number + ' ' + team + tag +
+          '<br><span class="act">' + this.describeCommand(cmd, p) + '</span>';
+        li.onclick = () => {
+          if (this.controllable(pid)) {
+            this.selectedId = pid;
+            this.buildPlayerTabs();
+            this.updateKickButton();
+          }
+        };
+        listEl.appendChild(li);
+      });
+
+      previewEl.innerHTML = '';
+      const { commands, sources } = this.getPlanningPreview();
+      const sorted = this.world.players.slice().sort((a, b) => {
+        if (a.team !== b.team) return a.team - b.team;
+        return a.number - b.number;
+      });
+      for (const p of sorted) {
+        const cmd = commands.get(p.id);
+        const src = sources.get(p.id);
+        const li = document.createElement('li');
+        li.className = (p.team === TEAM_HOME ? 'home' : 'away') + (src === 'ai' ? ' ai-est' : '');
+        const team = p.team === TEAM_HOME ? '홈' : '원정';
+        let srcLabel = '대기';
+        if (src === 'human') srcLabel = '확정';
+        else if (src === 'remote') srcLabel = '원격';
+        else if (src === 'ai') srcLabel = 'AI 예상';
+        li.innerHTML = '#' + p.number + ' ' + team + ' <span class="tag">' + srcLabel + '</span>' +
+          '<br><span class="act">' + this.describeCommand(cmd, p) + '</span>';
+        previewEl.appendChild(li);
+      }
+    }
+
+    updateKickButton() {
+      const btn = document.getElementById('btnKick');
+      const show = false;
+      btn.classList.toggle('hidden', !show);
+      btn.disabled = true;
+    }
+
+    enterKickMode() {
+      if (this.phase !== PHASE.PLANNING || this.kickMode) return;
+      if (this.possessorPhase !== 'kick' && this.possessorPhase !== 'choice') return;
+      const carrier = this.possessorPlayer();
+      if (!carrier || !this.humanPlayerIds().includes(carrier.id)) return;
+      this.possessorPhase = 'kick';
+      this.selectedId = carrier.id;
+      this.kickMode = 'aim';
+      const bx = this.world.ball.x, by = this.world.ball.y;
+      const defaultAim = carrier.team === TEAM_HOME ? 0 : Math.PI;
+      this.kickState = {
+        aim: defaultAim,
+        impactX: 0,
+        impactY: 0,
+        power: 0.5
+      };
+      this.aimDragX = bx + Math.cos(defaultAim) * 80;
+      this.aimDragY = by + Math.sin(defaultAim) * 80;
+      this.aimDragging = false;
+      document.getElementById('kickStepHint').textContent = '공에서 드래그해 방향·세기를 정한 뒤 손을 떼세요';
+      document.getElementById('phaseTag').textContent = '킥';
+      this.updateKickButton();
+      this.updateActionQueueUI();
+    }
+
+    exitKickMode(cancel) {
+      this.kickMode = null;
+      this.aimDragging = false;
+      document.getElementById('kickOverlay').classList.remove('show');
+      if (cancel) {
+        const pid = this.world.possession;
+        if (pid != null && this.commands.has(pid)) {
+          const cmd = this.getCommand(pid);
+          delete cmd.kick;
+          this.setCommand(cmd);
+        }
+        if (this.humanPossessorId() != null) {
+          this.possessorPhase = 'choice';
+          document.getElementById('possessChoiceOverlay').classList.add('show');
+        } else {
+          this.possessorPhase = null;
+        }
+      }
+      this.updateKickButton();
+      this.updateHUD();
+      this.updateActionQueueUI();
+    }
+
+    clampAimDrag(bx, by, pos) {
+      const dx = pos.x - bx, dy = pos.y - by, d = Math.hypot(dx, dy);
+      if (d > CFG.MAX_AIM_PULL) {
+        const s = CFG.MAX_AIM_PULL / d;
+        return { x: bx + dx * s, y: by + dy * s };
+      }
+      return pos;
+    }
+
+    confirmAimFromDrag() {
+      const bx = this.world.ball.x, by = this.world.ball.y;
+      const dx = this.aimDragX - bx, dy = this.aimDragY - by;
+      const pull = Math.hypot(dx, dy);
+      if (pull < CFG.MIN_AIM_PULL) return false;
+      this.kickState.aim = Math.atan2(dy, dx);
+      this.kickState.power = clamp(pull / CFG.MAX_AIM_PULL, 0.08, 1);
+      this.kickMode = 'zoom';
+      document.getElementById('kickStepHint').textContent = '공 표면을 터치하세요 · 중앙=땅볼 · 아래=칩 · 좌우=커브';
+      document.getElementById('kickOverlay').classList.add('show');
+      Renderer.drawZoomBall(this.kickState);
+      setTimeout(() => {
+        if (this.kickMode === 'zoom') this.kickMode = 'impact';
+      }, 220);
+      this.updateActionQueueUI();
+      return true;
+    }
+
+    updateHUD() {
+      const phaseNames = { PLANNING: '계획', RESOLVING: '정산', PLAYBACK: '연출' };
+      let phaseLabel = phaseNames[this.phase] || '';
+      if (this.kickMode) phaseLabel = '킥';
+      else if (this.possessorPhase === 'dribble') phaseLabel = '드리블';
+      else if (this.possessorPhase === 'choice') phaseLabel = '점유 선택';
+      document.getElementById('phaseTag').textContent = phaseLabel;
+      document.getElementById('turnNum').textContent = this.turn;
+      document.getElementById('scoreHome').textContent = this.world.score[TEAM_HOME];
+      document.getElementById('scoreAway').textContent = this.world.score[TEAM_AWAY];
+      const btn = document.getElementById('btnCommit');
+      btn.disabled = this.phase !== PHASE.PLANNING || !!this.kickMode || this.possessorActionRequired();
+      if (this.useTimer && this.phase === PHASE.PLANNING) {
+        const left = Math.max(0, Math.ceil((this.planDeadline - Date.now()) / 1000));
+        document.getElementById('planTimer').textContent = left + 's';
+      } else {
+        document.getElementById('planTimer').textContent = '—';
+      }
+      const holdWrap = document.getElementById('holdStreakWrap');
+      const streak = this.world.possessionStreak || 0;
+      const showHold = this.phase === PHASE.PLANNING && streak > 0 && this.possessionTeam() != null;
+      holdWrap.classList.toggle('hidden', !showHold);
+      holdWrap.classList.toggle('warn', streak >= CFG.MAX_POSSESSION_TURNS - 1);
+      document.getElementById('holdStreak').textContent = String(streak);
+      document.getElementById('holdStreakMax').textContent = String(CFG.MAX_POSSESSION_TURNS);
+      this.updateKickButton();
+    }
+
+    showPopup(text, color) {
+      const el = document.getElementById('popup');
+      el.textContent = text;
+      el.style.color = color || '#4ade80';
+      el.classList.remove('show');
+      void el.offsetWidth;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 800);
+    }
+
+    bindInput() {
+      this._onFieldDown = e => this.onFieldDown(e);
+      this._onFieldMove = e => this.onFieldMove(e);
+      this._onFieldUp = () => this.onFieldUp();
+      this._onZoomDown = e => this.onZoomDown(e);
+      canvas.addEventListener('pointerdown', this._onFieldDown);
+      canvas.addEventListener('pointermove', this._onFieldMove);
+      canvas.addEventListener('pointerup', this._onFieldUp);
+      canvas.addEventListener('pointercancel', this._onFieldUp);
+      zoomBallCanvas.addEventListener('pointerdown', this._onZoomDown);
+      document.getElementById('btnCommit').onclick = () => this.commitPlanning();
+      document.getElementById('btnChooseDribble').onclick = () => this.chooseDribble();
+      document.getElementById('btnChooseKick').onclick = () => this.chooseKick();
+      document.getElementById('btnDribbleDone').onclick = () => this.finishDribbleRealtime();
+      document.getElementById('kickCancelBtn').onclick = () => this.exitKickMode(true);
+    }
+
+    unbindInput() {
+      canvas.removeEventListener('pointerdown', this._onFieldDown);
+      canvas.removeEventListener('pointermove', this._onFieldMove);
+      canvas.removeEventListener('pointerup', this._onFieldUp);
+      zoomBallCanvas.removeEventListener('pointerdown', this._onZoomDown);
+    }
+
+    onFieldDown(e) {
+      if (this.phase !== PHASE.PLANNING) return;
+      e.preventDefault();
+      const pos = canvasPos(e, canvas);
+
+      if (this.kickMode === 'aim') {
+        const bx = this.world.ball.x, by = this.world.ball.y;
+        this.aimDragging = true;
+        const p = this.clampAimDrag(bx, by, pos);
+        this.aimDragX = p.x;
+        this.aimDragY = p.y;
+        return;
+      }
+      if (this.kickMode) return;
+
+      if (this.possessorPhase === 'dribble') {
+        const carrier = this.possessorPlayer();
+        if (!carrier || !this.dribbleCarrierStart) return;
+        this.dribbleDragging = true;
+        const w = clampMoveFrom(this.dribbleCarrierStart.x, this.dribbleCarrierStart.y, pos.x, pos.y);
+        const cmd = this.getCommand(carrier.id);
+        cmd.wx = w.wx;
+        cmd.wy = w.wy;
+        carrier.wx = w.wx;
+        carrier.wy = w.wy;
+        return;
+      }
+      if (this.possessorPhase === 'choice' || this.possessorPhase === 'kick') return;
+
+      let hit = null, hitD = 999;
+      for (const p of this.world.players) {
+        const r = CFG.PLAYER_R + 6;
+        const d = dist(pos.x, pos.y, p.x, p.y);
+        if (d < r && d < hitD && this.controllable(p.id)) { hit = p; hitD = d; }
+      }
+      if (hit) {
+        this.selectedId = hit.id;
+        this.buildPlayerTabs();
+        this.updateKickButton();
+        this._moveTarget = hit.id;
+      } else if (this.controllable(this.selectedId)) {
+        this._moveTarget = this.selectedId;
+        this.applyWaypoint(this.selectedId, pos.x, pos.y);
+      }
+    }
+
+    onFieldMove(e) {
+      if (this.kickMode === 'aim' && this.aimDragging) {
+        const bx = this.world.ball.x, by = this.world.ball.y;
+        const p = this.clampAimDrag(bx, by, canvasPos(e, canvas));
+        this.aimDragX = p.x;
+        this.aimDragY = p.y;
+        const pull = Math.hypot(this.aimDragX - bx, this.aimDragY - by);
+        if (pull >= CFG.MIN_AIM_PULL) {
+          this.kickState.aim = Math.atan2(this.aimDragY - by, this.aimDragX - bx);
+          this.kickState.power = clamp(pull / CFG.MAX_AIM_PULL, 0.08, 1);
+        }
+        return;
+      }
+      if (this.possessorPhase === 'dribble' && this.dribbleDragging) {
+        const carrier = this.possessorPlayer();
+        if (!carrier || !this.dribbleCarrierStart) return;
+        const pos = canvasPos(e, canvas);
+        const w = clampMoveFrom(this.dribbleCarrierStart.x, this.dribbleCarrierStart.y, pos.x, pos.y);
+        const cmd = this.getCommand(carrier.id);
+        cmd.wx = w.wx;
+        cmd.wy = w.wy;
+        carrier.wx = w.wx;
+        carrier.wy = w.wy;
+        return;
+      }
+      if (this._moveTarget == null || this.phase !== PHASE.PLANNING || this.kickMode) return;
+      const pos = canvasPos(e, canvas);
+      this.applyWaypoint(this._moveTarget, pos.x, pos.y);
+    }
+
+    onFieldUp() {
+      if (this.kickMode === 'aim' && this.aimDragging) {
+        this.aimDragging = false;
+        if (!this.confirmAimFromDrag()) {
+          document.getElementById('kickStepHint').textContent = '조준 거리가 너무 짧습니다. 다시 드래그하세요.';
+        }
+        return;
+      }
+      if (this.possessorPhase === 'dribble') {
+        this.dribbleDragging = false;
+        return;
+      }
+      this._moveTarget = null;
+    }
+
+    applyWaypoint(pid, x, y) {
+      const p = this.world.players.find(pl => pl.id === pid);
+      if (!p) return;
+      const cmd = this.getCommand(pid);
+      const w = clampMoveFrom(p.x, p.y, x, y);
+      cmd.wx = w.wx;
+      cmd.wy = w.wy;
+      this.setCommand(cmd);
+    }
+
+    onZoomDown(e) {
+      if (this.kickMode !== 'impact' && this.kickMode !== 'zoom') return;
+      e.preventDefault();
+      const pos = canvasPos(e, zoomBallCanvas);
+      const cx = zoomBallCanvas.width / 2, cy = zoomBallCanvas.height / 2;
+      const dx = pos.x - cx, dy = pos.y - cy;
+      const d = Math.hypot(dx, dy);
+      if (d > CFG.ZOOM_BALL_R + 12) return;
+      this.kickState.impactX = clamp(dx / CFG.ZOOM_BALL_R, -1, 1);
+      this.kickState.impactY = clamp(dy / CFG.ZOOM_BALL_R, -1, 1);
+      Renderer.drawZoomBall(this.kickState);
+      this.applyKickToCommand();
+      this.exitKickMode(false);
+      this.markPossessorActionDone();
+      this.showPopup('킥 예약!', '#4ade80');
+    }
+
+    applyKickToCommand() {
+      const pid = this.world.possession;
+      const p = this.world.players.find(pl => pl.id === pid);
+      if (!p || !this.humanPlayerIds().includes(pid) || !PhysicsEngine.playerCanKick(p, this.world.ball)) return;
+      const cmd = this.getCommand(pid);
+      cmd.wx = p.x;
+      cmd.wy = p.y;
+      cmd.kick = {
+        aim: this.kickState.aim,
+        impactX: this.kickState.impactX,
+        impactY: this.kickState.impactY,
+        power: this.kickState.power,
+        kickAt: 0
+      };
+      this.setCommand(cmd);
+    }
+
+    collectAllCommands() {
+      const possessorKick = this.commands.get(this.world.possession)?.kick ||
+        this.pendingRemote.get(this.world.possession)?.kick || null;
+      const aiCmds = AIController.generateCommands(this.world, this.aiPlayerIds(), possessorKick);
+      const aiMap = new Map(aiCmds.map(c => [c.playerId, c]));
+      const all = [];
+      for (const p of this.world.players) {
+        let cmd;
+        if (this.commands.has(p.id)) cmd = { ...this.commands.get(p.id) };
+        else if (this.pendingRemote.has(p.id)) cmd = { ...this.pendingRemote.get(p.id) };
+        else if (aiMap.has(p.id)) cmd = { ...aiMap.get(p.id) };
+        else cmd = this.defaultCommand(p);
+        cmd.playerId = p.id;
+        clampCommandMove(p, cmd);
+        all.push(cmd);
+      }
+      return all;
+    }
+
+    commitPlanning() {
+      if (this.phase !== PHASE.PLANNING) return;
+      if (this.possessorActionRequired()) {
+        this.showPopup('점유자 행동을 먼저 완료하세요', '#fbbf24');
+        return;
+      }
+      const cmd = this.getCommand(this.mySlot >= 0 ? this.mySlot : this.selectedId);
+      if (this.isOnline && !this.isHost) {
+        NetHost.sendCommand(cmd);
+        this.remoteCommitted.add(this.mySlot);
+        document.getElementById('btnCommit').disabled = true;
+        document.getElementById('btnCommit').textContent = '대기 중…';
+        return;
+      }
+      if (this.isOnline && this.isHost) {
+        this.commands.set(this.mySlot, cmd);
+        this.beginResolve();
+        return;
+      }
+      this.beginResolve();
+    }
+
+    beginResolve() {
+      this.phase = PHASE.RESOLVING;
+      document.getElementById('resolveOverlay').classList.add('show');
+      this.updateHUD();
+      setTimeout(() => this.runSimulation(), 120);
+    }
+
+    runSimulation() {
+      const fumbled = this.checkPossessionPenalty();
+      const commands = this.collectAllCommands();
+      const result = PhysicsEngine.simulate(this.world, commands);
+      this.keyframes = result.keyframes;
+      if (fumbled) {
+        this.showPopup('3턴 점유 — 볼 놓침!', '#fbbf24');
+      }
+      if (result.goalTeam !== null) {
+        this.showPopup('GOAL!', result.goalTeam === TEAM_HOME ? '#4ade80' : '#f87171');
+        this.world.holdTeam = result.goalTeam;
+        this.world.possessionStreak = 1;
+      }
+      this.world = result.finalWorld;
+      if (this.isOnline && this.isHost) {
+        NetHost.broadcast({ type: 'PLAYBACK', keyframes: this.keyframes, world: this.stripWorld() });
+      }
+      document.getElementById('resolveOverlay').classList.remove('show');
+      this.phase = PHASE.PLAYBACK;
+      this.playbackStart = performance.now();
+      this.updateHUD();
+    }
+
+    stripWorld() {
+      return {
+        players: this.world.players.map(p => ({ id: p.id, team: p.team, number: p.number, isGK: p.isGK, x: p.x, y: p.y })),
+        ball: { ...this.world.ball },
+        score: [...this.world.score],
+        possession: this.world.possession,
+        lastTouch: this.world.lastTouch,
+        possessionStreak: this.world.possessionStreak || 0,
+        holdTeam: this.world.holdTeam
+      };
+    }
+
+    applyWorld(w) {
+      for (const np of w.players) {
+        const p = this.world.players.find(pl => pl.id === np.id);
+        if (p) { p.x = np.x; p.y = np.y; }
+      }
+      Object.assign(this.world.ball, w.ball);
+      this.world.score = [...w.score];
+      this.world.possession = w.possession;
+      this.world.lastTouch = w.lastTouch;
+      if (w.possessionStreak != null) this.world.possessionStreak = w.possessionStreak;
+      if (w.holdTeam != null) this.world.holdTeam = w.holdTeam;
+    }
+
+    onPlaybackEnd() {
+      if (this.keyframes.length) {
+        const last = this.keyframes[this.keyframes.length - 1];
+        for (const fp of last.players) {
+          const p = this.world.players.find(pl => pl.id === fp.id);
+          if (p) { p.x = fp.x; p.y = fp.y; }
+        }
+        this.world.ball.x = last.ball.x;
+        this.world.ball.y = last.ball.y;
+        this.world.ball.z = last.ball.z || 0;
+        this.world.score = [...last.score];
+      }
+      this.updatePossessionStreakAfterTurn();
+      this.commands.clear();
+      this.actionQueue = [];
+      this.pendingRemote.clear();
+      this.kickMode = null;
+      this.kickState = { aim: 0, impactX: 0, impactY: 0, power: 0.5 };
+      this.possessorPhase = null;
+      this.dribbleLiveIds = null;
+      this.hidePossessorOverlays();
+      document.getElementById('kickOverlay').classList.remove('show');
+      if (this.isOnline && !this.isHost) {
+        document.getElementById('btnCommit').disabled = true;
+        document.getElementById('btnCommit').textContent = '동기화 중…';
+        return;
+      }
+      if (this.turn >= CFG.MAX_TURNS) {
+        this.endMatch();
+        return;
+      }
+      this.turn++;
+      this.phase = PHASE.PLANNING;
+      if (this.useTimer) this.planDeadline = Date.now() + CFG.PLANNING_TIME * 1000;
+      document.getElementById('btnCommit').disabled = false;
+      document.getElementById('btnCommit').textContent = '명령 완료';
+      this.remoteCommitted.clear();
+      this.buildPlayerTabs();
+      this.updateKickButton();
+      this.updateHUD();
+      this.updateActionQueueUI();
+      this.beginPossessorChoiceIfNeeded();
+      if (this.isOnline && this.isHost) {
+        NetHost.broadcast({
+          type: 'NEW_TURN',
+          turn: this.turn,
+          world: this.stripWorld(),
+          deadline: this.planDeadline
+        });
+      }
+    }
+
+    endMatch() {
+      this.stop();
+      const sh = this.world.score[TEAM_HOME], sa = this.world.score[TEAM_AWAY];
+      let title = '경기 종료';
+      if (this.mode === 'solo') {
+        title = sh > sa ? '승리!' : sh < sa ? '패배' : '무승부';
+      }
+      document.getElementById('overlayTitle').textContent = title;
+      document.getElementById('overlayMsg').textContent = `최종 스코어 ${sh} : ${sa}`;
+      document.getElementById('overlay').classList.add('show');
+    }
+
+    tick() {
+      if (this.phase === PHASE.PLANNING) {
+        this.validatePossession();
+        if (this.possessorPhase === 'dribble') this.tickDribbleRealtime();
+        if (this.useTimer && !this.kickMode && !this.possessorActionRequired() && Date.now() >= this.planDeadline) {
+          if (this.isOnline && !this.isHost) {
+            if (!this.remoteCommitted.has(this.mySlot)) this.commitPlanning();
+          } else if (this.isHost || !this.isOnline) {
+            this.commitPlanning();
+          }
+        }
+        this.updateHUD();
+        if (this.kickMode) this.updateActionQueueUI();
+      } else if (this.phase === PHASE.PLAYBACK) {
+        const elapsed = (performance.now() - this.playbackStart) / 1000;
+        const alpha = clamp(elapsed / CFG.PLAYBACK_TIME, 0, 1);
+        if (alpha >= 1) this.onPlaybackEnd();
+      }
+    }
+
+    draw() {
+      Renderer.drawField();
+      let waypoints = null;
+      let waypointSources = null;
+      if (this.phase === PHASE.PLANNING && !this.kickMode && this.possessorPhase !== 'dribble') {
+        const preview = this.getPlanningPreview();
+        waypoints = {};
+        waypointSources = {};
+        for (const [pid, cmd] of preview.commands) {
+          waypoints[pid] = cmd;
+          waypointSources[pid] = preview.sources.get(pid);
+        }
+      }
+      if (this.phase === PHASE.PLAYBACK && this.keyframes.length) {
+        const elapsed = (performance.now() - this.playbackStart) / 1000;
+        const alpha = clamp(elapsed / CFG.PLAYBACK_TIME, 0, 1);
+        const frame = PhysicsEngine.sampleKeyframes(this.keyframes, alpha);
+        const drawPlayers = this.world.players.map(p => {
+          const fp = frame.players.find(f => f.id === p.id);
+          return { ...p, x: fp ? fp.x : p.x, y: fp ? fp.y : p.y };
+        });
+        Renderer.drawWorld({
+          players: drawPlayers,
+          ball: frame.ball,
+          possession: this.world.possession
+        }, { playback: true });
+      } else {
+        const dimKick = this.kickMode === 'aim';
+        if (this.possessorPhase === 'dribble' && this.dribbleCarrierStart && this.dribbleLiveIds) {
+          Renderer.drawDribbleZone(
+            this.dribbleCarrierStart.x,
+            this.dribbleCarrierStart.y,
+            this.dribbleLiveIds,
+            this.world.players
+          );
+        } else if (this.phase === PHASE.PLANNING && !this.kickMode && this.possessorPhase === 'done') {
+          const sel = this.world.players.find(p => p.id === this.selectedId);
+          if (sel && this.controllable(sel.id)) {
+            Renderer.drawMoveRange(sel.x, sel.y);
+          }
+        }
+        Renderer.drawWorld(this.world, {
+          selectedId: this.controllable(this.selectedId) ? this.selectedId : null,
+          possession: this.world.possession,
+          waypoints,
+          waypointSources
+        });
+        if (dimKick) {
+          Renderer.drawKickDim();
+          Renderer.drawFieldAimArrow(this.world.ball.x, this.world.ball.y, this.aimDragX, this.aimDragY);
+        }
+      }
+    }
+
+    loop() {
+      this.tick();
+      this.draw();
+      this._raf = requestAnimationFrame(() => this.loop());
+    }
+
+    stop() {
+      if (this._raf) cancelAnimationFrame(this._raf);
+      this.unbindInput();
+    }
+
+    handleNetCommand(slot, cmd) {
+      if (!cmd) return;
+      cmd.playerId = slot;
+      this.pendingRemote.set(slot, cmd);
+      this.remoteCommitted.add(slot);
+      this.updateActionQueueUI();
+    }
+
+    startPlaybackFromHost(data) {
+      this.keyframes = data.keyframes;
+      this.applyWorld(data.world);
+      document.getElementById('resolveOverlay').classList.remove('show');
+      this.phase = PHASE.PLAYBACK;
+      this.playbackStart = performance.now();
+      document.getElementById('btnCommit').disabled = true;
+      document.getElementById('btnCommit').textContent = '연출 중…';
+      this.updateHUD();
+    }
+
+    applyNewTurn(data) {
+      this.turn = data.turn;
+      this.applyWorld(data.world);
+      this.phase = PHASE.PLANNING;
+      this.planDeadline = data.deadline || Date.now() + CFG.PLANNING_TIME * 1000;
+      this.commands.clear();
+      this.actionQueue = [];
+      this.pendingRemote.clear();
+      this.remoteCommitted.clear();
+      this.kickMode = null;
+      this.kickState = { aim: 0, impactX: 0, impactY: 0, power: 0.5 };
+      this.possessorPhase = null;
+      this.dribbleLiveIds = null;
+      this.hidePossessorOverlays();
+      document.getElementById('kickOverlay').classList.remove('show');
+      document.getElementById('btnCommit').disabled = false;
+      document.getElementById('btnCommit').textContent = '명령 완료';
+      this.buildPlayerTabs();
+      this.updateKickButton();
+      this.updateHUD();
+      this.updateActionQueueUI();
+      this.beginPossessorChoiceIfNeeded();
+    }
+  }
+
+  /* ══════════════════ Lobby & wiring ══════════════════ */
+  const lobby = document.getElementById('lobby');
+  const gameRoot = document.getElementById('gameRoot');
+  let currentGame = null;
+  let lastSoloOpts = { soloSubMode: 'ace', aiDifficulty: 'medium' };
+
+  function lobbyLog(msg) {
+    const el = document.getElementById('lobbyLog');
+    el.textContent = (el.textContent ? el.textContent + '\n' : '') + msg;
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function showLobby() {
+    if (currentGame) currentGame.stop();
+    currentGame = null;
+    NetHost.destroy();
+    document.getElementById('waitingBox').classList.add('hidden');
+    document.getElementById('joinPanel').classList.remove('hidden');
+    gameRoot.classList.add('hidden');
+    document.getElementById('overlay').classList.remove('show');
+    lobby.classList.remove('hidden');
+  }
+
+  function showGame() {
+    lobby.classList.add('hidden');
+    gameRoot.classList.remove('hidden');
+    document.getElementById('overlay').classList.remove('show');
+  }
+
+  function showWaitingRoom(hostId, asHost) {
+    document.getElementById('joinPanel').classList.add('hidden');
+    document.getElementById('waitingBox').classList.remove('hidden');
+    document.getElementById('btnStartGame').classList.toggle('hidden', !asHost);
+    document.getElementById('guestWaitHint').classList.toggle('hidden', asHost);
+    if (asHost) document.getElementById('inviteLink').textContent = '방 코드: ' + hostId;
+    updateRosterUI();
+  }
+
+  function updateRosterUI(roster) {
+    const list = roster || NetHost.rosterPayload();
+    const ul = document.getElementById('rosterList');
+    ul.innerHTML = '';
+    const occupied = list.filter(r => r.occupied);
+    occupied.forEach(r => {
+      const li = document.createElement('li');
+      const team = r.team === TEAM_HOME ? '홈' : '원정';
+      li.textContent = `#${r.number} ${team} — ${r.name || '플레이어'}`;
+      ul.appendChild(li);
+    });
+    if (!occupied.length) {
+      const li = document.createElement('li');
+      li.className = 'empty';
+      li.textContent = '참가자 대기 중…';
+      ul.appendChild(li);
+    }
+    document.getElementById('waitingTitle').textContent = `대기실 — ${occupied.length}/${CFG.MAX_SLOTS}`;
+    const btn = document.getElementById('btnStartGame');
+    if (NetHost.isHost) {
+      btn.disabled = occupied.length < 1;
+      btn.textContent = occupied.length < 2 ? '경기 시작 (테스트 가능)' : `경기 시작 (${occupied.length}인)`;
+    }
+  }
+
+  function handleNetData(data) {
+    if (data.type === 'LOBBY' || data.type === 'WELCOME') {
+      if (data.slot !== undefined) NetHost.mySlot = data.slot;
+      updateRosterUI(data.roster);
+      if (data.type === 'WELCOME') lobbyLog('슬롯 #' + (data.slot + 1) + ' 배정됨');
+    } else if (data.type === 'START') {
+      showGame();
+      currentGame = new TacticsGame({ mode: 'multi' });
+    } else if (data.type === 'COMMAND' && currentGame && NetHost.isHost) {
+      currentGame.handleNetCommand(data.slot, data.cmd);
+    } else if (data.type === 'PLAYBACK' && currentGame && !NetHost.isHost) {
+      currentGame.startPlaybackFromHost(data);
+    } else if (data.type === 'NEW_TURN' && currentGame && !NetHost.isHost) {
+      currentGame.applyNewTurn(data);
+    } else if (data.type === 'REJECT') {
+      lobbyLog('거부: ' + data.reason);
+    }
+  }
+
+  document.getElementById('btnSolo').onclick = () => {
+    lastSoloOpts = {
+      soloSubMode: document.getElementById('soloModeSelect').value,
+      aiDifficulty: document.getElementById('aiDifficulty').value
+    };
+    showGame();
+    currentGame = new TacticsGame({ mode: 'solo', ...lastSoloOpts });
+  };
+
+  document.getElementById('btnHost').onclick = () => {
+    NetHost.init({
+      asHost: true,
+      handlers: {
+        onOpen: info => {
+          if (info.roomReady) showWaitingRoom(info.id, true);
+          else if (info.joined) { lobbyLog('참가자 입장'); updateRosterUI(); }
+        },
+        onData: d => handleNetData(d),
+        onError: e => lobbyLog('오류: ' + (e.type || e.message))
+      }
+    });
+  };
+
+  document.getElementById('btnJoin').onclick = () => {
+    const code = document.getElementById('joinCodeInput').value.trim();
+    if (!code) { lobbyLog('방 코드를 입력하세요'); return; }
+    NetHost.init({
+      asHost: false,
+      remoteId: code,
+      handlers: {
+        onOpen: info => { if (info.connOpen) { lobbyLog('연결됨'); showWaitingRoom('', false); } },
+        onData: handleNetData,
+        onClose: () => lobbyLog('연결 끊김'),
+        onError: e => lobbyLog('오류: ' + (e.type || e.message))
+      }
+    });
+  };
+
+  document.getElementById('btnStartGame').onclick = () => {
+    NetHost.startGame();
+    showGame();
+    currentGame = new TacticsGame({ mode: 'multi' });
+  };
+
+  document.getElementById('btnCancelWait').onclick = showLobby;
+  document.getElementById('backBtn').onclick = showLobby;
+  document.getElementById('toLobbyBtn').onclick = showLobby;
+  document.getElementById('restartBtn').onclick = () => {
+    document.getElementById('overlay').classList.remove('show');
+    if (currentGame && currentGame.mode === 'solo') {
+      currentGame.stop();
+      currentGame = new TacticsGame({ mode: 'solo', ...lastSoloOpts });
+    } else showLobby();
+  };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>⚡ 버드 스트라이크 (Bird Strike)</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #090d16;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100dvh;
+      font-family: 'Outfit', 'Segoe UI', sans-serif;
+      color: #eee;
+      overflow: hidden;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+
+    #gameContainer {
+      position: relative;
+      width: 100%;
+      max-width: 480px;
+      height: 100%;
+      max-height: 850px;
+      aspect-ratio: 480 / 800;
+      border: 3px solid #334155;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #020617;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+      display: flex;
+      flex-direction: column;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+    }
+
+    /* 게임 플레이 HUD */
+    #hud {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      right: 16px;
+      display: flex;
+      justify-content: space-between;
+      pointer-events: none;
+      z-index: 5;
+      font-family: monospace;
+    }
+
+    .hud-box {
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: 8px 14px;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: bold;
+      color: #f8fafc;
+      backdrop-filter: blur(4px);
+    }
+    
+    .hud-box span {
+      color: #fbbf24;
+    }
+
+    /* UI 오버레이 공통 */
+    .ui-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(8px);
+      z-index: 10;
+      padding: 32px;
+      text-align: center;
+      transition: opacity 0.3s ease;
+    }
+
+    .ui-overlay.hidden {
+      display: none;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    h1 {
+      font-size: 2.8rem;
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #38bdf8, #fbbf24);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .sub {
+      color: #94a3b8;
+      font-size: 0.95rem;
+      margin-bottom: 40px;
+    }
+
+    .menu-btn {
+      width: 100%;
+      max-width: 240px;
+      padding: 14px 28px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      margin-bottom: 12px;
+      transition: transform 0.1s, filter 0.1s;
+      touch-action: manipulation;
+    }
+
+    .menu-btn:active {
+      transform: scale(0.97);
+    }
+
+    .btn-play {
+      background: #2563eb;
+      color: #fff;
+    }
+
+    .btn-secondary {
+      background: #334155;
+      color: #cbd5e1;
+    }
+
+    /* 튜토리얼/조작법 팝업 */
+    #howToPlayPop {
+      background: rgba(15, 23, 42, 0.98);
+      color: #e2e8f0;
+      text-align: left;
+      align-items: flex-start;
+      justify-content: flex-start;
+      overflow-y: auto;
+    }
+    #howToPlayPop h2 {
+      font-size: 1.6rem;
+      margin-bottom: 20px;
+      color: #fbbf24;
+      align-self: center;
+    }
+    #howToPlayPop p {
+      font-size: 0.9rem;
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+    #howToPlayPop strong {
+      color: #38bdf8;
+    }
+
+    /* 결과 화면 */
+    #gameOverScreen h2 {
+      font-size: 2.2rem;
+      margin-bottom: 16px;
+      color: #fbbf24;
+    }
+    #gameOverScreen p span {
+      font-weight: bold;
+      color: #fbbf24;
+      font-size: 1.3rem;
+    }
+
+    /* 가상 터치 컨트롤 패드 */
+    #mobileControls {
+      position: absolute;
+      bottom: 24px;
+      left: 24px;
+      right: 24px;
+      display: flex;
+      justify-content: space-between;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .touch-btn {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      border: 2px solid rgba(56, 189, 248, 0.4);
+      background: rgba(15, 23, 42, 0.6);
+      color: #38bdf8;
+      font-size: 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+      pointer-events: auto;
+      touch-action: none;
+      backdrop-filter: blur(4px);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      transition: background 0.1s, transform 0.1s;
+    }
+
+    .touch-btn:active {
+      background: #38bdf8;
+      color: #020617;
+      transform: scale(0.9);
+    }
+  </style>
+</head>
+<body>
+
+  <div id="gameContainer">
+    <!-- 게임 정보 표시 HUD -->
+    <div id="hud">
+      <div class="hud-box">고도: <span id="txtHeight">0</span>m</div>
+      <div class="hud-box">발사: <span id="txtLaunches">6</span></div>
+      <div class="hud-box">씨앗: <span id="txtSeeds">0</span></div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- 타이틀 / 메인 메뉴 화면 -->
+    <div id="titleScreen" class="ui-overlay">
+      <h1>⚡ BIRD STRIKE</h1>
+      <p class="sub">탄력 전선에서 발사하여 우주까지 비행하세요!</p>
+      <button class="menu-btn btn-play" id="btnStartGame">비행 시작</button>
+      <button class="menu-btn btn-secondary" id="btnShowHow">조작법 보기</button>
+    </div>
+
+    <!-- 조작법 설명 팝업 -->
+    <div id="howToPlayPop" class="ui-overlay hidden">
+      <h2>⚡ 플레이 가이드</h2>
+      <p><strong>1. 새총 발사 (Sling Launch)</strong><br>
+         새가 전선에 매달려 있을 때, 새를 터치/클릭하여 <strong>아래로 당겼다가 놓으면</strong> 반대 방향으로 힘차게 발사됩니다. 더 많이 잡아당길수록 더 강력하게 날아갑니다!
+      </p>
+      <p><strong>2. 비행 제어 (Flight Controls)</strong><br>
+         비행하는 동안 화면 좌우 터치 버튼 또는 키보드 방향키(←, →) / A, D 키를 사용해 좌우로 방향을 꺾을 수 있습니다.
+      </p>
+      <p><strong>3. 아이템 & 장애물</strong><br>
+         - 🟡 <strong>황금 씨앗</strong>: 5개를 획득할 때마다 발사 기회가 1회 충전(+1)됩니다.<br>
+         - 🚀 <strong>로켓 부스터</strong>: 궤도 돌파 속도로 순간 초고속 상승합니다!<br>
+         - ⛈️ <strong>번개 구름 / 폭탄</strong>: 충돌 시 기절(Dizzy)하여 제어 불능 상태로 추락하며, <strong>발사 기회가 1회 차감</strong>됩니다.
+      </p>
+      <button class="menu-btn btn-secondary" id="btnCloseHow" style="margin-top: 20px; align-self: center;">확인</button>
+    </div>
+
+    <!-- 게임오버 / 결과 화면 -->
+    <div id="gameOverScreen" class="ui-overlay hidden">
+      <h2 id="resultTitle">🎉 우주 도달 성공!</h2>
+      <p id="resultMsg" style="font-size: 1.1rem; color: #94a3b8; margin: 16px 0 24px;"></p>
+      <button class="menu-btn btn-play" id="btnRestart">다시 도전</button>
+      <button class="menu-btn btn-secondary" id="btnBackToMenu">메인 메뉴</button>
+    </div>
+
+    <!-- 가상 터치 컨트롤 패드 -->
+    <div id="mobileControls">
+      <div id="btnLeft" class="touch-btn">◀</div>
+      <div id="btnRight" class="touch-btn">▶</div>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    'use strict';
+
+    window.__lastJsError = null;
+    window.onerror = function (msg, url, line) {
+      window.__lastJsError = `${msg} (line ${line})`;
+      return false;
+    };
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const DESIGN_W = 480;
+    const DESIGN_H = 800;
+    canvas.width = DESIGN_W;
+    canvas.height = DESIGN_H;
+
+    // --- 물리 세팅 ---
+    const GRAVITY = 0.24;
+    const AIR_RESISTANCE = 0.988;
+    const MOVE_SPEED = 0.65;
+    const MAX_X_SPEED = 5.5;
+    
+    // 수직 맵 전체 높이 및 고도 (우주까지 2만 픽셀)
+    const WORLD_H = 20000;
+    const START_LAUNCH_Y = 700; // 출발 전선 Y 좌표
+
+    let gameState = 'MENU'; // MENU, PLAYING, GAMEOVER
+    let player = null;
+    let cameraY = 0;
+    let targetCameraY = 0;
+    let particles = [];
+    
+    // 게임 오브젝트들
+    let platforms = [];
+    let seeds = [];
+    let rockets = [];
+    let obstacles = [];
+
+    // 키보드 조작
+    const keys = { left: false, right: false };
+
+    // --- 클래스 정의 ---
+
+    class Player {
+      constructor() {
+        this.reset();
+      }
+
+      reset() {
+        this.x = DESIGN_W / 2;
+        this.y = START_LAUNCH_Y;
+        this.vx = 0;
+        this.vy = 0;
+        this.state = 'LOBBY'; // LOBBY, FLYING, DIZZY, BOOST, OUT
+        this.rocketTime = 0;
+        this.dizzyTime = 0;
+        this.score = 0;
+        this.collectedSeeds = 0;
+        this.launchesLeft = 6; // 시작 시 발사 기회 6회
+        this.dragOffset = null;
+        this.animPhase = 0;
+        this.activePlat = null; // 현재 안착해 있는 전선
+      }
+
+      launch(fx, fy) {
+        if (this.state !== 'LOBBY') return;
+        if (this.launchesLeft <= 0) return; // 발사 횟수가 없으면 차단
+        
+        this.launchesLeft--;
+        this.vx = fx;
+        this.vy = Math.min(-12, fy);
+        this.state = 'FLYING';
+        this.activePlat = null;
+        
+        // 튕기는 전선 파동 파티클 효과
+        createElasticWave(this.x, this.y, fx);
+      }
+
+      hitObstacle() {
+        this.state = 'DIZZY';
+        this.dizzyTime = 90; // 1.5초 동안 기절
+        this.rocketTime = 0;
+        this.vy = Math.max(2, this.vy + 7); // 아래로 튕겨 나감
+        this.vx = (Math.random() - 0.5) * 5;
+        
+        // 장애물 충돌 시 발사 기회 1회 차감 페널티
+        this.launchesLeft = Math.max(0, this.launchesLeft - 1);
+        
+        // 깃털 및 불꽃 튐 효과
+        createExplosion(this.x, this.y, '#f43f5e', 20);
+      }
+
+      giveBoost() {
+        this.state = 'BOOST';
+        this.rocketTime = 150; // 약 2.5초 간 강한 추진
+        this.dizzyTime = 0;
+        this.vy = -20;
+        createExplosion(this.x, this.y, '#fbbf24', 25);
+      }
+
+      update() {
+        if (this.state === 'OUT') return;
+
+        if (this.state === 'LOBBY') {
+          if (this.activePlat) {
+            this.y = this.activePlat.y;
+          } else {
+            this.y = START_LAUNCH_Y;
+          }
+          this.vx = 0;
+          this.vy = 0;
+          return;
+        }
+
+        // 공중 횡 이동
+        if (this.state === 'FLYING' || this.state === 'BOOST') {
+          if (keys.left) this.vx -= MOVE_SPEED;
+          if (keys.right) this.vx += MOVE_SPEED;
+          this.vx = Math.max(-MAX_X_SPEED, Math.min(MAX_X_SPEED, this.vx));
+        }
+
+        // 비행 상태 연산
+        if (this.state === 'BOOST') {
+          this.vy = -20; // 궤도 돌파 속도
+          this.rocketTime--;
+          if (this.rocketTime <= 0) {
+            this.state = 'FLYING';
+          }
+          // 로켓 파티클 방출
+          if (Math.random() < 0.5) {
+            particles.push(new Particle(
+              this.x + (Math.random() - 0.5) * 12,
+              this.y + 16,
+              '#f97316',
+              (Math.random() - 0.5) * 2,
+              4 + Math.random() * 4,
+              30
+            ));
+          }
+        } else if (this.state === 'DIZZY') {
+          this.vy += GRAVITY * 0.8;
+          this.dizzyTime--;
+          if (this.dizzyTime <= 0) {
+            this.state = 'FLYING';
+          }
+          // 별 파티클 방출
+          if (this.dizzyTime % 15 === 0) {
+            particles.push(new Particle(
+              this.x + Math.sin(this.dizzyTime * 0.1) * 16,
+              this.y - 20,
+              '#fef08a',
+              0,
+              -1,
+              20
+            ));
+          }
+        } else {
+          this.vy += GRAVITY;
+        }
+
+        this.vx *= AIR_RESISTANCE;
+        this.vy *= AIR_RESISTANCE;
+        this.x += this.vx;
+        this.y += this.vy;
+
+        // 벽 튕김 피드백
+        if (this.x < 16) { this.x = 16; this.vx *= -0.6; }
+        if (this.x > DESIGN_W - 16) { this.x = DESIGN_W - 16; this.vx *= -0.6; }
+
+        // 현재 스코어 계산 (높이 환산)
+        const altitude = Math.floor((START_LAUNCH_Y - this.y) / 10);
+        if (altitude > this.score) this.score = altitude;
+
+        // 추락 사망 판단 (시작 지점보다 아래로 180px 넘게 처박히면 OUT)
+        if (this.y > START_LAUNCH_Y + 180) {
+          this.state = 'OUT';
+          createExplosion(this.x, this.y, '#94a3b8', 20);
+          triggerGameOver(false);
+        }
+
+        // 하강 중 전선에 닿았을 때 안착 판정
+        if (this.vy >= 0 && (this.state === 'FLYING' || this.state === 'DIZZY')) {
+          // 초기 시작선 안착
+          if (Math.abs(this.y - START_LAUNCH_Y) < 6) {
+            this.y = START_LAUNCH_Y;
+            this.vx = 0;
+            this.vy = 0;
+            this.state = 'LOBBY';
+            this.activePlat = null;
+            this.dragOffset = null;
+            dragStart = null;
+            isDragging = false;
+
+            if (this.launchesLeft <= 0) {
+              triggerGameOver(false);
+            }
+          } else {
+            // 배치된 공중 플랫폼 안착 (유저가 다시 당겨 쏠 수 있도록 멈춤)
+            for (const plat of platforms) {
+              if (this.x >= plat.x && this.x <= plat.x + plat.w &&
+                  this.y + 12 >= plat.y - 8 && this.y - 12 <= plat.y + 6) {
+                
+                this.y = plat.y; // 플랫폼 전선 높이에 정확히 일치
+                this.vx = 0;
+                this.vy = 0;
+                this.state = 'LOBBY';
+                this.activePlat = plat;
+                this.dizzyTime = 0;
+                this.dragOffset = null;
+                dragStart = null;
+                isDragging = false;
+                
+                createExplosion(this.x, this.y, '#38bdf8', 8);
+
+                // 남은 발사 기회가 없으면 착지 즉시 게임오버
+                if (this.launchesLeft <= 0) {
+                  triggerGameOver(false);
+                }
+                break;
+              }
+            }
+          }
+        }
+
+        this.animPhase += 0.2;
+      }
+
+      draw(camY) {
+        if (this.state === 'OUT') return;
+
+        const sx = this.x;
+        const sy = this.y - camY;
+
+        // 새총 고무줄 조준선 렌더링
+        if (this.state === 'LOBBY' && this.dragOffset) {
+          ctx.strokeStyle = 'rgba(244, 63, 94, 0.85)';
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.moveTo(this.x - 24, sy);
+          ctx.lineTo(sx + this.dragOffset.x, sy + this.dragOffset.y);
+          ctx.lineTo(this.x + 24, sy);
+          ctx.stroke();
+        }
+
+        ctx.save();
+        ctx.translate(sx + (this.dragOffset ? this.dragOffset.x : 0), sy + (this.dragOffset ? this.dragOffset.y : 0));
+        
+        // 날아가는 앵글 회전 연출
+        if (this.state === 'DIZZY') {
+          ctx.rotate(this.dizzyTime * 0.15);
+        } else if (this.state === 'FLYING' || this.state === 'BOOST') {
+          const angle = Math.atan2(this.vy, this.vx) + Math.PI / 2;
+          ctx.rotate(angle);
+        }
+
+        // 로켓 추진 화염
+        if (this.state === 'BOOST') {
+          const fireGrad = ctx.createLinearGradient(0, 16, 0, 48);
+          fireGrad.addColorStop(0, '#f43f5e');
+          fireGrad.addColorStop(0.5, '#f97316');
+          fireGrad.addColorStop(1, 'transparent');
+          ctx.fillStyle = fireGrad;
+          ctx.fillRect(-8, 14, 16, 32);
+        }
+
+        // 새 몸통
+        ctx.fillStyle = '#f87171';
+        ctx.beginPath();
+        ctx.arc(0, 0, 16, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 꼬리깃
+        ctx.fillStyle = '#ef4444';
+        ctx.beginPath();
+        ctx.moveTo(-6, 14);
+        ctx.lineTo(0, 24);
+        ctx.lineTo(6, 14);
+        ctx.closePath();
+        ctx.fill();
+
+        // 부리
+        ctx.fillStyle = '#fbbf24';
+        ctx.beginPath();
+        ctx.moveTo(-5, -12);
+        ctx.lineTo(5, -12);
+        ctx.lineTo(0, -22);
+        ctx.closePath();
+        ctx.fill();
+
+        // 날개 퍼덕임 애니메이션
+        ctx.fillStyle = '#ef4444';
+        const flappy = (this.state === 'FLYING' || this.state === 'BOOST') ? Math.sin(this.animPhase) * 12 : 3;
+        const wingY = Math.max(2, 10 + flappy);
+        ctx.beginPath();
+        ctx.ellipse(-14, 1, 7, wingY, 0.4, 0, Math.PI * 2);
+        ctx.ellipse(14, 1, 7, wingY, -0.4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 눈
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(-5, -4, 4, 0, Math.PI * 2);
+        ctx.arc(5, -4, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(-5, -5, 1.8, 0, Math.PI * 2);
+        ctx.arc(5, -5, 1.8, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 눈썹 (기절 시에는 X 자 눈)
+        if (this.state === 'DIZZY') {
+          ctx.strokeStyle = '#000';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(-7, -6); ctx.lineTo(-3, -2);
+          ctx.moveTo(-7, -2); ctx.lineTo(-3, -6);
+          ctx.moveTo(3, -6); ctx.lineTo(7, -2);
+          ctx.moveTo(3, -2); ctx.lineTo(7, -6);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+    }
+
+    class WirePlatform {
+      constructor(x, y, w) {
+        this.x = x;
+        this.y = y;
+        this.w = w;
+        this.elasticY = 0;
+      }
+
+      draw(camY) {
+        const sy = this.y - camY;
+        
+        ctx.strokeStyle = '#475569';
+        ctx.lineWidth = 3.5;
+        
+        ctx.beginPath();
+        ctx.moveTo(this.x, sy);
+        ctx.lineTo(this.x + this.w, sy);
+        ctx.stroke();
+
+        ctx.fillStyle = '#64748b';
+        ctx.fillRect(this.x - 5, sy - 5, 10, 10);
+        ctx.fillRect(this.x + this.w - 5, sy - 5, 10, 10);
+      }
+    }
+
+    class Seed {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.r = 10;
+        this.collected = false;
+        this.angle = Math.random() * Math.PI * 2;
+      }
+      update() {
+        this.angle += 0.05;
+      }
+      draw(camY) {
+        if (this.collected) return;
+        const sy = this.y - camY + Math.sin(this.angle) * 3;
+        ctx.beginPath();
+        ctx.arc(this.x, sy, this.r, 0, Math.PI * 2);
+        ctx.fillStyle = '#fbbf24';
+        ctx.fill();
+        ctx.strokeStyle = '#d97706';
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 8px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('★', this.x, sy + 3);
+      }
+    }
+
+    class RocketItem {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.w = 24;
+        this.h = 38;
+        this.collected = false;
+      }
+      draw(camY) {
+        if (this.collected) return;
+        const sy = this.y - camY;
+        ctx.save();
+        ctx.translate(this.x, sy);
+
+        ctx.fillStyle = '#f43f5e';
+        ctx.fillRect(-7, -10, 14, 20);
+
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.moveTo(-7, -10);
+        ctx.lineTo(7, -10);
+        ctx.lineTo(0, -22);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = '#3b82f6';
+        ctx.fillRect(-11, 4, 4, 6);
+        ctx.fillRect(7, 4, 4, 6);
+
+        ctx.restore();
+      }
+    }
+
+    class Obstacle {
+      constructor(x, y, type = 'cloud') {
+        this.x = x;
+        this.y = y;
+        this.type = type;
+        this.r = type === 'cloud' ? 32 : 18;
+        this.bob = Math.random() * Math.PI * 2;
+      }
+      update() {
+        this.bob += 0.04;
+      }
+      draw(camY) {
+        const sy = this.y - camY + Math.sin(this.bob) * 5;
+        if (this.type === 'cloud') {
+          ctx.fillStyle = '#334155';
+          ctx.beginPath();
+          ctx.arc(this.x, sy, 20, 0, Math.PI * 2);
+          ctx.arc(this.x - 16, sy + 4, 14, 0, Math.PI * 2);
+          ctx.arc(this.x + 16, sy + 4, 14, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.strokeStyle = '#fbbf24';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.moveTo(this.x + 2, sy - 10);
+          ctx.lineTo(this.x - 4, sy + 2);
+          ctx.lineTo(this.x + 3, sy);
+          ctx.lineTo(this.x - 2, sy + 12);
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = '#1e293b';
+          ctx.beginPath();
+          ctx.arc(this.x, sy, this.r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#f43f5e';
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+
+          ctx.fillStyle = '#f43f5e';
+          for (let i = 0; i < 8; i++) {
+            const angle = (i * Math.PI) / 4;
+            const px = this.x + Math.cos(angle) * (this.r + 3);
+            const py = sy + Math.sin(angle) * (this.r + 3);
+            ctx.beginPath();
+            ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+    }
+
+    class Particle {
+      constructor(x, y, color, vx, vy, life) {
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        this.vx = vx;
+        this.vy = vy;
+        this.life = life;
+        this.maxLife = life;
+        this.r = 2 + Math.random() * 4;
+      }
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.vy += 0.04;
+        this.life--;
+      }
+      draw(camY) {
+        ctx.fillStyle = this.color;
+        ctx.globalAlpha = this.life / this.maxLife;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y - camY, this.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // --- 파티클 도우미 함수 ---
+
+    function createExplosion(x, y, color, count) {
+      for (let i = 0; i < count; i++) {
+        const vx = (Math.random() - 0.5) * 8;
+        const vy = (Math.random() - 0.5) * 8 - 2;
+        particles.push(new Particle(x, y, color, vx, vy, 30 + Math.random() * 20));
+      }
+    }
+
+    function createElasticWave(x, y, fx) {
+      for (let i = 0; i < 12; i++) {
+        const vx = (Math.random() - 0.5) * 4 + (fx * 0.2);
+        const vy = (Math.random() - 0.2) * 5;
+        particles.push(new Particle(x, y, '#e2e8f0', vx, vy, 20 + Math.random() * 15));
+      }
+    }
+
+    // --- 게임 흐름 제어 ---
+
+    function initLevel() {
+      player = new Player();
+      particles = [];
+      cameraY = 0;
+      targetCameraY = 0;
+
+      platforms = [];
+      seeds = [];
+      rockets = [];
+      obstacles = [];
+
+      // 1. 공중 전선 플랫폼 배치
+      for (let y = START_LAUNCH_Y - 260; y > START_LAUNCH_Y - WORLD_H; y -= 270) {
+        const w = 120 + Math.random() * 140;
+        const x = Math.random() * (DESIGN_W - w - 40) + 20;
+        platforms.push(new WirePlatform(x, y, w));
+      }
+
+      // 2. 골드 씨앗, 로켓, 장애물 배치
+      for (let y = START_LAUNCH_Y - 140; y > START_LAUNCH_Y - WORLD_H; y -= 120) {
+        const x = 40 + Math.random() * (DESIGN_W - 80);
+        const roll = Math.random();
+        
+        if (roll < 0.35) {
+          seeds.push(new Seed(x, y));
+        } else if (roll < 0.44) {
+          rockets.push(new RocketItem(x, y));
+        } else if (roll < 0.65) {
+          const type = Math.random() > 0.4 ? 'cloud' : 'bomb';
+          obstacles.push(new Obstacle(x, y, type));
+        }
+      }
+    }
+
+    function checkCollisions() {
+      if (player.state !== 'FLYING' && player.state !== 'BOOST') return;
+
+      // 1. 씨앗
+      for (const s of seeds) {
+        if (s.collected) continue;
+        if (Math.hypot(player.x - s.x, player.y - s.y) < s.r + 16) {
+          s.collected = true;
+          player.collectedSeeds++;
+          
+          // 씨앗 5개마다 발사 기회 +1 보너스 제공
+          if (player.collectedSeeds > 0 && player.collectedSeeds % 5 === 0) {
+            player.launchesLeft++;
+            createExplosion(s.x, s.y, '#38bdf8', 12);
+          } else {
+            createExplosion(s.x, s.y, '#fbbf24', 6);
+          }
+        }
+      }
+
+      // 2. 로켓
+      for (const r of rockets) {
+        if (r.collected) continue;
+        if (Math.abs(player.x - r.x) < 22 && Math.abs(player.y - r.y) < 28) {
+          r.collected = true;
+          player.giveBoost();
+        }
+      }
+
+      // 3. 장애물
+      for (const obs of obstacles) {
+        const hitRange = obs.type === 'cloud' ? 36 : 26;
+        if (Math.hypot(player.x - obs.x, player.y - obs.y) < hitRange) {
+          player.hitObstacle();
+        }
+      }
+
+      // 4. 골인 검사
+      const winAltitude = Math.floor(WORLD_H / 10);
+      if (player.score >= winAltitude - 50) {
+        triggerGameOver(true);
+      }
+    }
+
+    function triggerGameOver(won) {
+      gameState = 'GAMEOVER';
+      
+      const overlay = document.getElementById('gameOverScreen');
+      const title = document.getElementById('resultTitle');
+      const msg = document.getElementById('resultMsg');
+      
+      if (won) {
+        title.textContent = '🎉 우주 도달 성공!';
+        msg.innerHTML = `대단합니다! 우주정거장에 성공적으로 도착했습니다.<br>최종 획득 씨앗: <span>${player.collectedSeeds}</span>개`;
+      } else {
+        title.textContent = '💥 추락 완료';
+        msg.innerHTML = `새가 바닥으로 떨어졌습니다.<br>도달 고도: <span>${player.score}</span>m<br>획득 씨앗: <span>${player.collectedSeeds}</span>개`;
+      }
+      
+      overlay.classList.remove('hidden');
+    }
+
+    // --- 드로잉 시스템 ---
+
+    function drawSpeedLines() {
+      if (player.state === 'BOOST') {
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.15)';
+        ctx.lineWidth = 1.5;
+        for (let i = 0; i < 15; i++) {
+          const lx = Math.random() * DESIGN_W;
+          const ly = Math.random() * DESIGN_H;
+          const len = 50 + Math.random() * 80;
+          ctx.beginPath();
+          ctx.moveTo(lx, ly);
+          ctx.lineTo(lx, ly + len);
+          ctx.stroke();
+        }
+      }
+    }
+
+    function draw() {
+      // 1. 카메라 추적 연산
+      let targetY = START_LAUNCH_Y - (DESIGN_H * 0.65);
+      if (player.state !== 'OUT') {
+        targetY = player.y - (DESIGN_H * 0.55);
+      }
+      cameraY += (targetY - cameraY) * 0.1;
+      cameraY = Math.min(START_LAUNCH_Y - DESIGN_H + 100, Math.max(START_LAUNCH_Y - WORLD_H, cameraY));
+
+      ctx.clearRect(0, 0, DESIGN_W, DESIGN_H);
+
+      // 2. 우주 스카이 그라데이션 그리기
+      const ratio = Math.min(1, Math.max(0, -cameraY / (WORLD_H - 1000)));
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, DESIGN_H);
+      
+      const skyR = Math.floor(56 - 54 * ratio);
+      const skyG = Math.floor(189 - 183 * ratio);
+      const skyB = Math.floor(248 - 225 * ratio);
+      
+      const spaceR = Math.floor(15 - 13 * ratio);
+      const spaceG = Math.floor(23 - 21 * ratio);
+      const spaceB = Math.floor(42 - 38 * ratio);
+
+      bgGrad.addColorStop(0, `rgb(${spaceR}, ${spaceG}, ${spaceB})`);
+      bgGrad.addColorStop(1, `rgb(${skyR}, ${skyG}, ${skyB})`);
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, DESIGN_W, DESIGN_H);
+
+      // 3. 밑바닥 시작 전선 지지선 그리기
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(0, START_LAUNCH_Y - cameraY);
+      ctx.lineTo(DESIGN_W, START_LAUNCH_Y - cameraY);
+      ctx.stroke();
+
+      // 4. 오브젝트 렌더링
+      platforms.forEach(p => p.draw(cameraY));
+      seeds.forEach(s => s.draw(cameraY));
+      rockets.forEach(r => r.draw(cameraY));
+      obstacles.forEach(o => o.draw(cameraY));
+      particles.forEach(p => p.draw(cameraY));
+
+      // 5. 플레이어 캐릭터
+      player.draw(cameraY);
+
+      // 6. 특수 이펙트 (속도선)
+      drawSpeedLines();
+
+      // 7. 우주정거장 피니시 비주얼
+      const goalY = START_LAUNCH_Y - WORLD_H + 900 - cameraY;
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
+      ctx.fillRect(0, goalY, DESIGN_W, 60);
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(0, goalY); ctx.lineTo(DESIGN_W, goalY);
+      ctx.moveTo(0, goalY + 60); ctx.lineTo(DESIGN_W, goalY + 60);
+      ctx.stroke();
+      
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('🚀 우주 정거장 (피니시 라인)', DESIGN_W / 2, goalY + 36);
+
+      // HUD 텍스트 업데이트
+      document.getElementById('txtHeight').textContent = player.score;
+      document.getElementById('txtSeeds').textContent = player.collectedSeeds;
+      document.getElementById('txtLaunches').textContent = player.launchesLeft;
+    }
+
+    function gameLoop() {
+      try {
+        if (gameState === 'PLAYING') {
+          player.update();
+          obstacles.forEach(o => o.update());
+          seeds.forEach(s => s.update());
+
+          particles.forEach(p => p.update());
+          particles = particles.filter(p => p.life > 0);
+
+          checkCollisions();
+          draw();
+        }
+      } catch (err) {
+        console.error(err);
+        document.getElementById('txtHeight').innerHTML = `<span style="color:#ef4444;font-size:10px;">${err.message} (Line: ${err.stack ? err.stack.split('\n')[1] : 'unknown'})</span>`;
+        gameState = 'ERROR_STOP';
+      }
+      if (gameState !== 'ERROR_STOP') {
+        requestAnimationFrame(gameLoop);
+      }
+    }
+
+    // --- 입력 및 마우스/터치 핸들러 ---
+
+    let dragStart = null;
+    let isDragging = false;
+
+    function getCanvasPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const x = ((clientX - rect.left) / rect.width) * DESIGN_W;
+      const y = ((clientY - rect.top) / rect.height) * DESIGN_H;
+      return { x, y };
+    }
+
+    canvas.addEventListener('pointerdown', (e) => {
+      if (gameState !== 'PLAYING') return;
+      if (player.state !== 'LOBBY') return;
+
+      const pt = getCanvasPos(e);
+      const playerScreenY = player.y - cameraY;
+      
+      if (Math.hypot(pt.x - player.x, pt.y - playerScreenY) < 80) {
+        dragStart = pt;
+        isDragging = true;
+        canvas.setPointerCapture(e.pointerId);
+      }
+    });
+
+    canvas.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+      const pt = getCanvasPos(e);
+      const dx = pt.x - dragStart.x;
+      const dy = pt.y - dragStart.y;
+      
+      player.dragOffset = {
+        x: Math.max(-100, Math.min(100, dx)),
+        y: Math.max(0, Math.min(130, dy))
+      };
+    });
+
+    canvas.addEventListener('pointerup', (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      canvas.releasePointerCapture(e.pointerId);
+      
+      if (player.dragOffset) {
+        const fx = -player.dragOffset.x * 0.15;
+        const fy = -player.dragOffset.y * 0.26;
+        player.launch(fx, fy);
+        player.dragOffset = null;
+      }
+      dragStart = null;
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = true;
+      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
+      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
+    });
+
+    // 가상 가상 버튼 조작
+    const btnL = document.getElementById('btnLeft');
+    const btnR = document.getElementById('btnRight');
+    
+    const bindTouch = (btn, dir) => {
+      btn.addEventListener('pointerdown', (e) => { e.preventDefault(); keys[dir] = true; });
+      btn.addEventListener('pointerup', () => { keys[dir] = false; });
+      btn.addEventListener('pointerleave', () => { keys[dir] = false; });
+      btn.addEventListener('pointercancel', () => { keys[dir] = false; });
+    };
+    bindTouch(btnL, 'left');
+    bindTouch(btnR, 'right');
+
+    // --- UI 이벤트 연동 ---
+
+    document.getElementById('btnStartGame').addEventListener('click', () => {
+      document.getElementById('titleScreen').classList.add('hidden');
+      gameState = 'PLAYING';
+      initLevel();
+    });
+
+    document.getElementById('btnShowHow').addEventListener('click', () => {
+      document.getElementById('howToPlayPop').classList.remove('hidden');
+    });
+
+    document.getElementById('btnCloseHow').addEventListener('click', () => {
+      document.getElementById('howToPlayPop').classList.add('hidden');
+    });
+
+    document.getElementById('btnRestart').addEventListener('click', () => {
+      document.getElementById('gameOverScreen').classList.add('hidden');
+      gameState = 'PLAYING';
+      initLevel();
+    });
+
+    document.getElementById('btnBackToMenu').addEventListener('click', () => {
+      document.getElementById('gameOverScreen').classList.add('hidden');
+      document.getElementById('titleScreen').classList.remove('hidden');
+      gameState = 'MENU';
+    });
+
+    gameLoop();
+
+  })();
+  </script>
+
+</body>
+</html>

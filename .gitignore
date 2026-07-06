@@ -1,0 +1,16 @@
+# Next.js
+web/node_modules/
+web/.next/
+web/out/
+web/public/games/
+web/*.tsbuildinfo
+web/next-env.d.ts
+
+# 로컬
+.DS_Store
+Thumbs.db
+*.log
+
+# 에디터
+.idea/
+.vscode/

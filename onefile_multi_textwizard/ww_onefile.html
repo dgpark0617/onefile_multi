@@ -1,0 +1,2809 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Word Wizard — 단일 파일</title>
+<meta name="description" content="PeerJS P2P 협동 타이핑 디펜스 — 솔로·2인 협동">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #fff; color: #222; font-family: system-ui, sans-serif; }
+  .hidden { display: none !important; }
+
+  #lobby {
+    min-height: 100dvh; padding: 20px; max-width: 520px; margin: 0 auto;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  #lobby h1 { font-size: 1.35rem; margin: 0 0 4px; }
+  #lobby .sub { color: #666; font-size: 0.85rem; margin-bottom: 4px; line-height: 1.45; }
+  #lobby .hint {
+    background: #f5f5f5; border: 1px solid #ddd; border-radius: 10px; padding: 12px 14px;
+    font-size: 0.82rem; color: #444; line-height: 1.5;
+  }
+  #lobby .hint strong { color: #2563eb; }
+  .mode-block { background: #f8f8f8; border: 1px solid #ddd; border-radius: 12px; padding: 14px; }
+  .mode-block h2 { margin: 0 0 8px; font-size: 1rem; color: #2563eb; }
+  .mode-block p { margin: 0 0 10px; font-size: 0.78rem; color: #666; line-height: 1.4; }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  button {
+    border: none; border-radius: 8px; padding: 10px 14px; font-size: 0.85rem;
+    cursor: pointer; touch-action: manipulation;
+  }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-green { background: #059669; color: #fff; }
+  .btn-red { background: #dc2626; color: #fff; }
+  .btn-ghost { background: #e5e5e5; color: #333; }
+  .btn-yellow { background: #ca8a04; color: #fff; }
+  input {
+    width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc;
+    background: #fff; color: #222; font-size: 0.9rem;
+  }
+  #roomBox, #waitingBox {
+    background: #f0f7ff; padding: 12px; border-radius: 8px; font-size: 0.82rem;
+    word-break: break-all; border: 1px solid #2563eb; color: #222;
+  }
+  #waitingBox { border-color: #ca8a04; color: #854d0e; }
+  #inviteLink { color: #2563eb; font-size: 0.78rem; display: block; margin: 8px 0; }
+  #log { font-size: 0.75rem; color: #059669; max-height: 100px; overflow-y: auto; white-space: pre-wrap; }
+
+  #gameRoot {
+    display: flex; flex-direction: column; height: 100dvh; width: 100vw;
+  }
+  #battlefield { flex: 6; position: relative; background: #fff; overflow: hidden; }
+  #battlefield canvas { display: block; width: 100%; height: 100%; object-fit: contain; }
+  #keyboard { flex: 4; display: flex; flex-direction: column; background: #f5f5f5; border-top: 2px solid #ddd; }
+  .kbRow { flex: 1; display: flex; gap: 3px; padding: 0 3px; min-height: 0; }
+  .kbKey {
+    flex: 1; margin: 2px 0; border: 1px solid #ccc; border-radius: 6px; background: #fff; color: #222;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    user-select: none; touch-action: manipulation; min-width: 0;
+  }
+  .kbKey .en { font-size: clamp(9px, 2.6vw, 11px); color: #666; }
+  .kbKey .ko { font-size: clamp(14px, 4.2vw, 17px); font-weight: bold; }
+  .kbKey.w15 { flex: 1.5; }
+  .kbKey.w2 { flex: 2; }
+  .kbKey.enter { background: #2d6a2d; color: #fff; }
+  .kbKey.mod { background: #eaeaea; }
+  .kbKey.mod .ko { display: none; }
+  .kbKey:active, .kbKey.pressed { background: #dbeafe; outline: 2px solid #2563eb; }
+
+  #topHud, #bottomHud {
+    position: absolute; left: 0; right: 0; padding: 6px 10px; font-size: clamp(11px, 3vw, 13px);
+    display: flex; justify-content: space-between; z-index: 5;
+    background: rgba(255,255,255,0.92); border: 1px solid #ddd;
+  }
+  #topHud { top: 0; color: #db2777; border-top: none; border-left: none; border-right: none; }
+  #bottomHud { bottom: 0; color: #2563eb; border-bottom: none; border-left: none; border-right: none; }
+  #centerHud {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    color: #b8860b; font-size: 12px; text-align: center; pointer-events: none; z-index: 4;
+  }
+  #bufferDisplay {
+    position: absolute; bottom: 36px; left: 50%; transform: translateX(-50%);
+    color: #222; font-size: clamp(18px, 5vw, 26px); letter-spacing: 0.1em;
+    background: rgba(255,255,255,0.92); border: 1px solid #ccc;
+    padding: 6px 14px; border-radius: 8px; z-index: 6;
+  }
+  #backBtn { position: absolute; top: 6px; right: 6px; z-index: 10; padding: 6px 10px; font-size: 11px; }
+  #hud {
+    position: absolute; top: 6px; left: 6px;
+    color: #c0392b; font-size: clamp(11px, 3vw, 14px); z-index: 5;
+    background: rgba(255,255,255,0.9); padding: 4px 8px; border-radius: 4px; border: 1px solid #ddd;
+  }
+  #soloWaveHud {
+    position: absolute; top: 6px; right: 48px;
+    color: #b8860b; font-size: clamp(11px, 3vw, 13px); z-index: 5; text-align: right;
+    background: rgba(255,255,255,0.9); padding: 4px 8px; border-radius: 4px; border: 1px solid #ddd;
+  }
+  .coop-only.hidden, .solo-only.hidden { display: none !important; }
+
+  #waveHud {
+    position: absolute; top: 40px; left: 50%; transform: translateX(-50%);
+    color: #b8860b; font-size: clamp(11px, 3vw, 13px); z-index: 5; text-align: center;
+    background: rgba(255,255,255,0.92); padding: 4px 10px; border-radius: 4px; border: 1px solid #ddd;
+  }
+  #perkRow {
+    display: flex; background: #eee; padding: 4px; gap: 4px;
+    align-items: center; justify-content: center;
+  }
+  #perkRow span { color: #555; font-size: 12px; }
+  #upgradeOverlay {
+    position: absolute; inset: 0;
+    background: rgba(255,255,255,0.94);
+    display: none; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 20;
+  }
+  #upgradeOverlay.show { display: flex; }
+  #upgradeOverlay h2 { color: #222; margin: 0 0 8px; font-size: 18px; text-align: center; }
+  #upgradeTimer { color: #c0392b; font-size: 15px; font-weight: bold; margin: 0 0 12px; }
+  #upgradeChoices { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; max-width: 95%; }
+  .upgradeCard {
+    width: 90px; padding: 12px 6px; border-radius: 10px;
+    background: #fff; border: 2px solid #bbb; color: #222;
+    text-align: center; font-size: 13px; cursor: pointer; touch-action: manipulation;
+  }
+  .upgradeCard:active { background: #f0f0f0; }
+
+  #gameOverOverlay {
+    position: absolute; inset: 0;
+    background: rgba(255,255,255,0.96);
+    display: none; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 25; text-align: center; padding: 20px;
+  }
+  #gameOverOverlay.show { display: flex; }
+  #gameOverOverlay h2 { margin: 0 0 10px; font-size: 22px; }
+  #gameOverOverlay.win h2 { color: #059669; }
+  #gameOverOverlay.lose h2 { color: #dc2626; }
+  #gameOverMsg { color: #444; margin: 0 0 16px; font-size: 14px; line-height: 1.5; }
+  #btnGameOverBack {
+    border: none; border-radius: 8px; padding: 10px 20px;
+    background: #2563eb; color: #fff; font-size: 14px; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<div id="lobby">
+  <h1>Word Wizard</h1>
+  <p class="sub" id="subLine">PeerJS P2P 협동 — 같은 파일/URL로 2인 플레이</p>
+  <div class="hint" id="hintWeb">
+    <strong>웹:</strong> 방장 「방 만들기」→ <strong>초대 링크 복사</strong> → 친구가 링크 클릭.<br>
+    별도 설치 없이 <strong>같은 주소</strong>만 쓰면 됩니다.
+  </div>
+  <div class="hint hidden" id="hintFile">
+    <strong>로컬 파일:</strong> 둘 다 <strong>같은 HTML</strong>을 받아 실행 → 방장 「방 만들기」→ <strong>방 코드 복사</strong> → 친구가 코드 입력 후 「참가」.<br>
+    인터넷 연결 필요 (PeerJS 시그널링). 파일만으로는 오프라인 P2P 불가.
+  </div>
+
+  <div class="mode-block">
+    <h2>① 솔로 모드</h2>
+    <p>웨이브 → 3택1 강화 → 보스 (혼자 플레이)</p>
+    <button class="btn-green" id="btnSolo">솔로 시작</button>
+  </div>
+
+  <div class="mode-block">
+    <h2>② 협동</h2>
+    <p>나란히 같은 방향 · 위에서 내려오는 단어 격추 · 공유 보스 · 합격기</p>
+    <div class="btn-row">
+      <button class="btn-green" id="btnCoopSolo">혼자 + AI</button>
+      <button class="btn-primary" id="btnCoopHost">방 만들기</button>
+    </div>
+  </div>
+
+  <div class="mode-block hidden" id="joinPanel">
+    <h2>친구 방 참가</h2>
+    <p>방장이 보낸 <strong>방 코드</strong> 붙여넣기</p>
+    <input id="joinCodeInput" type="text" placeholder="방 코드 붙여넣기" autocomplete="off" spellcheck="false">
+    <div class="btn-row" style="margin-top:8px">
+      <button class="btn-red" id="btnJoin">참가</button>
+    </div>
+  </div>
+
+  <div id="waitingBox" class="hidden">
+    <div id="waitingTitle">상대 접속 대기 중…</div>
+    <a id="inviteLink" href="#" target="_blank" rel="noopener"></a>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn-yellow" id="btnCopyLink">초대 링크 복사</button>
+      <button class="btn-ghost" id="btnCancelWait">취소</button>
+    </div>
+  </div>
+
+  <input id="roomInput" type="text" class="hidden" autocomplete="off" spellcheck="false">
+  <div id="roomBox" class="hidden">Peer ID: <b id="roomCode">—</b></div>
+  <div id="log"></div>
+</div>
+
+<div id="gameRoot" class="hidden">
+  <div id="battlefield">
+    <button class="btn-ghost" id="backBtn">← 로비</button>
+    <canvas id="fieldCanvas"></canvas>
+    <div id="hud" class="solo-only hidden"><span id="hudLeftEmoji"></span> HP: <span id="hpLeft">100</span></div>
+    <div id="soloWaveHud" class="solo-only hidden"><span id="hudRightEmoji"></span> HP: <span id="hpRight">100</span><br><span id="hudBossEmoji"></span> HP: <span id="hpBoss">100</span><br>WAVE <span id="soloWaveVal">1</span><br>처치 <span id="soloKillVal">0</span>/<span id="soloKillTargetVal">8</span></div>
+    <div id="topHud" class="coop-only hidden"><span id="p2Label">상대</span><span id="p2Score">0</span></div>
+    <div id="bottomHud" class="coop-only hidden"><span id="p1Label">나</span><span id="p1Score">0</span></div>
+    <div id="centerHud" class="coop-only hidden">협동 — 단어를 함께 격추!</div>
+    <div id="bufferDisplay"><span id="bufferText">&nbsp;</span></div>
+    <div id="waveHud" class="coop-only hidden">WAVE <span id="waveVal">1</span> · 처치 <span id="killVal">0</span>/<span id="killTargetVal">8</span></div>
+    <div id="upgradeOverlay">
+      <h2>웨이브 클리어! 강화를 선택하세요</h2>
+      <p id="upgradeTimer">남은 시간 15초</p>
+      <div id="upgradeChoices"></div>
+    </div>
+    <div id="gameOverOverlay">
+      <h2 id="gameOverTitle">게임 종료</h2>
+      <p id="gameOverMsg"></p>
+      <button type="button" class="btn-primary solo-only hidden" id="btnSoloRetry">다시 시작</button>
+      <button type="button" class="btn-primary coop-only hidden" id="btnGameOverBack">로비로</button>
+    </div>
+  </div>
+  <div id="keyboard">
+    <div id="perkRow" class="hidden"><span id="perkStatus">보유 특성: 없음</span></div>
+    <div class="kbRow" data-row="1"></div>
+    <div class="kbRow" data-row="2"></div>
+    <div class="kbRow" data-row="3"></div>
+    <div class="kbRow" data-row="4"></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+window.WW_STANDALONE = true;
+/**
+ * hangul_input.js — QWERTY 두벌식 한글 조합 (공통)
+ */
+const HangulInputEngine = (function () {
+  const KEY_TO_JAMO = {
+    q: 'ㅂ', w: 'ㅈ', e: 'ㄷ', r: 'ㄱ', t: 'ㅅ', y: 'ㅛ', u: 'ㅕ', i: 'ㅑ', o: 'ㅐ', p: 'ㅔ',
+    a: 'ㅁ', s: 'ㄴ', d: 'ㅇ', f: 'ㄹ', g: 'ㅎ', h: 'ㅗ', j: 'ㅓ', k: 'ㅏ', l: 'ㅣ',
+    z: 'ㅋ', x: 'ㅌ', c: 'ㅊ', v: 'ㅍ', b: 'ㅠ', n: 'ㅜ', m: 'ㅡ',
+    Q: 'ㅃ', W: 'ㅉ', E: 'ㄸ', R: 'ㄲ', T: 'ㅆ', O: 'ㅒ', P: 'ㅖ'
+  };
+
+  const CHO = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+  const JUNG = 'ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ';
+  const JONG = ' ㄱㄲㄳㄴㄵㄶㄷㄹㄺㄻㄼㄽㄾㄿㅀㅁㅂㅄㅅㅆㅇㅈㅊㅋㅌㅍㅎ';
+  const JUNG_COMB = { 'ㅗㅏ': 'ㅘ', 'ㅗㅐ': 'ㅙ', 'ㅗㅣ': 'ㅚ', 'ㅜㅓ': 'ㅝ', 'ㅜㅔ': 'ㅞ', 'ㅜㅣ': 'ㅟ', 'ㅡㅣ': 'ㅢ' };
+  const JONG_COMB = { 'ㄱㅅ': 'ㄳ', 'ㄴㅈ': 'ㄵ', 'ㄴㅎ': 'ㄶ', 'ㄹㄱ': 'ㄺ', 'ㄹㅁ': 'ㄻ', 'ㄹㅂ': 'ㄼ', 'ㄹㅅ': 'ㄽ', 'ㄹㅌ': 'ㄾ', 'ㄹㅍ': 'ㄿ', 'ㄹㅎ': 'ㅀ', 'ㅂㅅ': 'ㅄ' };
+  const JUNG_SPLIT = Object.fromEntries(Object.entries(JUNG_COMB).map(([k, v]) => [v, k]));
+  const JONG_SPLIT = Object.fromEntries(Object.keys(JONG_COMB).map(k => [JONG_COMB[k], k]));
+  const JAMO_TO_KEY = Object.fromEntries(Object.entries(KEY_TO_JAMO).map(([k, v]) => [v, k]));
+
+  function createHangul(inputBufferRef) {
+    let cho = -1, jung = -1, jong = -1, pendingJong = null;
+
+    function compose() {
+      if (cho < 0) return '';
+      if (jung < 0) return CHO[cho];
+      let ji = 0;
+      if (jong >= 0) ji = jong + 1;
+      else if (pendingJong) { const pi = JONG.indexOf(pendingJong); if (pi > 0) ji = pi; }
+      return String.fromCharCode(0xAC00 + (cho * 21 + jung) * 28 + ji);
+    }
+    function resetCompose() { cho = jung = jong = -1; pendingJong = null; }
+    function confirmPendingJong() {
+      if (!pendingJong) return;
+      const pi = JONG.indexOf(pendingJong);
+      if (pi > 0) jong = pi - 1;
+      pendingJong = null;
+    }
+    function splitPendingToNextCho(jamo) {
+      const pj = pendingJong; pendingJong = null; jong = -1;
+      const cur = compose();
+      if (cur) { inputBufferRef.value += cur; resetCompose(); }
+      cho = CHO.indexOf(pj);
+      if (jamo && JUNG.includes(jamo)) jung = JUNG.indexOf(jamo);
+    }
+    function commitCompose() {
+      const cur = compose();
+      if (cur) { inputBufferRef.value += cur; resetCompose(); return true; }
+      return false;
+    }
+    function commitSpace() {
+      if (pendingJong) { splitPendingToNextCho(null); return; }
+      commitCompose();
+    }
+    function inputJamo(jamo) {
+      if (CHO.includes(jamo)) {
+        if (pendingJong) confirmPendingJong();
+        if (cho < 0) { cho = CHO.indexOf(jamo); return; }
+        if (jung < 0) { commitCompose(); cho = CHO.indexOf(jamo); return; }
+        if (jong < 0) {
+          const ji = JONG.indexOf(jamo);
+          if (ji > 0) { pendingJong = jamo; return; }
+          commitCompose(); cho = CHO.indexOf(jamo); return;
+        }
+        const curJong = JONG[jong + 1];
+        if (jamo === curJong) { commitCompose(); cho = CHO.indexOf(jamo); return; }
+        const comb = JONG_COMB[curJong + jamo];
+        if (comb) { jong = JONG.indexOf(comb) - 1; return; }
+        commitCompose(); cho = CHO.indexOf(jamo); return;
+      }
+      if (JUNG.includes(jamo)) {
+        if (cho < 0) return;
+        if (jung < 0) { jung = JUNG.indexOf(jamo); return; }
+        if (pendingJong) { splitPendingToNextCho(jamo); return; }
+        if (jong >= 0) {
+          const curJong = JONG[jong + 1];
+          const split = JONG_SPLIT[curJong];
+          if (split) {
+            jong = JONG.indexOf(split[0]) - 1;
+            commitCompose();
+            cho = CHO.indexOf(split.slice(1));
+            jung = JUNG.indexOf(jamo);
+            return;
+          }
+          jong = -1; commitCompose();
+          cho = CHO.indexOf(curJong); jung = JUNG.indexOf(jamo); return;
+        }
+        const comb = JUNG_COMB[JUNG[jung] + jamo];
+        if (comb) { jung = JUNG.indexOf(comb); return; }
+        commitCompose(); cho = CHO.indexOf('ㅇ'); jung = JUNG.indexOf(jamo);
+      }
+    }
+    function backspace() {
+      if (pendingJong) { pendingJong = null; return; }
+      if (cho >= 0 || jung >= 0 || jong >= 0) { resetCompose(); return; }
+      if (inputBufferRef.value.length) inputBufferRef.value = inputBufferRef.value.slice(0, -1);
+    }
+    function getDisplayText() {
+      const cur = compose();
+      return (inputBufferRef.value + cur) || '\u00A0';
+    }
+    function flushAndGet() { commitCompose(); return inputBufferRef.value; }
+    return { inputJamo, backspace, commitSpace, getDisplayText, flushAndGet, resetCompose };
+  }
+
+  function jamoFromKey(code, shift) {
+    const lookup = shift ? code.toUpperCase() : code.toLowerCase();
+    return KEY_TO_JAMO[lookup] || null;
+  }
+
+  function decomposeSyllable(ch) {
+    const code = ch.charCodeAt(0) - 0xAC00;
+    if (code < 0 || code > 11171) return null;
+    const jongIdx = code % 28;
+    const jungIdx = Math.floor(code / 28) % 21;
+    const choIdx = Math.floor(code / 28 / 21);
+    return { cho: CHO[choIdx], jung: JUNG[jungIdx], jong: jongIdx > 0 ? JONG[jongIdx] : '' };
+  }
+
+  function jamoToKey(jamo) {
+    const k = JAMO_TO_KEY[jamo];
+    if (!k) throw new Error(`키 매핑 없음: ${jamo}`);
+    return k;
+  }
+
+  function jungToKeys(jung) {
+    if (JUNG_SPLIT[jung]) {
+      const pair = JUNG_SPLIT[jung];
+      return [jamoToKey(pair[0]), jamoToKey(pair[1])];
+    }
+    return [jamoToKey(jung)];
+  }
+
+  function jongToKeys(jong) {
+    if (!jong) return [];
+    if (JONG_SPLIT[jong]) {
+      const pair = JONG_SPLIT[jong];
+      return [jamoToKey(pair[0]), jamoToKey(pair[1])];
+    }
+    return [jamoToKey(jong)];
+  }
+
+  /** 단어를 표준 두벌식 키열로 변환 (테스트·힌트용) */
+  function wordToKeystrokes(word) {
+    const keys = [];
+    for (const ch of word) {
+      const p = decomposeSyllable(ch);
+      if (!p) throw new Error(`한글 아님: ${ch}`);
+      keys.push(jamoToKey(p.cho));
+      keys.push(...jungToKeys(p.jung));
+      keys.push(...jongToKeys(p.jong));
+    }
+    return keys;
+  }
+
+  function typeWord(inputBufferRef, word) {
+    const h = createHangul(inputBufferRef);
+    const keys = wordToKeystrokes(word);
+    for (const key of keys) {
+      h.inputJamo(KEY_TO_JAMO[key]);
+    }
+    return { keys, result: h.flushAndGet() };
+  }
+
+  return {
+    KEY_TO_JAMO,
+    createHangul,
+    jamoFromKey,
+    wordToKeystrokes,
+    typeWord
+  };
+})();
+
+if (typeof window !== 'undefined') window.HangulInputEngine = HangulInputEngine;
+if (typeof module !== 'undefined') module.exports = HangulInputEngine;
+
+/**
+ * Pretext.js
+ * DOM Reflow 렉 없이 백그라운드 Canvas Context를 사용하여
+ * 텍스트의 정밀한 가로 길이, 분할 경계 좌표, 히트박스를 계산하는 라이브러리입니다.
+ */
+
+const Pretext = (function () {
+  // 백그라운드 계산용 오프스크린 캔버스
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+
+  /**
+   * 폰트에 맞게 특정 텍스트의 가로 너비(픽셀)를 구합니다.
+   * @param {string} text 
+   * @param {string} font e.g. "bold 24px Outfit"
+   * @returns {number}
+   */
+  function getTextWidth(text, font) {
+    if (!ctx) return 0;
+    ctx.font = font;
+    return ctx.measureText(text).width;
+  }
+
+  /**
+   * 방패와 본체 텍스트가 나란히 표기될 때 경계 지점의 X 상대 좌표를 구합니다.
+   * @param {string} shieldText e.g. "MON"
+   * @param {string} bodyText e.g. "STER"
+   * @param {string} font e.g. "bold 32px Share Tech Mono"
+   * @returns {object} { shieldWidth, bodyWidth, totalWidth, splitX }
+   */
+  function calculateSplitPoints(shieldText, bodyText, font) {
+    const shieldWidth = getTextWidth(shieldText, font);
+    const bodyWidth = getTextWidth(bodyText, font);
+    return {
+      shieldWidth: shieldWidth,
+      bodyWidth: bodyWidth,
+      totalWidth: shieldWidth + bodyWidth,
+      splitX: shieldWidth
+    };
+  }
+
+  /**
+   * 단어 텍스트와 좌표 기준 가변 바운딩 박스(히트박스)를 계산합니다.
+   * @param {string} text 
+   * @param {number} x 중심 X 또는 시작 X
+   * @param {number} y 중심 Y 또는 시작 Y
+   * @param {string} font e.g. "20px Outfit"
+   * @param {string} align "center" | "left" | "right"
+   * @returns {object} { x, y, width, height }
+   */
+  function getWordHitbox(text, x, y, font, align = 'center') {
+    const width = getTextWidth(text, font);
+    // 폰트 크기 파싱하여 높이 추정 (예: "20px Outfit" -> 20)
+    let fontSize = 20;
+    const match = font.match(/(\d+)px/);
+    if (match) {
+      fontSize = parseInt(match[1], 10);
+    }
+    const height = fontSize;
+    
+    let startX = x;
+    if (align === 'center') {
+      startX = x - width / 2;
+    } else if (align === 'right') {
+      startX = x - width;
+    }
+    
+    // Y축은 텍스트 베이스라인 기준으로 위쪽 절반, 아래쪽 절반 정도로 바운딩 박스 계산
+    const startY = y - height * 0.8;
+
+    return {
+      x: startX,
+      y: startY,
+      width: width,
+      height: height
+    };
+  }
+
+  /**
+   * 선분 p0 -> p1 이 특정 AABB 상자와 교차하는지 판정하고 교차 지점을 반환합니다.
+   * @param {object} p0 { x, y }
+   * @param {object} p1 { x, y }
+   * @param {object} box { x, y, width, height }
+   * @returns {object|null} 교차점 { x, y } 또는 null
+   */
+  function checkLineIntersection(p0, p1, box) {
+    const minX = box.x;
+    const maxX = box.x + box.width;
+    const minY = box.y;
+    const maxY = box.y + box.height;
+
+    const segMinX = Math.min(p0.x, p1.x);
+    const segMaxX = Math.max(p0.x, p1.x);
+    const segMinY = Math.min(p0.y, p1.y);
+    const segMaxY = Math.max(p0.y, p1.y);
+
+    if (segMaxX < minX || segMinX > maxX || segMaxY < minY || segMinY > maxY) {
+      return null;
+    }
+
+    const dx = p1.x - p0.x;
+    const dy = p1.y - p0.y;
+
+    let tmin = 0;
+    let tmax = 1;
+
+    if (Math.abs(dx) < 0.000001) {
+      if (p0.x < minX || p0.x > maxX) return null;
+    } else {
+      const ood = 1.0 / dx;
+      let t1 = (minX - p0.x) * ood;
+      let t2 = (maxX - p0.x) * ood;
+      if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
+      tmin = Math.max(tmin, t1);
+      tmax = Math.min(tmax, t2);
+      if (tmin > tmax) return null;
+    }
+
+    if (Math.abs(dy) < 0.000001) {
+      if (p0.y < minY || p0.y > maxY) return null;
+    } else {
+      const ood = 1.0 / dy;
+      let t1 = (minY - p0.y) * ood;
+      let t2 = (maxY - p0.y) * ood;
+      if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
+      tmin = Math.max(tmin, t1);
+      tmax = Math.min(tmax, t2);
+      if (tmin > tmax) return null;
+    }
+
+    return {
+      x: p0.x + dx * tmin,
+      y: p0.y + dy * tmin
+    };
+  }
+
+  /**
+   * 두 AABB 상자간의 충돌을 검사합니다.
+   */
+  function checkAABBCollision(box1, box2) {
+    return (
+      box1.x < box2.x + box2.width &&
+      box1.x + box1.width > box2.x &&
+      box1.y < box2.y + box2.height &&
+      box1.y + box1.height > box2.y
+    );
+  }
+
+  return {
+    getTextWidth: getTextWidth,
+    calculateSplitPoints: calculateSplitPoints,
+    getWordHitbox: getWordHitbox,
+    checkLineIntersection: checkLineIntersection,
+    checkAABBCollision: checkAABBCollision
+  };
+})();
+
+// 글로벌 객체로 등록
+if (typeof window !== 'undefined') {
+  window.Pretext = Pretext;
+}
+/* ═══ 솔로 모드 — GAME_CONFIG만 수정하면 됩니다 ═══ */
+const GAME_CONFIG = {
+
+  // ┌─ 1. 낙하 단어 ─────────────────────────────────────────────────────────┐
+  fallingWords: [
+    '물결', '불꽃', '독기', '장풍', '벽돌',
+    '화염', '번개', '폭탄', '마법', '방패'
+    // ,'새단어'
+  ],
+
+  // ┌─ 2. 게임 속도 (난이도) ────────────────────────────────────────────────────┐
+  gameSpeed: 1,
+
+  // ┌─ 2b. 터짐·폭발 (가짜 물리 — 보이기만, 게임 속도와 무관) ────────────────────────┐
+  effects: {
+    hitShake: 4,
+    burstSpeed: 1,
+    burstSpread: 0.35,
+    popDrift: 2
+  },
+
+  // ┌─ 3. 보스 ────────────────────────────────────────────────────────────────┐
+  boss: {
+    emoji: '🧙',       // 화면 이모지 (복사해서 붙여넣기)
+    maxHp: 100,
+    damagePerWord: 5   // 단어 1개 맞출 때 보스 HP 감소
+  },
+
+  // ┌─ 4. 플레이어 (왼쪽 · 오른쪽) ────────────────────────────────────────────┐
+  players: [
+    { emoji: '👸', maxHp: 100, name: '공주' },  // 왼쪽
+    { emoji: '🦸', maxHp: 100, name: '용사' }   // 오른쪽
+  ],
+  leakDamage: 8,  // 단어가 해당 쪽까지 닿을 때 HP 감소
+
+  // ┌─ 5. 웨이브 (고급 — gameSpeed가 speed·스폰에 자동 곱해짐) ────────────────┐
+  waves: [
+    { killTarget: 8,  spawnInterval: 70, wordPoolCount: 2,  speedMin: 0.22, speedMax: 0.45 },
+    { killTarget: 12, spawnInterval: 60, wordPoolCount: 4,  speedMin: 0.28, speedMax: 0.52 },
+    { killTarget: 16, spawnInterval: 50, wordPoolCount: 7,  speedMin: 0.32, speedMax: 0.58 },
+    { killTarget: 20, spawnInterval: 45, wordPoolCount: 10, speedMin: 0.36, speedMax: 0.65 }
+  ]
+};
+
+const WW_WORD_POOL = GAME_CONFIG.fallingWords;
+if (typeof window !== 'undefined') window.WW_WORD_POOL = WW_WORD_POOL;
+
+const SOLO_KB_LAYOUT = [
+  [
+    { code:'q', en:'Q', ko:'ㅂ' }, { code:'w', en:'W', ko:'ㅈ' }, { code:'e', en:'E', ko:'ㄷ' },
+    { code:'r', en:'R', ko:'ㄱ' }, { code:'t', en:'T', ko:'ㅅ' }, { code:'y', en:'Y', ko:'ㅛ' },
+    { code:'u', en:'U', ko:'ㅕ' }, { code:'i', en:'I', ko:'ㅑ' }, { code:'o', en:'O', ko:'ㅐ' },
+    { code:'p', en:'P', ko:'ㅔ' },
+    { code:'Backspace', en:'⌫', ko:'', mod:true, wide:'w15' }
+  ],
+  [
+    { code:'a', en:'A', ko:'ㅁ' }, { code:'s', en:'S', ko:'ㄴ' }, { code:'d', en:'D', ko:'ㅇ' },
+    { code:'f', en:'F', ko:'ㄹ' }, { code:'g', en:'G', ko:'ㅎ' }, { code:'h', en:'H', ko:'ㅗ' },
+    { code:'j', en:'J', ko:'ㅓ' }, { code:'k', en:'K', ko:'ㅏ' }, { code:'l', en:'L', ko:'ㅣ' }
+  ],
+  [
+    { code:'z', en:'Z', ko:'ㅋ' }, { code:'x', en:'X', ko:'ㅌ' }, { code:'c', en:'C', ko:'ㅊ' },
+    { code:'v', en:'V', ko:'ㅍ' }, { code:'b', en:'B', ko:'ㅠ' }, { code:'n', en:'N', ko:'ㅜ' },
+    { code:'m', en:'M', ko:'ㅡ' },
+    { code:'Enter', en:'Enter', ko:'발사', enter:true, wide:'w2' }
+  ],
+  [
+    { code:'Escape', en:'Esc', ko:'', mod:true, wide:'w15' },
+    { code:'Shift', en:'⇧', ko:'', mod:true, wide:'w15' },
+    { code:'Space', en:'Space', ko:'', mod:true, wide:'w2' }
+  ]
+];
+
+const SoloGame = (function () {
+const canvas = document.getElementById('fieldCanvas');
+  const ctx = canvas.getContext('2d');
+  const battlefield = document.getElementById('battlefield');
+  const bufferText = document.getElementById('bufferText');
+  const hpLeft = document.getElementById('hpLeft');
+  const hpRight = document.getElementById('hpRight');
+  const hpBoss = document.getElementById('hpBoss');
+  const hudLeftEmoji = document.getElementById('hudLeftEmoji');
+  const hudRightEmoji = document.getElementById('hudRightEmoji');
+  const hudBossEmoji = document.getElementById('hudBossEmoji');
+  const waveVal = document.getElementById('soloWaveVal');
+  const killVal = document.getElementById('soloKillVal');
+  const killTargetVal = document.getElementById('soloKillTargetVal');
+  const perkStatus = document.getElementById('perkStatus');
+  const upgradeOverlay = document.getElementById('upgradeOverlay');
+  const upgradeChoices = document.getElementById('upgradeChoices');
+  const gameOverOverlay = document.getElementById('gameOverOverlay');
+  const gameOverTitle = document.getElementById('gameOverTitle');
+  const gameOverMsg = document.getElementById('gameOverMsg');
+  const btnRetry = document.getElementById('btnSoloRetry');
+
+  const GAME_SPEED = Math.max(0.2, GAME_CONFIG.gameSpeed ?? 1);
+  const FX = GAME_CONFIG.effects || { hitShake: 4, burstSpeed: 1, burstSpread: 0.35, popDrift: 2 };
+  let lastFrameTs = performance.now();
+  let shakeT = 0;
+
+  function applyConfigToHud() {
+    hudLeftEmoji.textContent = GAME_CONFIG.players[0].emoji;
+    hudRightEmoji.textContent = GAME_CONFIG.players[1].emoji;
+    hudBossEmoji.textContent = GAME_CONFIG.boss.emoji;
+    hpLeft.textContent = GAME_CONFIG.players[0].maxHp;
+    hpRight.textContent = GAME_CONFIG.players[1].maxHp;
+    hpBoss.textContent = GAME_CONFIG.boss.maxHp;
+  }
+  applyConfigToHud();
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     § CORE — 상태·웨이브·상수 (base64 디코드본 _solo_extract 기준 복구)
+     ═══════════════════════════════════════════════════════════════════════════ */
+  const EMOJI_FONT = "'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif";
+  const BOSS_EMOJI = GAME_CONFIG.boss.emoji;
+  const BOSS_DMG_PER_WORD = GAME_CONFIG.boss.damagePerWord;
+  const LEAK_DAMAGE = GAME_CONFIG.leakDamage;
+  const EXPLOSION_RADIUS = [0, 72, 118];
+  const MISSILE_SPEED = 8.5;
+  const MISSILE_SPEED_NO_TARGET = 9;
+  const HIT_COLORS = ["#00e0ff", "#ff4757", "#ffa502", "#2ed573", "#a55eea", "#ff6b81"];
+
+  let WORD_FONT = "bold 22px monospace";
+  let MISSILE_FONT = "bold 20px monospace";
+  let PARTICLE_FONT = "bold 16px monospace";
+
+  function buildWavesFromConfig() {
+    const all = GAME_CONFIG.fallingWords;
+    return GAME_CONFIG.waves.map(w => ({
+      killTarget: w.killTarget,
+      spawnInterval: w.spawnInterval,
+      wordPool: all.slice(0, Math.min(w.wordPoolCount, all.length)),
+      speedMin: w.speedMin * GAME_SPEED,
+      speedMax: w.speedMax * GAME_SPEED
+    }));
+  }
+  const WAVES = buildWavesFromConfig();
+
+  function getWaveConfig(index) {
+    if (index < WAVES.length) return WAVES[index];
+    const base = WAVES[WAVES.length - 1];
+    const extra = index - WAVES.length + 1;
+    return {
+      killTarget: base.killTarget + extra * 4,
+      spawnInterval: Math.max(20, base.spawnInterval - extra * 3),
+      wordPool: base.wordPool,
+      speedMin: base.speedMin + extra * 0.04,
+      speedMax: base.speedMax + extra * 0.04
+    };
+  }
+
+  function wordColor(text) {
+    let h = 0;
+    for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) >>> 0;
+    return HIT_COLORS[h % HIT_COLORS.length];
+  }
+
+  function getWordBox(text, x, y) {
+    return Pretext.getWordHitbox(text, x, y, WORD_FONT, 'center');
+  }
+
+  function getMissileDamage() {
+    return BOSS_DMG_PER_WORD;
+  }
+
+  function getExplosionRadius() {
+    return EXPLOSION_RADIUS[state.playerPerks.explosionLevel] || 0;
+  }
+
+  const state = {
+    gameState: 'WAVE',
+    gameResult: null,
+    waveIndex: 0,
+    killCount: 0,
+    inputBuffer: '',
+    playerPerks: { piercing: false, bounce: false, splitLevel: 0, explosionLevel: 0 }
+  };
+
+  const boss = { hp: GAME_CONFIG.boss.maxHp, maxHp: GAME_CONFIG.boss.maxHp };
+  const players = [
+    { side: 'left', hp: GAME_CONFIG.players[0].maxHp, maxHp: GAME_CONFIG.players[0].maxHp, emoji: GAME_CONFIG.players[0].emoji, xRatio: 0.28 },
+    { side: 'right', hp: GAME_CONFIG.players[1].maxHp, maxHp: GAME_CONFIG.players[1].maxHp, emoji: GAME_CONFIG.players[1].emoji, xRatio: 0.72 }
+  ];
+
+  let words = [];
+  let missiles = [];
+  let particles = [];
+  let rings = [];
+  let pops = [];
+  let spawnTimer = 0;
+  let wordIdCounter = 0;
+
+  function updateFontMetrics() {
+    const w = canvas.width || 360;
+    const wordPx = Math.round(Math.max(18, Math.min(28, w * 0.058)));
+    const missilePx = Math.round(wordPx * 0.88);
+    const particlePx = Math.round(wordPx * 0.78);
+    WORD_FONT = `bold ${wordPx}px monospace`;
+    MISSILE_FONT = `bold ${missilePx}px monospace`;
+    PARTICLE_FONT = `bold ${particlePx}px monospace`;
+  }
+
+  function resize() {
+    canvas.width = battlefield.clientWidth || 600;
+    canvas.height = battlefield.clientHeight || 450;
+    updateFontMetrics();
+  }
+
+  function midX() { return canvas.width / 2; }
+
+  function playerPos(idx) {
+    return { x: canvas.width * players[idx].xRatio, y: canvas.height - 28 };
+  }
+
+  function drawEmojiChar(emoji, cx, cy, size = 36) {
+    ctx.save();
+    ctx.font = `${size}px ${EMOJI_FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(emoji, cx, cy);
+    ctx.restore();
+  }
+
+  function updatePlayerHud() {
+    hpLeft.textContent = players[0].hp;
+    hpRight.textContent = players[1].hp;
+    hpBoss.textContent = boss.hp;
+  }
+
+  function findTargets(text, count) {
+    const candidates = words.filter(w => w.text === text && !w.hit);
+    candidates.sort((a, b) => b.y - a.y);
+    return candidates.slice(0, count);
+  }
+
+  function spawnWordOnSide(text, side, speed) {
+    const idx = side === 'left' ? 0 : 1;
+    const target = playerPos(idx);
+    const mid = midX();
+    const half = Pretext.getTextWidth(text, WORD_FONT) / 2;
+    const pad = 10;
+    let startX;
+    if (side === 'left') {
+      const minX = half + pad;
+      const maxX = mid - half - pad;
+      startX = maxX <= minX ? mid * 0.5 : minX + Math.random() * (maxX - minX);
+    } else {
+      const minX = mid + half + pad;
+      const maxX = canvas.width - half - pad;
+      startX = maxX <= minX ? mid * 1.5 : minX + Math.random() * (maxX - minX);
+    }
+    const startY = -20;
+    const dx = target.x - startX;
+    const dy = target.y - startY;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    return {
+      x: startX,
+      y: startY,
+      vx: (dx / dist) * speed,
+      vy: (dy / dist) * speed
+    };
+  }
+
+  function spawnWord() {
+    const cfg = getWaveConfig(state.waveIndex);
+    const text = cfg.wordPool[Math.floor(Math.random() * cfg.wordPool.length)];
+    const side = Math.random() < 0.5 ? 'left' : 'right';
+    const speed = cfg.speedMin + Math.random() * (cfg.speedMax - cfg.speedMin);
+    const motion = spawnWordOnSide(text, side, speed);
+    words.push({
+      id: wordIdCounter++,
+      text,
+      side,
+      x: motion.x,
+      y: motion.y,
+      vx: motion.vx,
+      vy: motion.vy
+    });
+  }
+
+  function processWordLeaks() {
+    const leakY = playerPos(0).y - 10;
+    words.forEach(w => {
+      if (w.hit || w.y < leakY) return;
+      const idx = w.side === 'left' ? 0 : 1;
+      players[idx].hp = Math.max(0, players[idx].hp - LEAK_DAMAGE);
+      w.hit = true;
+      updatePlayerHud();
+    });
+  }
+
+  function missileHitsWord(m, w, oldX, oldY) {
+    if (m.text !== w.text) return false;
+    const box = getWordBox(w.text, w.x, w.y);
+    if (Pretext.checkLineIntersection({ x: oldX, y: oldY }, { x: m.x, y: m.y }, box)) return true;
+    const misBox = { x: m.x - 3, y: m.y - 3, width: 6, height: 6 };
+    return Pretext.checkAABBCollision(misBox, box);
+  }
+
+  function fxDir(w, m, hitX, hitY) {
+    if (m) {
+      const dx = m.x - m.oldX, dy = m.y - m.oldY;
+      if (dx * dx + dy * dy > 0.01) {
+        const d = Math.sqrt(dx * dx + dy * dy);
+        return { x: dx / d, y: dy / d };
+      }
+    }
+    const p = playerPos(w.side === 'left' ? 0 : 1);
+    const dx = hitX - p.x, dy = hitY - p.y;
+    const d = Math.sqrt(dx * dx + dy * dy) || 1;
+    return { x: dx / d, y: dy / d };
+  }
+
+  function fxBurst(x, y, dirX, dirY, color, text) {
+    const spd = 5.5 * (FX.burstSpeed || 1);
+    const jit = FX.burstSpread ?? 0.35;
+    let off = 0;
+    const tw = Pretext.getTextWidth(text, PARTICLE_FONT);
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      const cw = Pretext.getTextWidth(ch, PARTICLE_FONT);
+      const cx = x + off - tw / 2;
+      off += cw;
+      for (let n = 0; n < 3; n++) {
+        const k = 1 + (Math.random() - 0.5) * jit;
+        particles.push({
+          char: ch, x: cx, y, color,
+          vx: dirX * spd * k + (Math.random() - 0.5) * 2.5,
+          vy: dirY * spd * k + (Math.random() - 0.5) * 2.5,
+          life: 16
+        });
+      }
+    }
+    for (let n = 0; n < 6; n++) {
+      particles.push({
+        char: n & 1 ? '•' : '✦', x, y, color,
+        vx: dirX * spd + (Math.random() - 0.5) * 5,
+        vy: dirY * spd + (Math.random() - 0.5) * 5,
+        life: 12
+      });
+    }
+    rings.push({ x, y, r: 5, maxR: 40, life: 10, color });
+    shakeT = Math.max(shakeT, FX.hitShake || 0);
+  }
+
+  function fxPop(x, y, dirX, dirY, text, color) {
+    const d = FX.popDrift || 2;
+    pops.push({ x, y, text, color, vx: dirX * d, vy: dirY * d, scale: 1.12, life: 9 });
+  }
+
+  function fxExplosion(x, y, color, radius) {
+    rings.push({ x, y, r: 6, maxR: radius, life: 14, color });
+    rings.push({ x, y, r: 3, maxR: radius * 0.45, life: 9, color });
+    const n = 8 + (radius / 18 | 0);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * 6.283;
+      const s = 5 + Math.random() * 6;
+      particles.push({
+        char: '✦', x, y, color,
+        vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+        life: 14
+      });
+    }
+    shakeT = Math.max(shakeT, (FX.hitShake || 0) + 2);
+  }
+
+  function tickFx() {
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vx *= 0.9;
+      p.vy = p.vy * 0.9 + 0.2;
+      if (--p.life <= 0) particles.splice(i, 1);
+    }
+    for (let i = rings.length - 1; i >= 0; i--) {
+      const f = rings[i];
+      f.r += (f.maxR - f.r) * 0.38;
+      if (--f.life <= 0) rings.splice(i, 1);
+    }
+    for (let i = pops.length - 1; i >= 0; i--) {
+      const h = pops[i];
+      h.x += h.vx;
+      h.y += h.vy;
+      h.vx *= 0.86;
+      h.vy *= 0.86;
+      h.scale += 0.05;
+      if (--h.life <= 0) pops.splice(i, 1);
+    }
+    if (shakeT > 0) shakeT--;
+  }
+
+  function drawFx() {
+    ctx.save();
+    ctx.font = PARTICLE_FONT;
+    ctx.textAlign = 'center';
+    particles.forEach(p => {
+      ctx.globalAlpha = Math.min(1, p.life / 14);
+      ctx.fillStyle = p.color;
+      ctx.fillText(p.char, p.x, p.y);
+    });
+    rings.forEach(f => {
+      const a = f.life / 12;
+      ctx.globalAlpha = a * 0.75;
+      ctx.strokeStyle = f.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r, 0, 6.283);
+      ctx.stroke();
+    });
+    ctx.font = WORD_FONT;
+    pops.forEach(h => {
+      ctx.globalAlpha = h.life / 9;
+      ctx.fillStyle = h.color;
+      ctx.save();
+      ctx.translate(h.x, h.y);
+      ctx.scale(h.scale, h.scale);
+      ctx.fillText(h.text, 0, 0);
+      ctx.restore();
+    });
+    ctx.restore();
+  }
+
+  function applyExplosionAt(hitX, hitY, color, skipWord) {
+    const radius = getExplosionRadius();
+    if (radius <= 0) return;
+    fxExplosion(hitX, hitY, color, radius);
+    const r2 = radius * radius;
+    words.forEach(w => {
+      if (w.hit || w === skipWord) return;
+      const dx = w.x - hitX, dy = w.y - hitY;
+      if (dx * dx + dy * dy > r2) return;
+      const d = Math.sqrt(dx * dx + dy * dy) || 1;
+      resolveWordHit(w, null, w.x, w.y, true, dx / d, dy / d);
+    });
+  }
+
+  function checkWaveClear() {
+    const cfg = getWaveConfig(state.waveIndex);
+    if (state.killCount >= cfg.killTarget && state.gameState === 'WAVE') {
+      showUpgradeOverlay();
+    }
+  }
+
+  function resolveWordHit(w, m, hitX, hitY, fromExplosion, forceDirX, forceDirY) {
+    if (w.hit) return;
+    w.hit = true;
+    boss.hp = Math.max(0, boss.hp - getMissileDamage());
+    state.killCount += 1;
+    updateWaveHud();
+    const col = wordColor(w.text);
+    let dirX = forceDirX, dirY = forceDirY;
+    if (dirX === undefined || dirY === undefined) {
+      const dir = fxDir(w, m, hitX, hitY);
+      dirX = dir.x;
+      dirY = dir.y;
+    }
+    fxBurst(hitX, hitY, dirX, dirY, col, w.text);
+    if (!fromExplosion) {
+      fxPop(hitX, hitY, dirX, dirY, w.text, col);
+      applyExplosionAt(hitX, hitY, col, w);
+      if (m && !m.piercing) m.dead = true;
+      checkWaveClear();
+    }
+    checkGameEnd();
+  }
+
+  function checkGameEnd() {
+    if (state.gameState === 'END') return;
+    if (boss.hp <= 0) {
+      endGame('WIN', '🧙 마법사를 물리쳤습니다!', '승리!');
+      return;
+    }
+    if (players[0].hp <= 0) {
+      endGame('LOSE', '👸 공주가 쓰러졌습니다…', '패배');
+      return;
+    }
+    if (players[1].hp <= 0) {
+      endGame('LOSE', '🦸 용사가 쓰러졌습니다…', '패배');
+    }
+  }
+
+  function endGame(result, msg, title) {
+    state.gameState = 'END';
+    state.gameResult = result;
+    words = [];
+    missiles = [];
+    hideUpgradeOverlay();
+    gameOverOverlay.className = result === 'WIN' ? 'win show' : 'lose show';
+    gameOverTitle.textContent = title;
+    gameOverMsg.textContent = msg;
+    gameOverOverlay.classList.add('show');
+  }
+
+  function resetGame() {
+    state.gameState = 'WAVE';
+    state.gameResult = null;
+    state.waveIndex = 0;
+    state.killCount = 0;
+    state.playerPerks = { piercing: false, bounce: false, splitLevel: 0, explosionLevel: 0 };
+    boss.hp = boss.maxHp;
+    players[0].hp = players[0].maxHp;
+    players[1].hp = players[1].maxHp;
+    words = [];
+    missiles = [];
+    particles = [];
+    rings = [];
+    pops = [];
+    spawnTimer = 0;
+    wordIdCounter = 0;
+    clearBuffer();
+    hideUpgradeOverlay();
+    gameOverOverlay.classList.remove('show', 'win', 'lose');
+    updateWaveHud();
+    updatePlayerHud();
+    updatePerkStatusDisplay();
+  }
+
+    const KEY_TO_JAMO = HangulInputEngine.KEY_TO_JAMO;
+  const inputBufferRef = {
+    get value() { return state.inputBuffer; },
+    set value(v) { state.inputBuffer = v; }
+  };
+  let HangulInput = HangulInputEngine.createHangul(inputBufferRef);
+  function resetHangulInput() {
+    HangulInput = HangulInputEngine.createHangul(inputBufferRef);
+  }
+
+  function buildKeyboard() {
+    SOLO_KB_LAYOUT.forEach((row, ri) => {
+      const rowEl = document.querySelector(`.kbRow[data-row="${ri + 1}"]`);
+      if (!rowEl) return;
+      rowEl.innerHTML = '';
+      row.forEach(def => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'kbKey' + (def.wide ? ' ' + def.wide : '') + (def.mod ? ' mod' : '') + (def.enter ? ' enter' : '');
+        btn.dataset.code = def.code;
+        if (def.mod) {
+          btn.innerHTML = `<span class="en">${def.en}</span>`;
+        } else {
+          btn.innerHTML = `<span class="en">${def.en}</span><span class="ko">${def.ko}</span>`;
+        }
+        rowEl.appendChild(btn);
+      });
+    });
+  }
+
+  function inputBlocked() {
+    return state.gameState === 'UPGRADE' || state.gameState === 'END'
+      || upgradeOverlay.classList.contains('show');
+  }
+
+  function flashKey(code) {
+    const el = document.querySelector(`.kbKey[data-code="${code}"]`);
+    if (!el) return;
+    el.classList.add('pressed');
+    setTimeout(() => el.classList.remove('pressed'), 120);
+  }
+
+  let kbShift = false;
+
+  function bindKeyboardInput() {
+    document.querySelectorAll('.kbKey').forEach(btn => {
+      const handler = (e) => {
+        e.preventDefault();
+        if (inputBlocked()) return;
+        const code = btn.dataset.code;
+        if (code === 'Shift') {
+          kbShift = !kbShift;
+          btn.classList.toggle('pressed', kbShift);
+          return;
+        }
+        handleKeyAction(code, kbShift);
+        flashKey(code);
+        if (kbShift && code.length === 1 && KEY_TO_JAMO[code.toUpperCase()]) {
+          kbShift = false;
+          document.querySelectorAll('.kbKey[data-code="Shift"]').forEach(b => b.classList.remove('pressed'));
+        }
+      };
+      btn.addEventListener('touchstart', handler, { passive: false });
+      btn.addEventListener('mousedown', handler);
+    });
+  }
+
+  function handleKeyAction(code, shiftKey) {
+    if (inputBlocked()) return;
+
+    if (code === 'Enter') { fireMissile(); return; }
+    if (code === 'Backspace') { HangulInput.backspace(); updateBufferDisplay(); return; }
+    if (code === 'Escape') { clearBuffer(); return; }
+    if (code === 'Space') { HangulInput.commitSpace(); updateBufferDisplay(); return; }
+
+    const lookup = shiftKey ? code.toUpperCase() : code.toLowerCase();
+    const jamo = KEY_TO_JAMO[lookup];
+    if (jamo) {
+      HangulInput.inputJamo(jamo);
+      updateBufferDisplay();
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     § INPUT BUFFER — 타이핑 버퍼·미사일 발사
+     ═══════════════════════════════════════════════════════════════════════════ */
+  function clearBuffer() {
+    state.inputBuffer = "";
+    resetHangulInput();
+    updateBufferDisplay();
+  }
+  function updateBufferDisplay() {
+    bufferText.textContent = HangulInput.getDisplayText();
+  }
+
+  function fireMissile() {
+    if (inputBlocked()) return;
+    const text = HangulInput.flushAndGet();
+    if (!text) return;
+
+    // 갈래(splitLevel): 0=단발, 1=2갈래, 2=3갈래
+    let count = 1;
+    let spread = 0;
+    if (state.playerPerks.splitLevel === 2) { count = 3; spread = 1.6; }
+    else if (state.playerPerks.splitLevel === 1) { count = 2; spread = 1.2; }
+
+    // 같은 글자를 쓴 낙하 단어가 있으면 그쪽으로 유도(호밍) 타겟 배정
+    const targets = findTargets(text, count);
+
+    for (let i = 0; i < count; i++) {
+      let vx = 0;
+      if (count > 1) {
+        const t = (i / (count - 1)) - 0.5;
+        vx = t * spread * 2;
+      }
+      const target = targets[i] || targets[0] || null;
+      const origin = target
+        ? playerPos(target.side === 'left' ? 0 : 1)
+        : playerPos(0);
+      const baseX = origin.x;
+      const baseY = origin.y;
+      if (target) {
+        const dx = target.x - baseX;
+        const dy = target.y - baseY;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        vx = (dx / dist) * MISSILE_SPEED;
+      }
+      missiles.push({
+        x: baseX, y: baseY,
+        oldX: baseX, oldY: baseY,
+        vx: vx,
+        vy: target
+          ? (target.y - baseY) / (Math.sqrt(Math.pow(target.x - baseX, 2) + Math.pow(target.y - baseY, 2)) || 1) * MISSILE_SPEED
+          : -MISSILE_SPEED_NO_TARGET,
+        text: text,
+        targetId: target ? target.id : null,
+        piercing: state.playerPerks.piercing,
+        bounce: state.playerPerks.bounce
+      });
+    }
+
+    clearBuffer();
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     § UPGRADE — 웨이브 클리어 후 강화 선택
+     ═══════════════════════════════════════════════════════════════════════════ */
+  const UPGRADE_DEFS = {
+    pierce: { label: "관통", desc: "미사일이 명중 후에도 그대로 관통", available: () => !state.playerPerks.piercing },
+    bounce: { label: "벽반동", desc: "미사일이 벽에 부딪히면 반사", available: () => !state.playerPerks.bounce },
+    split:  { label: "갈래 강화", desc: () => state.playerPerks.splitLevel === 0 ? "미사일이 2갈래로 발사" : "미사일이 3갈래로 발사", available: () => state.playerPerks.splitLevel < 2 },
+    explosion: {
+      label: "범위 폭발",
+      desc: () => state.playerPerks.explosionLevel === 0 ? "명중 시 주변 단어 연쇄 폭발" : "폭발 반경 확대",
+      available: () => state.playerPerks.explosionLevel < 2
+    }
+  };
+
+  function getAvailableUpgrades() {
+    return Object.keys(UPGRADE_DEFS).filter(key => UPGRADE_DEFS[key].available());
+  }
+
+  function pickRandomUpgrades(n) {
+    const pool = getAvailableUpgrades();
+    // 셔플 후 앞에서 n개
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    return pool.slice(0, n);
+  }
+
+  function applyUpgrade(key) {
+    if (key === 'pierce') state.playerPerks.piercing = true;
+    else if (key === 'bounce') state.playerPerks.bounce = true;
+    else if (key === 'split') state.playerPerks.splitLevel = Math.min(2, state.playerPerks.splitLevel + 1);
+    else if (key === 'explosion') state.playerPerks.explosionLevel = Math.min(2, state.playerPerks.explosionLevel + 1);
+
+    updatePerkStatusDisplay();
+    hideUpgradeOverlay();
+
+    // 다음 웨이브로 진행
+    state.waveIndex += 1;
+    state.killCount = 0;
+    state.gameState = 'WAVE';
+    updateWaveHud();
+  }
+
+  function showUpgradeOverlay() {
+    state.gameState = 'UPGRADE';
+    const choices = pickRandomUpgrades(3);
+    upgradeChoices.innerHTML = "";
+    choices.forEach(key => {
+      const def = UPGRADE_DEFS[key];
+      const card = document.createElement('div');
+      card.className = 'upgradeCard';
+      const descText = typeof def.desc === 'function' ? def.desc() : def.desc;
+      card.innerHTML = `<b>${def.label}</b><br><span style="font-size:11px;color:#aaa">${descText}</span>`;
+      const handler = (e) => { e.preventDefault(); applyUpgrade(key); };
+      card.addEventListener('touchstart', handler, { passive: false });
+      card.addEventListener('click', handler);
+      upgradeChoices.appendChild(card);
+    });
+    upgradeOverlay.classList.add('show');
+  }
+
+  function hideUpgradeOverlay() {
+    upgradeOverlay.classList.remove('show');
+  }
+
+  function updatePerkStatusDisplay() {
+    const p = state.playerPerks;
+    const parts = [];
+    if (p.piercing) parts.push("관통");
+    if (p.bounce) parts.push("벽반동");
+    if (p.splitLevel === 1) parts.push("2갈래");
+    if (p.splitLevel === 2) parts.push("3갈래");
+    if (p.explosionLevel === 1) parts.push("소형폭발");
+    if (p.explosionLevel === 2) parts.push("대형폭발");
+    perkStatus.textContent = "보유 특성: " + (parts.length ? parts.join(", ") : "없음");
+  }
+
+  function updateWaveHud() {
+    const cfg = getWaveConfig(state.waveIndex);
+    waveVal.textContent = state.waveIndex + 1;
+    killVal.textContent = state.killCount;
+    killTargetVal.textContent = cfg.killTarget;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     § UPDATE — 스폰·이동·충돌·누수 피해
+     ═══════════════════════════════════════════════════════════════════════════ */
+  function update(dt) {
+    dt = dt ?? 1;
+    tickFx();
+
+    if (state.gameState !== 'WAVE') {
+      updatePlayerHud();
+      return;
+    }
+
+    const cfg = getWaveConfig(state.waveIndex);
+    spawnTimer += dt;
+    if (spawnTimer > cfg.spawnInterval) { spawnWord(); spawnTimer = 0; }
+
+    words.forEach(w => {
+      if (w.hit) return;
+      w.x += w.vx * dt;
+      w.y += w.vy * dt;
+    });
+    processWordLeaks();
+    words = words.filter(w => !w.hit && w.y < canvas.height + 40);
+
+    // 단어 겹침 완화 (Pretext 텍스트 너비 기반)
+    for (let i = 0; i < words.length; i++) {
+      for (let j = i + 1; j < words.length; j++) {
+        const a = words[i], b = words[j];
+        if (a.side !== b.side) continue;
+        if (Math.abs(a.y - b.y) > 20) continue;
+        const wa = Pretext.getTextWidth(a.text, WORD_FONT);
+        const wb = Pretext.getTextWidth(b.text, WORD_FONT);
+        const minDist = (wa + wb) / 2 + 6;
+        const dx = b.x - a.x;
+        if (Math.abs(dx) < minDist) {
+          const push = (minDist - Math.abs(dx)) * 0.5;
+          const dir = dx >= 0 ? 1 : -1;
+          a.x -= push * dir;
+          b.x += push * dir;
+          const mid = midX();
+          if (a.side === 'left') a.x = Math.min(a.x, mid - wa / 2 - 4);
+          else a.x = Math.max(a.x, mid + wa / 2 + 4);
+          if (b.side === 'left') b.x = Math.min(b.x, mid - wb / 2 - 4);
+          else b.x = Math.max(b.x, mid + wb / 2 + 4);
+        }
+      }
+    }
+
+    missiles.forEach(m => {
+      m.oldX = m.x;
+      m.oldY = m.y;
+
+      if (m.targetId !== null) {
+        const target = words.find(w => w.id === m.targetId && !w.hit);
+        if (target) {
+          const dx = target.x - m.x;
+          const dy = target.y - m.y;
+          const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+          const speed = MISSILE_SPEED;
+          m.vx = (dx / dist) * speed;
+          m.vy = (dy / dist) * speed;
+        } else {
+          m.targetId = null;
+        }
+      }
+
+      m.x += m.vx;
+      m.y += m.vy;
+
+      if (m.bounce && m.targetId === null) {
+        const half = Pretext.getTextWidth(m.text, WORD_FONT) / 2;
+        if (m.x - half <= 4 || m.x + half >= canvas.width - 4) {
+          m.vx *= -1;
+        }
+      }
+    });
+
+    // Pretext 히트박스 + 선분 스weep 충돌
+    missiles.forEach(m => {
+      words.forEach(w => {
+        if (w.hit) return;
+        if (!missileHitsWord(m, w, m.oldX, m.oldY)) return;
+        const hitPos = Pretext.checkLineIntersection(
+          { x: m.oldX, y: m.oldY }, { x: m.x, y: m.y }, getWordBox(w.text, w.x, w.y)
+        );
+        resolveWordHit(w, m, hitPos ? hitPos.x : m.x, hitPos ? hitPos.y : m.y);
+      });
+    });
+
+    words = words.filter(w => !w.hit);
+    missiles = missiles.filter(m => !m.dead && m.y > -30 && m.y < canvas.height + 30);
+
+    updatePlayerHud();
+    checkGameEnd();
+  }
+
+  function drawBattlefieldSplit() {
+    const mid = midX();
+    ctx.fillStyle = 'rgba(37, 99, 235, 0.05)';
+    ctx.fillRect(0, 0, mid, canvas.height);
+    ctx.fillStyle = 'rgba(219, 39, 119, 0.05)';
+    ctx.fillRect(mid, 0, mid, canvas.height);
+    ctx.strokeStyle = '#ccc';
+    ctx.setLineDash([8, 10]);
+    ctx.beginPath();
+    ctx.moveTo(mid, 0);
+    ctx.lineTo(mid, canvas.height);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     § DRAW — 캔버스 렌더링
+     ═══════════════════════════════════════════════════════════════════════════ */
+  function draw() {
+    const shakeX = shakeT > 0 ? (Math.random() - 0.5) * shakeT * 1.3 : 0;
+    const shakeY = shakeT > 0 ? (Math.random() - 0.5) * shakeT * 1.3 : 0;
+
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.translate(shakeX, shakeY);
+    drawBattlefieldSplit();
+
+    // 보스: 마법사 이모지
+    ctx.globalAlpha = boss.hp > 0 ? 1 : 0.25;
+    drawEmojiChar(BOSS_EMOJI, canvas.width / 2, 50);
+    ctx.globalAlpha = 1;
+
+    // 보스 체력바
+    ctx.fillStyle = "#333";
+    ctx.fillRect(canvas.width/2 - 60, 90, 120, 8);
+    ctx.fillStyle = "#e74c3c";
+    ctx.fillRect(canvas.width/2 - 60, 90, 120 * (boss.hp / boss.maxHp), 8);
+
+    // 낙하 단어
+    ctx.font = WORD_FONT;
+    ctx.textAlign = "center";
+    words.forEach(w => {
+      ctx.fillStyle = w.side === 'left' ? '#1d4ed8' : '#9d174d';
+      ctx.fillText(w.text, w.x, w.y);
+    });
+
+    // 미사일 (입력 단어 표시)
+    ctx.font = MISSILE_FONT;
+    missiles.forEach(m => {
+      const col = wordColor(m.text);
+      ctx.fillStyle = col;
+      ctx.shadowColor = col;
+      ctx.shadowBlur = 8;
+      ctx.fillText(m.text, m.x, m.y);
+      ctx.shadowBlur = 0;
+    });
+
+    drawFx();
+
+    players.forEach((pl, i) => {
+      const p = playerPos(i);
+      if (pl.hp > 0) {
+        drawEmojiChar(pl.emoji, p.x, p.y);
+      } else {
+        ctx.save();
+        ctx.globalAlpha = 0.35;
+        drawEmojiChar(pl.emoji, p.x, p.y);
+        ctx.globalAlpha = 1;
+        ctx.font = `20px ${EMOJI_FONT}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('💀', p.x, p.y - 18);
+        ctx.restore();
+      }
+      const barW = 56;
+      ctx.fillStyle = '#ddd';
+      ctx.fillRect(p.x - barW / 2, p.y + 22, barW, 5);
+      ctx.fillStyle = i === 0 ? '#2563eb' : '#db2777';
+      ctx.fillRect(p.x - barW / 2, p.y + 22, barW * Math.max(0, pl.hp / pl.maxHp), 5);
+    });
+    ctx.restore();
+  }
+
+  let running = false;
+  let rafId = 0;
+  let soloEventsBound = false;
+
+  function onSoloKeydown(e) {
+    if (!running || inputBlocked()) return;
+    if (e.repeat) return;
+    const code = e.code === 'Space' ? 'Space'
+      : e.code === 'Enter' ? 'Enter'
+      : e.code === 'Backspace' ? 'Backspace'
+      : e.code === 'Escape' ? 'Escape'
+      : e.key.length === 1 ? e.key : null;
+    if (!code) return;
+    if (code === 'Enter' || code === 'Backspace' || code === 'Escape' || code === 'Space'
+      || KEY_TO_JAMO[e.key] || KEY_TO_JAMO[e.key.toLowerCase()]) {
+      e.preventDefault();
+      handleKeyAction(code, e.shiftKey);
+      flashKey(code === 'Space' ? 'Space' : code.length === 1 ? code.toLowerCase() : code);
+    }
+  }
+
+  function bindSoloEventsOnce() {
+    if (soloEventsBound) return;
+    soloEventsBound = true;
+    bindKeyboardInput();
+    document.addEventListener('keydown', onSoloKeydown);
+    document.getElementById('btnSoloRetry').addEventListener('click', resetGame);
+    window.addEventListener('resize', resize);
+  }
+
+  function loop(now) {
+    if (!running) return;
+    const dt = Math.min(2.5, (now - lastFrameTs) / (1000 / 60));
+    lastFrameTs = now;
+    update(dt);
+    draw();
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function start() {
+    if (running) return;
+    running = true;
+    bindSoloEventsOnce();
+    applyConfigToHud();
+    resetGame();
+    buildKeyboard();
+    resize();
+    document.getElementById('perkRow').classList.remove('hidden');
+    lastFrameTs = performance.now();
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function stop() {
+    running = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = 0;
+    hideUpgradeOverlay();
+    gameOverOverlay.classList.remove('show', 'win', 'lose');
+    words = [];
+    missiles = [];
+    particles = [];
+    rings = [];
+    pops = [];
+  }
+
+  return { start, stop, isRunning: () => running };
+})();
+window.SoloGame = SoloGame;
+
+/**
+ * ww_net.js — PeerJS P2P 레이어 (Host-authoritative)
+ * 모드: 'versus' | 'coop'
+ */
+const WwNet = (function () {
+  const PROTO = 1;
+  let peer = null;
+  let conn = null;
+  let mode = null;
+  let isHost = false;
+  let myIndex = 0;
+  let roomId = '';
+  let onData = null;
+  let onOpen = null;
+  let onClose = null;
+  let onError = null;
+
+  function send(data) {
+    if (conn && conn.open) conn.send(data);
+  }
+
+  function broadcastState(state) {
+    send({ type: 'STATE', proto: PROTO, ...state });
+  }
+
+  function broadcastExplode(x, y, color, text) {
+    send({ type: 'EXPLODE', x, y, color, text });
+  }
+
+  function initPeer(opts) {
+    const { gameMode, asHost, remoteId, handlers } = opts;
+    mode = gameMode;
+    isHost = asHost;
+    myIndex = asHost ? 0 : 1;
+    onData = handlers.onData || null;
+    onOpen = handlers.onOpen || null;
+    onClose = handlers.onClose || null;
+    onError = handlers.onError || null;
+
+    peer = new Peer({ debug: 1 });
+
+    peer.on('open', (id) => {
+      roomId = id;
+      if (asHost) {
+        peer.on('connection', (connection) => {
+          if (conn) {
+            connection.on('open', () => {
+              connection.send({ type: 'REJECT', reason: '방이 가득 찼습니다' });
+              setTimeout(() => connection.close(), 300);
+            });
+            return;
+          }
+          conn = connection;
+          setupConn(true);
+        });
+        onOpen && onOpen({ id, role: 'host', mode });
+      } else {
+        conn = peer.connect(remoteId.trim(), { reliable: true });
+        setupConn(false);
+      }
+    });
+
+    peer.on('error', (err) => {
+      onError && onError(err);
+    });
+  }
+
+  function setupConn(hostSide) {
+    conn.on('open', () => {
+      if (hostSide) {
+        send({ type: 'WELCOME', proto: PROTO, mode, index: 1, seed: Date.now() });
+      }
+      onOpen && onOpen({ id: roomId, role: hostSide ? 'host' : 'client', mode, connOpen: true });
+    });
+
+    conn.on('data', (data) => {
+      if (data.type === 'WELCOME' && !isHost) {
+        myIndex = data.index || 1;
+      }
+      onData && onData(data);
+    });
+
+    conn.on('close', () => {
+      conn = null;
+      onClose && onClose();
+    });
+  }
+
+  function destroy() {
+    if (conn) conn.close();
+    if (peer) peer.destroy();
+    conn = null;
+    peer = null;
+  }
+
+  return {
+    PROTO,
+    initPeer,
+    send,
+    broadcastState,
+    broadcastExplode,
+    destroy,
+    get isHost() { return isHost; },
+    get myIndex() { return myIndex; },
+    get mode() { return mode; },
+    get roomId() { return roomId; },
+    get connected() { return !!(conn && conn.open); }
+  };
+})();
+
+if (typeof window !== 'undefined') window.WwNet = WwNet;
+
+/**
+ * ww_multi.js — P2P 협동 (+ 솔로는 ww_mvp2.html)
+ */
+(function () {
+  const IS_FILE = location.protocol === 'file:';
+  const USE_ROOM_CODE = IS_FILE || window.WW_STANDALONE;
+  const MODE = 'coop';
+  const PLAYER_EMOJIS = ['\u{1F478}', '\u{1F9B8}']; // 👸 공주, 🦸 용사
+  const BOSS_EMOJI = '\u{1F9D9}';   // 🧙 마법사 (보스)
+  const EMOJI_FONT = "'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif";
+  const LEAK_DAMAGE = 8;
+
+  function drawPlayerEmoji(ctx, emoji, x, y, size, highlight) {
+    if (highlight) {
+      ctx.strokeStyle = '#2563eb';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x, y, size * 0.55, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.font = `${size}px ${EMOJI_FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(emoji, x, y);
+  }
+  const LOGIC_W = 600;
+  const LOGIC_H = 450;
+  const WORD_POOL = window.WW_WORD_POOL || ['물결', '불꽃', '독기', '장풍', '벽돌', '화염', '번개', '폭탄', '마법', '방패'];
+  const WAVES = [
+    { killTarget: 8,  spawnInterval: 80, wordPool: WORD_POOL.slice(0, 2),  speedMin: 0.35, speedMax: 0.55 },
+    { killTarget: 12, spawnInterval: 70, wordPool: WORD_POOL.slice(0, 4),  speedMin: 0.38, speedMax: 0.58 },
+    { killTarget: 16, spawnInterval: 60, wordPool: WORD_POOL.slice(0, 7),  speedMin: 0.42, speedMax: 0.62 },
+    { killTarget: 20, spawnInterval: 55, wordPool: WORD_POOL.slice(0, 10), speedMin: 0.45, speedMax: 0.68 }
+  ];
+  const UPGRADE_SECONDS = 15;
+  const EXPLOSION_RADIUS = [0, 72, 118];
+  const UPGRADE_DEFS = {
+    pierce: { label: '관통', desc: '미사일이 명중 후에도 그대로 관통' },
+    bounce: { label: '벽반동', desc: '미사일이 벽에 부딪히면 반사' },
+    split:  { label: '갈래 강화', desc: '미사일이 2~3갈래로 발사' },
+    explosion: { label: '범위 폭발', desc: '명중 시 주변 단어 연쇄 폭발' }
+  };
+
+  function getWaveConfig(index) {
+    if (index < WAVES.length) return WAVES[index];
+    const base = WAVES[WAVES.length - 1];
+    const extra = index - WAVES.length + 1;
+    return {
+      killTarget: base.killTarget + extra * 4,
+      spawnInterval: Math.max(30, base.spawnInterval - extra * 3),
+      wordPool: base.wordPool,
+      speedMin: base.speedMin + extra * 0.03,
+      speedMax: base.speedMax + extra * 0.03
+    };
+  }
+  const KEY_TO_JAMO = HangulInputEngine.KEY_TO_JAMO;
+  const createHangul = HangulInputEngine.createHangul;
+  const MISSILE_SPEED = 8.5;
+  const KB_LAYOUT = [
+    [{ code: 'q', en: 'Q', ko: 'ㅂ' }, { code: 'w', en: 'W', ko: 'ㅈ' }, { code: 'e', en: 'E', ko: 'ㄷ' },
+      { code: 'r', en: 'R', ko: 'ㄱ' }, { code: 't', en: 'T', ko: 'ㅅ' }, { code: 'y', en: 'Y', ko: 'ㅛ' },
+      { code: 'u', en: 'U', ko: 'ㅕ' }, { code: 'i', en: 'I', ko: 'ㅑ' }, { code: 'o', en: 'O', ko: 'ㅐ' },
+      { code: 'p', en: 'P', ko: 'ㅔ' }, { code: 'Backspace', en: '⌫', mod: true, wide: 'w15' }],
+    [{ code: 'a', en: 'A', ko: 'ㅁ' }, { code: 's', en: 'S', ko: 'ㄴ' }, { code: 'd', en: 'D', ko: 'ㅇ' },
+      { code: 'f', en: 'F', ko: 'ㄹ' }, { code: 'g', en: 'G', ko: 'ㅎ' }, { code: 'h', en: 'H', ko: 'ㅗ' },
+      { code: 'j', en: 'J', ko: 'ㅓ' }, { code: 'k', en: 'K', ko: 'ㅏ' }, { code: 'l', en: 'L', ko: 'ㅣ' }],
+    [{ code: 'z', en: 'Z', ko: 'ㅋ' }, { code: 'x', en: 'X', ko: 'ㅌ' }, { code: 'c', en: 'C', ko: 'ㅊ' },
+      { code: 'v', en: 'V', ko: 'ㅍ' }, { code: 'b', en: 'B', ko: 'ㅠ' }, { code: 'n', en: 'N', ko: 'ㅜ' },
+      { code: 'm', en: 'M', ko: 'ㅡ' }, { code: 'Enter', en: 'Enter', ko: '발사', enter: true, wide: 'w2' }],
+    [{ code: 'Escape', en: 'Esc', mod: true, wide: 'w15' }, { code: 'Shift', en: '⇧', mod: true, wide: 'w15' }, { code: 'Space', en: 'Space', mod: true, wide: 'w2' }]
+  ];
+
+  const lobby = document.getElementById('lobby');
+  const gameRoot = document.getElementById('gameRoot');
+  const logEl = document.getElementById('log');
+  const roomBox = document.getElementById('roomBox');
+  const roomCode = document.getElementById('roomCode');
+  const roomInput = document.getElementById('roomInput');
+  const waitingBox = document.getElementById('waitingBox');
+  const inviteLinkEl = document.getElementById('inviteLink');
+  const waitingTitle = document.getElementById('waitingTitle');
+  const joinPanel = document.getElementById('joinPanel');
+  const joinCodeInput = document.getElementById('joinCodeInput');
+  const btnCopyLink = document.getElementById('btnCopyLink');
+
+  let game = null;
+  let useNet = false;
+  let fireSeq = 0;
+  let currentInviteUrl = '';
+
+  function getInviteUrl(hostPeerId) {
+    const u = new URL(window.location.href);
+    u.search = '';
+    u.searchParams.set('join', hostPeerId);
+    return u.toString();
+  }
+
+  function copyText(text, msg) {
+    const done = () => log(msg);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy());
+    } else {
+      fallbackCopy();
+    }
+    function fallbackCopy() {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+      done();
+    }
+  }
+
+  function copyInviteLink() {
+    if (USE_ROOM_CODE) {
+      const code = roomCode.textContent;
+      if (!code || code === '—') return;
+      copyText(code, '방 코드 복사됨 — 카톡/디스코드로 보내세요');
+      return;
+    }
+    if (!currentInviteUrl) return;
+    copyText(currentInviteUrl, '초대 링크 복사됨 — 친구에게 카톡/디스코드로 보내세요');
+  }
+
+  function showWaiting(hostPeerId) {
+    roomCode.textContent = hostPeerId;
+    roomBox.classList.remove('hidden');
+
+    if (USE_ROOM_CODE) {
+      currentInviteUrl = hostPeerId;
+      inviteLinkEl.textContent = '방 코드: ' + hostPeerId;
+      inviteLinkEl.href = '#';
+      inviteLinkEl.onclick = (e) => e.preventDefault();
+      btnCopyLink.textContent = '방 코드 복사';
+      waitingTitle.textContent = '친구에게 방 코드를 보내세요 (같은 HTML 파일 실행)';
+    } else {
+      currentInviteUrl = getInviteUrl(hostPeerId);
+      inviteLinkEl.textContent = currentInviteUrl;
+      inviteLinkEl.href = currentInviteUrl;
+      btnCopyLink.textContent = '초대 링크 복사';
+      waitingTitle.textContent = '친구가 링크를 열면 자동으로 붙습니다';
+      const hostUrl = new URL(window.location.href);
+      hostUrl.search = '';
+      hostUrl.searchParams.set('host', hostPeerId);
+      history.replaceState(null, '', hostUrl.toString());
+    }
+    waitingBox.classList.remove('hidden');
+    log(USE_ROOM_CODE ? '방 코드 준비 완료' : '초대 링크 준비 완료');
+  }
+
+  function hideWaiting() {
+    currentInviteUrl = '';
+    waitingBox.classList.add('hidden');
+    roomBox.classList.add('hidden');
+  }
+
+  function log(msg) {
+    logEl.textContent = msg + '\n' + logEl.textContent;
+  }
+
+  function setGameUi(mode) {
+    const solo = mode === 'solo';
+    document.querySelectorAll('.solo-only').forEach(el => el.classList.toggle('hidden', !solo));
+    document.querySelectorAll('.coop-only').forEach(el => el.classList.toggle('hidden', solo));
+    document.getElementById('upgradeTimer').classList.toggle('hidden', solo);
+    document.getElementById('perkRow').classList.toggle('hidden', !solo && !(game && game.running));
+  }
+
+  function showLobby() {
+    if (game) { game.stop(); game = null; }
+    if (window.SoloGame && SoloGame.isRunning()) SoloGame.stop();
+    WwNet.destroy();
+    useNet = false;
+    hideWaiting();
+    document.getElementById('upgradeOverlay').classList.remove('show');
+    document.getElementById('gameOverOverlay').classList.remove('show', 'win', 'lose');
+    setGameUi(null);
+    gameRoot.classList.add('hidden');
+    lobby.classList.remove('hidden');
+    if (!IS_FILE) history.replaceState(null, '', location.pathname);
+  }
+
+  function showGame() {
+    lobby.classList.add('hidden');
+    gameRoot.classList.remove('hidden');
+  }
+
+  function startLocal(withAi) {
+    useNet = false;
+    if (window.SoloGame && SoloGame.isRunning()) SoloGame.stop();
+    showGame();
+    setGameUi('coop');
+    game = new MultiGame({ mode: MODE, withAi, isHost: true, myIndex: 0, onNet: null });
+    game.start();
+  }
+
+  function startNet(asHost) {
+    useNet = true;
+    const remoteId = roomInput.value.trim();
+    if (!asHost && !remoteId) {
+      log(USE_ROOM_CODE ? '방 코드를 입력하세요' : '초대 링크가 없습니다');
+      return;
+    }
+
+    if (asHost) hideWaiting();
+
+    WwNet.initPeer({
+      gameMode: MODE,
+      asHost,
+      remoteId,
+      handlers: {
+        onOpen: (info) => {
+          if (info.role === 'host' && !info.connOpen) {
+            showWaiting(info.id);
+          } else if (info.role === 'client' && info.connOpen) {
+            log('P2P 연결됨 — 협동 시작');
+          }
+          if (info.role === 'host' && info.connOpen) {
+            hideWaiting();
+            showGame();
+            game = new MultiGame({
+              mode: MODE, withAi: false, isHost: true, myIndex: 0,
+              onNet: (payload) => {
+                if (payload.type === 'STATE') WwNet.broadcastState(payload);
+                else WwNet.send(payload);
+              }
+            });
+            game.start();
+            game.broadcastIfHost(true);
+          }
+        },
+        onData: (data) => {
+          if (data.type === 'WELCOME' && !WwNet.isHost) {
+            hideWaiting();
+            showGame();
+            game = new MultiGame({
+              mode: MODE, withAi: false, isHost: false, myIndex: WwNet.myIndex,
+              onNet: (payload) => WwNet.send(payload)
+            });
+            game.start();
+          } else if (game && data.type === 'STATE') {
+            game.applyRemoteState(data);
+          } else if (game && data.type === 'EXPLODE') {
+            game.spawnExplode(data.x, data.y, data.color, data.text);
+          } else if (game && data.type === 'FIRE' && WwNet.isHost) {
+            game.queueFire(data.playerIdx, data.word, data.seq || 0);
+          } else if (game && data.type === 'UPGRADE_PICK' && WwNet.isHost) {
+            game.hostUpgradePick(data.key, data.playerIdx);
+          } else if (data.type === 'REJECT') {
+            log('거부: ' + data.reason);
+          }
+        },
+        onClose: () => { log('연결 종료'); showLobby(); },
+        onError: (e) => log('Peer 오류: ' + (e.type || e.message))
+      }
+    });
+  }
+
+  const AI = { IDLE: 'IDLE', SCAN: 'SCAN', AIM: 'AIM', FIRE: 'FIRE' };
+
+  class MultiGame {
+    constructor(opts) {
+      this.mode = opts.mode;
+      this.withAi = opts.withAi;
+      this.isHost = opts.isHost;
+      this.myIndex = opts.myIndex;
+      this.onNet = opts.onNet;
+      this.canvas = document.getElementById('fieldCanvas');
+      this.ctx = this.canvas.getContext('2d');
+      this.bf = document.getElementById('battlefield');
+      this.bufferText = document.getElementById('bufferText');
+      this.inputBuffer = { value: '' };
+      this.hangul = createHangul(this.inputBuffer);
+      this.running = false;
+      this.WORD_FONT = 'bold 22px monospace';
+      this.PARTICLE_FONT = 'bold 16px monospace';
+      this.words = [];
+      this.missiles = [];
+      this.particles = [];
+      this.spawnTimer = 0;
+      this.wordId = 0;
+      this.players = [
+        { label: '나', score: 0, color: '#38bdf8', emoji: PLAYER_EMOJIS[0], side: 'left', hp: 100, maxHp: 100, x: 0, y: 0 },
+        { label: '동료', score: 0, color: '#f87171', emoji: PLAYER_EMOJIS[1], side: 'right', hp: 100, maxHp: 100, x: 0, y: 0 }
+      ];
+      this.bossHp = 100;
+      this.combo = 0;
+      this.comboTimer = 0;
+      this.aiState = AI.IDLE;
+      this.aiTimer = 0;
+      this.aiTarget = null;
+      this.winTarget = 8;
+      this.stateTick = 0;
+      this.pendingFires = [];
+      this.kbShift = false;
+      this.gameState = 'WAVE';
+      this.waveIndex = 0;
+      this.killCount = 0;
+      this.teamPerks = { piercing: false, bounce: false, splitLevel: 0, explosionLevel: 0 };
+      this.upgradeChoices = [];
+      this.upgradeDeadline = 0;
+      this.gameEnd = null;
+      this.gameEndMsg = '';
+      this.upgradeOverlayEl = document.getElementById('upgradeOverlay');
+      this.upgradeChoicesEl = document.getElementById('upgradeChoices');
+      this.upgradeTimerEl = document.getElementById('upgradeTimer');
+      this.perkStatusEl = document.getElementById('perkStatus');
+      this.gameOverOverlayEl = document.getElementById('gameOverOverlay');
+      this.gameOverTitleEl = document.getElementById('gameOverTitle');
+      this.gameOverMsgEl = document.getElementById('gameOverMsg');
+      this.buildKeyboard();
+      this.bindInput();
+      window.addEventListener('resize', () => this.resize());
+    }
+
+    layoutPlayers() {
+      if (this.mode === 'coop') {
+        this.players[0].x = LOGIC_W * 0.28;
+        this.players[1].x = LOGIC_W * 0.72;
+        this.players[0].y = LOGIC_H - 28;
+        this.players[1].y = LOGIC_H - 28;
+      } else {
+        this.players[0].x = LOGIC_W / 2;
+        this.players[1].x = LOGIC_W / 2;
+        this.players[0].y = LOGIC_H - 28;
+        this.players[1].y = 28;
+      }
+    }
+
+    resize() {
+      this.canvas.width = LOGIC_W;
+      this.canvas.height = LOGIC_H;
+      const px = Math.round(Math.max(18, Math.min(26, LOGIC_W * 0.058)));
+      this.WORD_FONT = `bold ${px}px monospace`;
+      this.layoutPlayers();
+    }
+
+    buildKeyboard() {
+      KB_LAYOUT.forEach((row, ri) => {
+        const rowEl = document.querySelector(`.kbRow[data-row="${ri + 1}"]`);
+        rowEl.innerHTML = '';
+        row.forEach(def => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'kbKey' + (def.wide ? ' ' + def.wide : '') + (def.mod ? ' mod' : '') + (def.enter ? ' enter' : '');
+          btn.dataset.code = def.code;
+          btn.innerHTML = def.mod ? `<span class="en">${def.en}</span>` : `<span class="en">${def.en}</span><span class="ko">${def.ko}</span>`;
+          rowEl.appendChild(btn);
+        });
+      });
+      document.querySelectorAll('.kbKey').forEach(btn => {
+        const handler = (e) => {
+          e.preventDefault();
+          if (this.inputBlocked()) return;
+          const code = btn.dataset.code;
+          if (code === 'Shift') {
+            this.kbShift = !this.kbShift;
+            btn.classList.toggle('pressed', this.kbShift);
+            return;
+          }
+          this.handleKey(code, this.kbShift);
+          if (this.kbShift && code.length === 1 && KEY_TO_JAMO[code.toUpperCase()]) {
+            this.kbShift = false;
+            document.querySelectorAll('.kbKey[data-code="Shift"]').forEach(b => b.classList.remove('pressed'));
+          }
+        };
+        btn.addEventListener('touchstart', handler, { passive: false });
+        btn.addEventListener('mousedown', handler);
+      });
+    }
+
+    bindInput() {
+      document.addEventListener('keydown', (e) => {
+        if (!this.running) return;
+        if (e.repeat) return;
+        const code = e.code === 'Space' ? 'Space' : e.code === 'Enter' ? 'Enter'
+          : e.code === 'Backspace' ? 'Backspace' : e.code === 'Escape' ? 'Escape'
+            : e.key.length === 1 ? e.key : null;
+        if (!code) return;
+        if (code === 'Enter' || code === 'Backspace' || code === 'Escape' || code === 'Space' || code === 'Shift'
+          || KEY_TO_JAMO[e.key] || KEY_TO_JAMO[e.key.toLowerCase()] || KEY_TO_JAMO[e.key.toUpperCase()]) {
+          e.preventDefault();
+          this.handleKey(code, e.shiftKey);
+        }
+      });
+      document.getElementById('backBtn').addEventListener('click', showLobby);
+      const goBack = document.getElementById('btnGameOverBack');
+      if (goBack) goBack.addEventListener('click', showLobby);
+    }
+
+    handleKey(code, shift) {
+      if (this.inputBlocked()) return;
+      if (code === 'Enter') { this.fireLocal(); return; }
+      if (code === 'Backspace') { this.hangul.backspace(); this.bufferText.textContent = this.hangul.getDisplayText(); return; }
+      if (code === 'Escape') { this.inputBuffer.value = ''; this.hangul.resetCompose(); this.bufferText.textContent = '\u00A0'; return; }
+      if (code === 'Space') { this.hangul.commitSpace(); this.bufferText.textContent = this.hangul.getDisplayText(); return; }
+      const jamo = HangulInputEngine.jamoFromKey(code, shift);
+      if (jamo) { this.hangul.inputJamo(jamo); this.bufferText.textContent = this.hangul.getDisplayText(); }
+    }
+
+    start() {
+      this.resize();
+      this.running = true;
+      this.players[1].label = this.mode === 'versus' ? '상대 (상)' : (this.withAi ? 'AI 동료 (우)' : '동료 (우)');
+      if (this.mode === 'coop') {
+        const me = this.myIndex;
+        document.getElementById('p1Label').textContent = me === 0 ? '나 (좌)' : '동료 (좌)';
+        document.getElementById('p2Label').textContent = me === 1 ? '나 (우)' : '동료 (우)';
+      } else {
+        document.getElementById('p1Label').textContent = '나 (하)';
+        document.getElementById('p2Label').textContent = this.players[1].label;
+      }
+      if (this.mode === 'coop') {
+        setGameUi('coop');
+        document.getElementById('perkRow').classList.remove('hidden');
+        this.updateWaveHud();
+        this.updatePerkStatus();
+      }
+      if (this.mode === 'versus') {
+        document.getElementById('centerHud').textContent = '중앙 단어 선점 · 8점 선취';
+      } else if (this.mode === 'coop') {
+        const cfg = getWaveConfig(this.waveIndex);
+        document.getElementById('centerHud').textContent =
+          `WAVE ${this.waveIndex + 1} · 처치 ${this.killCount}/${cfg.killTarget}`;
+      }
+      this.syncHud();
+      this.loop();
+    }
+
+    stop() { this.running = false; }
+
+    inputBlocked() {
+      return this.mode === 'coop' && (this.gameState === 'UPGRADE' || !!this.gameEnd);
+    }
+
+    getAvailableUpgrades() {
+      const p = this.teamPerks;
+      const avail = [];
+      if (!p.piercing) avail.push('pierce');
+      if (!p.bounce) avail.push('bounce');
+      if (p.splitLevel < 2) avail.push('split');
+      if (p.explosionLevel < 2) avail.push('explosion');
+      return avail;
+    }
+
+    pickRandomUpgrades(n) {
+      const pool = this.getAvailableUpgrades();
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+      return pool.slice(0, n);
+    }
+
+    updateWaveHud() {
+      if (this.mode !== 'coop') return;
+      const cfg = getWaveConfig(this.waveIndex);
+      document.getElementById('waveVal').textContent = this.waveIndex + 1;
+      document.getElementById('killVal').textContent = this.killCount;
+      document.getElementById('killTargetVal').textContent = cfg.killTarget;
+    }
+
+    updatePerkStatus() {
+      if (!this.perkStatusEl) return;
+      const p = this.teamPerks;
+      const parts = [];
+      if (p.piercing) parts.push('관통');
+      if (p.bounce) parts.push('벽반동');
+      if (p.splitLevel === 1) parts.push('2갈래');
+      if (p.splitLevel === 2) parts.push('3갈래');
+      if (p.explosionLevel === 1) parts.push('소형폭발');
+      if (p.explosionLevel === 2) parts.push('대형폭발');
+      this.perkStatusEl.textContent = '보유 특성: ' + (parts.length ? parts.join(', ') : '없음');
+    }
+
+    syncUpgradeTimerDisplay() {
+      if (this.gameState !== 'UPGRADE' || !this.upgradeTimerEl) return;
+      const remain = Math.max(0, Math.ceil((this.upgradeDeadline - performance.now()) / 1000));
+      this.upgradeTimerEl.textContent = `남은 시간 ${remain}초`;
+    }
+
+    renderUpgradeOverlay() {
+      if (!this.upgradeOverlayEl || !this.upgradeChoicesEl) return;
+      this.upgradeChoicesEl.innerHTML = '';
+      if (!this.upgradeChoices.length) {
+        const msg = document.createElement('p');
+        msg.style.color = '#666';
+        msg.textContent = '더 이상 강화할 항목이 없습니다. 곧 다음 웨이브로…';
+        this.upgradeChoicesEl.appendChild(msg);
+      } else {
+        this.upgradeChoices.forEach(key => {
+          const def = UPGRADE_DEFS[key];
+          if (!def) return;
+          const card = document.createElement('div');
+          card.className = 'upgradeCard';
+          card.innerHTML = `<b>${def.label}</b><br><span style="font-size:11px;color:#666">${def.desc}</span>`;
+          const pick = (e) => {
+            e.preventDefault();
+            this.requestUpgradePick(key);
+          };
+          card.addEventListener('touchstart', pick, { passive: false });
+          card.addEventListener('click', pick);
+          this.upgradeChoicesEl.appendChild(card);
+        });
+      }
+      this.upgradeOverlayEl.classList.add('show');
+      this.syncUpgradeTimerDisplay();
+    }
+
+    hideUpgradeOverlay() {
+      if (this.upgradeOverlayEl) this.upgradeOverlayEl.classList.remove('show');
+    }
+
+    showGameOverOverlay() {
+      if (!this.gameOverOverlayEl) return;
+      this.gameOverOverlayEl.className = this.gameEnd === 'WIN' ? 'win show' : 'lose show';
+      if (this.gameOverTitleEl) {
+        this.gameOverTitleEl.textContent = this.gameEnd === 'WIN' ? '승리!' : '패배…';
+      }
+      if (this.gameOverMsgEl) this.gameOverMsgEl.textContent = this.gameEndMsg || '';
+      this.gameOverOverlayEl.classList.add('show');
+    }
+
+    hideGameOverOverlay() {
+      if (this.gameOverOverlayEl) this.gameOverOverlayEl.classList.remove('show', 'win', 'lose');
+    }
+
+    checkGameEnd() {
+      if (this.mode !== 'coop' || !this.isHost || this.gameEnd) return;
+      if (this.bossHp <= 0) {
+        this.endGame('WIN', '🧙 마법사를 물리쳤습니다!');
+        return;
+      }
+      if (this.players[0].hp <= 0) {
+        this.endGame('LOSE', '👸 공주가 쓰러졌습니다…');
+        return;
+      }
+      if (this.players[1].hp <= 0) {
+        this.endGame('LOSE', '🦸 용사가 쓰러졌습니다…');
+      }
+    }
+
+    endGame(result, msg) {
+      this.gameEnd = result;
+      this.gameEndMsg = msg;
+      this.gameState = 'END';
+      this.words = [];
+      this.missiles = [];
+      this.hideUpgradeOverlay();
+      this.showGameOverOverlay();
+      this.syncHud();
+      this.broadcastIfHost(true);
+    }
+
+    requestUpgradePick(key) {
+      if (this.gameState !== 'UPGRADE') return;
+      if (this.isHost) this.hostUpgradePick(key, this.myIndex);
+      else if (this.onNet) this.onNet({ type: 'UPGRADE_PICK', key, playerIdx: this.myIndex });
+    }
+
+    enterUpgradePhase() {
+      if (this.gameEnd) return;
+      this.gameState = 'UPGRADE';
+      this.upgradeChoices = this.pickRandomUpgrades(3);
+      this.upgradeDeadline = performance.now() + UPGRADE_SECONDS * 1000;
+      this.words = [];
+      this.missiles = [];
+      this.renderUpgradeOverlay();
+      this.syncHud();
+      this.broadcastIfHost(true);
+    }
+
+    hostUpgradePick(key, fromPlayerIdx) {
+      if (this.gameState !== 'UPGRADE' || !this.isHost) return;
+      let pick = key;
+      if (!pick || !this.upgradeChoices.includes(pick)) {
+        if (!this.upgradeChoices.length) {
+          this.finishUpgradeWave();
+          return;
+        }
+        pick = this.upgradeChoices[Math.floor(Math.random() * this.upgradeChoices.length)];
+      }
+      this.applyTeamPerk(pick);
+      this.finishUpgradeWave();
+    }
+
+    applyTeamPerk(key) {
+      const p = this.teamPerks;
+      if (key === 'pierce') p.piercing = true;
+      else if (key === 'bounce') p.bounce = true;
+      else if (key === 'split') p.splitLevel = Math.min(2, p.splitLevel + 1);
+      else if (key === 'explosion') p.explosionLevel = Math.min(2, p.explosionLevel + 1);
+      this.updatePerkStatus();
+    }
+
+    finishUpgradeWave() {
+      this.gameState = 'WAVE';
+      this.waveIndex += 1;
+      this.killCount = 0;
+      this.upgradeChoices = [];
+      this.upgradeDeadline = 0;
+      this.hideUpgradeOverlay();
+      this.updateWaveHud();
+      this.syncHud();
+      this.broadcastIfHost(true);
+    }
+
+    checkWaveClear() {
+      if (this.mode !== 'coop' || this.gameState !== 'WAVE' || !this.isHost || this.gameEnd) return;
+      const cfg = getWaveConfig(this.waveIndex);
+      if (this.killCount >= cfg.killTarget) this.enterUpgradePhase();
+    }
+
+    findTargets(text, count) {
+      const candidates = this.words.filter(w => w.text === text && !w.hit);
+      candidates.sort((a, b) => b.y - a.y);
+      return candidates.slice(0, count);
+    }
+
+    applyExplosionAt(hitX, hitY, playerIdx, skipWord) {
+      const radius = EXPLOSION_RADIUS[this.teamPerks.explosionLevel] || 0;
+      if (radius <= 0) return;
+      this.words.forEach(w => {
+        if (w.hit || w === skipWord) return;
+        const dx = w.x - hitX;
+        const dy = w.y - hitY;
+        if (Math.sqrt(dx * dx + dy * dy) <= radius) {
+          this.resolveHit(playerIdx, w, true);
+        }
+      });
+    }
+
+    fireLocal() {
+      const text = this.hangul.flushAndGet();
+      this.bufferText.textContent = '\u00A0';
+      this.inputBuffer.value = '';
+      if (!text) return;
+      const seq = ++fireSeq;
+      if (this.isHost) this.queueFire(this.myIndex, text, seq);
+      else if (this.onNet) this.onNet({ type: 'FIRE', playerIdx: this.myIndex, word: text, seq });
+    }
+
+    queueFire(playerIdx, text, seq) {
+      this.pendingFires.push({ playerIdx, text, seq: seq || 0, at: performance.now() });
+    }
+
+    processPendingFires() {
+      if (!this.pendingFires.length) return;
+      this.pendingFires.sort((a, b) => (a.seq - b.seq) || (a.at - b.at));
+      const batch = this.pendingFires.splice(0);
+      batch.forEach(f => this.hostFire(f.playerIdx, f.text, f.seq));
+    }
+
+    hostFire(playerIdx, text, seq) {
+      if (this.gameState === 'UPGRADE' || this.gameEnd) return;
+      let count = 1;
+      if (this.mode === 'coop' && this.teamPerks.splitLevel === 2) count = 3;
+      else if (this.mode === 'coop' && this.teamPerks.splitLevel === 1) count = 2;
+      const targets = this.findTargets(text, count);
+      if (!targets.length) return;
+      const p = this.players[playerIdx];
+      for (let i = 0; i < count; i++) {
+        const w = targets[i] || targets[0];
+        this.missiles.push({
+          id: 'm' + seq + '-' + playerIdx + '-' + i,
+          x: p.x, y: p.y, oldX: p.x, oldY: p.y,
+          vx: 0, vy: 0,
+          text, owner: playerIdx, targetId: w.id, alive: true
+        });
+      }
+    }
+
+    tryMissileHit(m) {
+      const w = this.words.find(x => x.id === m.targetId && !x.hit);
+      if (!w) { m.alive = false; return; }
+      const dx = w.x - m.x;
+      const dy = w.y - m.y;
+      if (dx * dx + dy * dy > 28 * 28) return;
+      if (!(this.mode === 'coop' && this.teamPerks.piercing)) m.alive = false;
+      this.resolveHit(m.owner, w);
+    }
+
+    resolveHit(playerIdx, w, fromExplosion) {
+      if (w.hit) return;
+      w.hit = true;
+      const col = playerIdx === 0 ? '#38bdf8' : '#f87171';
+      this.spawnExplode(w.x, w.y, col, w.text);
+      if (this.isHost && useNet) WwNet.broadcastExplode(w.x, w.y, col, w.text);
+
+      if (this.mode === 'versus') {
+        this.players[playerIdx].score += 1;
+        if (this.players[playerIdx].score >= this.winTarget) {
+          document.getElementById('centerHud').textContent = playerIdx === this.myIndex ? '승리!' : '패배...';
+        }
+      } else {
+        this.comboTimer = 180;
+        this.combo += 1;
+        const dmg = 5 + Math.min(this.combo, 5) * 2;
+        this.bossHp = Math.max(0, this.bossHp - dmg);
+        this.killCount += 1;
+        this.updateWaveHud();
+        if (!fromExplosion && this.teamPerks.explosionLevel > 0) {
+          this.applyExplosionAt(w.x, w.y, playerIdx, w);
+        }
+        this.checkGameEnd();
+        if (!this.gameEnd) this.checkWaveClear();
+      }
+      this.syncHud();
+      this.broadcastIfHost();
+    }
+
+    spawnExplode(x, y, color, text) {
+      const totalW = Pretext.getTextWidth(text, this.PARTICLE_FONT);
+      let offset = 0;
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        const cw = Pretext.getTextWidth(ch, this.PARTICLE_FONT);
+        const cx = x + offset - totalW / 2;
+        offset += cw;
+        for (let p = 0; p < 4; p++) {
+          const ang = Math.random() * Math.PI * 2;
+          const spd = 3 + Math.random() * 8;
+          this.particles.push({
+            char: ch, x: cx, y, color,
+            vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd - 2,
+            alpha: 1
+          });
+        }
+      }
+    }
+
+    spawnWord() {
+      if (this.mode === 'coop') {
+        const cfg = getWaveConfig(this.waveIndex);
+        const text = cfg.wordPool[Math.floor(Math.random() * cfg.wordPool.length)];
+        const half = Pretext.getTextWidth(text, this.WORD_FONT) / 2;
+        const sideIdx = Math.random() < 0.5 ? 0 : 1;
+        const side = sideIdx === 0 ? 'left' : 'right';
+        const target = this.players[sideIdx];
+        const mid = this.canvas.width / 2;
+        const pad = 12;
+        let startX;
+        if (side === 'left') {
+          const minX = half + pad;
+          const maxX = mid - half - pad;
+          startX = maxX <= minX ? mid * 0.5 : minX + Math.random() * (maxX - minX);
+        } else {
+          const minX = mid + half + pad;
+          const maxX = this.canvas.width - half - pad;
+          startX = maxX <= minX ? mid * 1.5 : minX + Math.random() * (maxX - minX);
+        }
+        const startY = -12;
+        const dx = target.x - startX;
+        const dy = target.y - startY;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const speed = cfg.speedMin + Math.random() * (cfg.speedMax - cfg.speedMin);
+        this.words.push({
+          id: this.wordId++, text, side, sideIdx,
+          x: startX, y: startY,
+          vx: (dx / dist) * speed,
+          vy: (dy / dist) * speed
+        });
+      } else {
+        const text = WORD_POOL[Math.floor(Math.random() * WORD_POOL.length)];
+        const half = Pretext.getTextWidth(text, this.WORD_FONT) / 2;
+        const x = half + 20 + Math.random() * Math.max(0, this.canvas.width - half * 2 - 40);
+        this.words.push({
+          id: this.wordId++, text, x,
+          y: this.canvas.height * 0.42 + (Math.random() - 0.5) * 40,
+          speed: 0.15 + Math.random() * 0.2
+        });
+      }
+    }
+
+    processWordLeaks() {
+      if (this.mode !== 'coop') return;
+      const leakY = LOGIC_H - 36;
+      this.words.forEach(w => {
+        if (w.hit || w.y < leakY) return;
+        const idx = w.side === 'left' ? 0 : (w.side === 'right' ? 1 : (w.x < this.canvas.width / 2 ? 0 : 1));
+        this.players[idx].hp = Math.max(0, this.players[idx].hp - LEAK_DAMAGE);
+        w.hit = true;
+      });
+      if (this.isHost) this.checkGameEnd();
+    }
+
+    pickAiTarget(live) {
+      if (this.mode === 'coop') {
+        return live.sort((a, b) => b.y - a.y)[0];
+      }
+      const mid = this.canvas.height / 2;
+      const threat = live.filter(w => w.y > mid - 30).sort((a, b) => b.y - a.y)[0];
+      return threat || live.sort((a, b) => Math.abs(a.y - mid) - Math.abs(b.y - mid))[0];
+    }
+
+    updateAi() {
+      if (!this.withAi || !this.isHost || this.inputBlocked()) return;
+      this.aiTimer++;
+      if (this.aiState === AI.IDLE && this.aiTimer > 90) { this.aiState = AI.SCAN; this.aiTimer = 0; }
+      if (this.aiState === AI.SCAN) {
+        const live = this.words.filter(w => !w.hit);
+        if (live.length) { this.aiTarget = this.pickAiTarget(live); this.aiState = AI.AIM; this.aiTimer = 0; }
+        else this.aiState = AI.IDLE;
+      }
+      if (this.aiState === AI.AIM && this.aiTimer > 45) { this.aiState = AI.FIRE; this.aiTimer = 0; }
+      if (this.aiState === AI.FIRE && this.aiTarget && !this.aiTarget.hit) {
+        this.queueFire(1, this.aiTarget.text, ++fireSeq);
+        this.aiTarget = null;
+        this.aiState = AI.IDLE;
+        this.aiTimer = 0;
+      }
+    }
+
+    tickParticles() {
+      for (let i = this.particles.length - 1; i >= 0; i--) {
+        const p = this.particles[i];
+        p.x += p.vx; p.y += p.vy; p.vy += 0.12; p.alpha -= 0.04;
+        if (p.alpha <= 0) this.particles.splice(i, 1);
+      }
+    }
+
+    tickMissiles(runHits) {
+      this.missiles.forEach(m => {
+        if (m.alive === false) return;
+        m.oldX = m.x; m.oldY = m.y;
+        const t = this.words.find(w => w.id === m.targetId && !w.hit);
+        if (t) {
+          const dx = t.x - m.x, dy = t.y - m.y;
+          const d = Math.sqrt(dx * dx + dy * dy) || 1;
+          m.vx = (dx / d) * MISSILE_SPEED;
+          m.vy = (dy / d) * MISSILE_SPEED;
+        }
+        m.x += m.vx; m.y += m.vy;
+        if (this.mode === 'coop' && this.teamPerks.bounce && !t) {
+          const half = Pretext.getTextWidth(m.text, 'bold 14px monospace') / 2;
+          if (m.x - half <= 4 || m.x + half >= this.canvas.width - 4) m.vx *= -1;
+        }
+        if (runHits) this.tryMissileHit(m);
+        if (m.y < -50 || m.y > LOGIC_H + 50) m.alive = false;
+      });
+      this.missiles = this.missiles.filter(m => m.alive !== false);
+    }
+
+    update() {
+      this.tickParticles();
+      this.syncUpgradeTimerDisplay();
+      if (!this.isHost && useNet) return;
+
+      if (this.gameEnd) return;
+
+      if (this.mode === 'coop' && this.gameState === 'UPGRADE') {
+        if (performance.now() >= this.upgradeDeadline) {
+          this.hostUpgradePick(null, -1);
+        }
+        this.broadcastIfHost(true);
+        return;
+      }
+
+      this.processPendingFires();
+      const spawnInterval = this.mode === 'coop'
+        ? getWaveConfig(this.waveIndex).spawnInterval
+        : 80;
+      this.spawnTimer++;
+      if (this.spawnTimer > spawnInterval) { this.spawnWord(); this.spawnTimer = 0; }
+      this.words.forEach(w => {
+        if (w.hit) return;
+        if (w.vx !== undefined) {
+          w.x += w.vx;
+          w.y += w.vy;
+        } else {
+          w.y += w.speed;
+        }
+      });
+      this.processWordLeaks();
+      if (this.mode === 'coop') {
+        this.words = this.words.filter(w => !w.hit && w.y > -30 && w.y < LOGIC_H + 40);
+      } else {
+        this.words = this.words.filter(w => !w.hit && w.y > 20 && w.y < LOGIC_H - 20);
+      }
+      this.tickMissiles(true);
+      if (this.mode === 'coop' && this.comboTimer > 0) {
+        this.comboTimer--;
+        if (this.comboTimer <= 0) this.combo = 0;
+      }
+      this.updateAi();
+      this.broadcastIfHost();
+      if (this.mode === 'coop') this.syncHud();
+    }
+
+    broadcastIfHost(force) {
+      if (!this.isHost || !this.onNet) return;
+      this.stateTick++;
+      if (!force && this.stateTick % 2 !== 0) return;
+      this.onNet({
+        type: 'STATE',
+        tick: this.stateTick,
+        words: this.words,
+        missiles: this.missiles,
+        players: this.players.map(p => ({ x: p.x, y: p.y, score: p.score, hp: p.hp })),
+        bossHp: this.bossHp,
+        combo: this.combo,
+        comboTimer: this.comboTimer,
+        gameState: this.gameState,
+        waveIndex: this.waveIndex,
+        killCount: this.killCount,
+        teamPerks: this.teamPerks,
+        upgradeChoices: this.upgradeChoices,
+        upgradeDeadline: this.upgradeDeadline,
+        gameEnd: this.gameEnd,
+        gameEndMsg: this.gameEndMsg
+      });
+    }
+
+    applyRemoteState(data) {
+      if (data.words) this.words = data.words;
+      if (data.missiles) this.missiles = data.missiles;
+      if (data.players) {
+        data.players.forEach((p, i) => {
+          if (!this.players[i]) return;
+          if (p.x !== undefined) this.players[i].x = p.x;
+          if (p.y !== undefined) this.players[i].y = p.y;
+          if (p.score !== undefined) this.players[i].score = p.score;
+          if (p.hp !== undefined) this.players[i].hp = p.hp;
+        });
+      }
+      if (data.bossHp !== undefined) this.bossHp = data.bossHp;
+      if (data.combo !== undefined) this.combo = data.combo;
+      if (data.comboTimer !== undefined) this.comboTimer = data.comboTimer;
+      if (data.gameState !== undefined) {
+        const entering = data.gameState === 'UPGRADE' && this.gameState !== 'UPGRADE';
+        const leaving = data.gameState === 'WAVE' && this.gameState === 'UPGRADE';
+        this.gameState = data.gameState;
+        if (data.upgradeChoices) this.upgradeChoices = data.upgradeChoices;
+        if (data.upgradeDeadline) this.upgradeDeadline = data.upgradeDeadline;
+        if (entering) this.renderUpgradeOverlay();
+        if (leaving) this.hideUpgradeOverlay();
+      }
+      if (data.waveIndex !== undefined) this.waveIndex = data.waveIndex;
+      if (data.killCount !== undefined) this.killCount = data.killCount;
+      if (data.teamPerks) this.teamPerks = data.teamPerks;
+      if (data.gameEnd !== undefined) {
+        const entering = data.gameEnd && !this.gameEnd;
+        this.gameEnd = data.gameEnd;
+        this.gameEndMsg = data.gameEndMsg || '';
+        if (data.gameEnd) this.gameState = 'END';
+        if (entering) this.showGameOverOverlay();
+      }
+      this.updateWaveHud();
+      this.updatePerkStatus();
+      this.syncHud();
+    }
+
+    syncHud() {
+      const finisher = this.mode === 'coop' && this.combo >= 3;
+      document.getElementById('p1Score').textContent = this.mode === 'coop'
+        ? `HP ${this.players[0].hp} · 보스 ${this.bossHp} · 콤보 ${this.combo}${finisher ? ' · 합격기!' : ''}`
+        : String(this.players[0].score);
+      document.getElementById('p2Score').textContent = this.mode === 'versus'
+        ? String(this.players[1].score)
+        : (this.mode === 'coop'
+          ? `HP ${this.players[1].hp}`
+          : (this.withAi ? 'AI ON' : String(this.players[1].score)));
+      if (finisher) {
+        document.getElementById('centerHud').textContent = `합격기 x${this.combo} — 보스 추가 피해`;
+      } else if (this.gameEnd === 'WIN') {
+        document.getElementById('centerHud').textContent = '승리! 🧙 마법사 격파';
+      } else if (this.gameEnd === 'LOSE') {
+        document.getElementById('centerHud').textContent = '패배…';
+      } else if (this.mode === 'coop' && this.gameState === 'UPGRADE') {
+        document.getElementById('centerHud').textContent = '강화를 선택하세요!';
+      } else if (this.mode === 'coop') {
+        const cfg = getWaveConfig(this.waveIndex);
+        document.getElementById('centerHud').textContent =
+          `WAVE ${this.waveIndex + 1} · 처치 ${this.killCount}/${cfg.killTarget}`;
+      }
+    }
+
+    draw() {
+      const ctx = this.ctx;
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+      if (this.mode === 'coop') {
+        const mid = this.canvas.width / 2;
+        ctx.fillStyle = 'rgba(37, 99, 235, 0.05)';
+        ctx.fillRect(0, 0, mid, this.canvas.height);
+        ctx.fillStyle = 'rgba(219, 39, 119, 0.05)';
+        ctx.fillRect(mid, 0, mid, this.canvas.height);
+        ctx.strokeStyle = '#ccc';
+        ctx.setLineDash([8, 10]);
+        ctx.beginPath();
+        ctx.moveTo(mid, 0);
+        ctx.lineTo(mid, this.canvas.height);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(124, 58, 237, 0.08)';
+        ctx.fillRect(0, 0, this.canvas.width, 36);
+        ctx.font = `22px ${EMOJI_FONT}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.globalAlpha = this.bossHp > 0 ? 1 : 0.25;
+        ctx.fillText(BOSS_EMOJI, this.canvas.width / 2 - 36, 18);
+        ctx.globalAlpha = 1;
+        ctx.font = 'bold 13px monospace';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = '#7c3aed';
+        ctx.fillText(`HP ${this.bossHp}`, this.canvas.width / 2 + 8, 22);
+      } else {
+        ctx.strokeStyle = '#ccc';
+        ctx.setLineDash([6, 8]);
+        ctx.beginPath();
+        ctx.moveTo(0, this.canvas.height / 2);
+        ctx.lineTo(this.canvas.width, this.canvas.height / 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      ctx.font = this.WORD_FONT;
+      ctx.textAlign = 'center';
+      this.words.forEach(w => {
+        if (this.mode === 'coop') ctx.fillStyle = w.side === 'left' ? '#1d4ed8' : (w.side === 'right' ? '#9d174d' : '#222');
+        else ctx.fillStyle = '#222';
+        ctx.fillText(w.text, w.x, w.y);
+      });
+
+      ctx.font = 'bold 14px monospace';
+      this.missiles.forEach(m => {
+        ctx.fillStyle = m.owner === 0 ? '#38bdf8' : '#f87171';
+        ctx.fillText(m.text, m.x, m.y);
+      });
+
+      this.players.forEach((p, i) => {
+        if (this.mode === 'coop' && p.hp <= 0) {
+          ctx.save();
+          ctx.globalAlpha = 0.35;
+          drawPlayerEmoji(ctx, p.emoji || PLAYER_EMOJIS[i], p.x, p.y, 32, false);
+          ctx.globalAlpha = 1;
+          ctx.font = `20px ${EMOJI_FONT}`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('💀', p.x, p.y - 18);
+          ctx.restore();
+        } else {
+          drawPlayerEmoji(
+            ctx, p.emoji || PLAYER_EMOJIS[i], p.x, p.y, 32,
+            this.mode === 'coop' && i === this.myIndex
+          );
+        }
+        if (this.mode === 'coop') {
+          const barW = 56;
+          ctx.fillStyle = '#ddd';
+          ctx.fillRect(p.x - barW / 2, p.y + 22, barW, 5);
+          ctx.fillStyle = i === 0 ? '#2563eb' : '#db2777';
+          ctx.fillRect(p.x - barW / 2, p.y + 22, barW * Math.max(0, p.hp / p.maxHp), 5);
+        }
+      });
+
+      ctx.font = this.PARTICLE_FONT;
+      this.particles.forEach(p => {
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color;
+        ctx.fillText(p.char, p.x, p.y);
+      });
+      ctx.globalAlpha = 1;
+    }
+
+    loop() {
+      if (!this.running) return;
+      this.update();
+      this.draw();
+      requestAnimationFrame(() => this.loop());
+    }
+  }
+
+  function bindClick(id, fn) {
+    const el = document.getElementById(id);
+    if (!el) { console.error('[Word Wizard] 버튼 없음:', id); return; }
+    el.addEventListener('click', fn);
+  }
+
+  function startSolo() {
+    useNet = false;
+    showGame();
+    setGameUi('solo');
+    SoloGame.start();
+  }
+
+  bindClick('btnSolo', startSolo);
+  bindClick('btnCoopSolo', () => startLocal(true));
+  bindClick('btnCoopHost', () => startNet(true));
+  bindClick('btnCopyLink', copyInviteLink);
+  bindClick('btnCancelWait', showLobby);
+  bindClick('backBtn', showLobby);
+  bindClick('btnGameOverBack', showLobby);
+  bindClick('btnJoin', () => {
+    roomInput.value = joinCodeInput.value.trim();
+    startNet(false);
+  });
+
+  function initLobbyUi() {
+    if (USE_ROOM_CODE) {
+      document.getElementById('hintWeb').classList.add('hidden');
+      document.getElementById('hintFile').classList.remove('hidden');
+      joinPanel.classList.remove('hidden');
+    }
+  }
+
+  function bootFromInviteUrl() {
+    if (USE_ROOM_CODE) return;
+    const params = new URLSearchParams(location.search);
+    const join = params.get('join');
+    const host = params.get('host');
+    if (host) {
+      log('이전 방 세션이 만료되었습니다. 「방 만들기」를 다시 눌러주세요.');
+      history.replaceState(null, '', location.pathname);
+      return;
+    }
+    if (!join) return;
+    roomInput.value = join;
+    log('초대 링크 감지 — PeerJS 연결 중…');
+    startNet(false);
+  }
+
+  initLobbyUi();
+  bootFromInviteUrl();
+})();
+
+</script>
+</body>
+</html>

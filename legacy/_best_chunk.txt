@@ -1,0 +1,106 @@
+  let words = [];       // 낙하 단어 { text, x, y, speed }
+  let missiles = [];    // 발사체 { x, y, vx, vy, text, oldX, oldY }
+  let particles = [];   // 글자/스파크 파티클
+  let hitFlashes = [];  // 명중 순간 링 이펙트
+  let wordIdCounter = 0;
+
+  function spawnParticles(x, y, color, text) {
+    let offset = 0;
+    const totalW = Pretext.getTextWidth(text, PARTICLE_FONT);
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      const cw = Pretext.getTextWidth(ch, PARTICLE_FONT);
+      const cx = x + offset - totalW / 2;
+      offset += cw;
+      for (let p = 0; p < 5; p++) {
+        const ang = Math.random() * Math.PI * 2;
+        const spd = 4 + Math.random() * 10;
+        particles.push({
+          char: ch, x: cx, y, color,
+          vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd - 4,
+          angle: Math.random() * Math.PI, vAngle: (Math.random() - 0.5) * 0.5,
+          alpha: 1, gravity: 0.18, friction: 0.92
+        });
+      }
+    }
+    for (let p = 0; p < 14; p++) {
+      const ang = Math.random() * Math.PI * 2;
+      const spd = 6 + Math.random() * 12;
+      particles.push({
+        char: Math.random() < 0.5 ? '✦' : '•', x, y, color,
+        vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd - 3,
+        angle: 0, vAngle: 0, alpha: 1, gravity: 0.14, friction: 0.9
+      });
+    }
+    hitFlashes.push({ x, y, r: 8, maxR: 48, alpha: 1, color });
+  }
+
+  function updateParticles() {
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.vx *= p.friction;
+      p.vy *= p.friction;
+      p.vy += p.gravity;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.angle += p.vAngle;
+      p.alpha -= 0.045;
+      if (p.alpha <= 0) particles.splice(i, 1);
+    }
+    for (let i = hitFlashes.length - 1; i >= 0; i--) {
+      const f = hitFlashes[i];
+      f.r += (f.maxR - f.r) * 0.28;
+      f.alpha -= 0.07;
+      if (f.alpha <= 0) hitFlashes.splice(i, 1);
+    }
+  }
+
+  function drawParticles() {
+    ctx.save();
+    ctx.font = PARTICLE_FONT;
+    particles.forEach(p => {
+      ctx.globalAlpha = p.alpha;
+      ctx.fillStyle = p.color;
+      if (p.vAngle) {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.angle);
+        ctx.fillText(p.char, -4, 4);
+        ctx.restore();
+      } else {
+        ctx.fillText(p.char, p.x - 4, p.y + 4);
+      }
+    });
+    hitFlashes.forEach(f => {
+      ctx.globalAlpha = f.alpha * 0.6;
+      ctx.strokeStyle = f.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+      ctx.stroke();
+    });
+    ctx.restore();
+  }
+
+  function resolveWordHit(w, m, hitX, hitY) {
+    w.hit = true;
+    boss.hp = Math.max(0, boss.hp - getMissileDamage());
+    state.killCount += 1;
+    updateWaveHud();
+    spawnParticles(hitX, hitY, wordColor(w.text), w.text);
+    if (!m.piercing) m.dead = true;
+    const cfg = getWaveConfig(state.waveIndex);
+    if (state.killCount >= cfg.killTarget) showUpgradeOverlay();
+  }
+
+  function spawnWord() {
+    const cfg = getWaveConfig(state.waveIndex);
+    const text = cfg.wordPool[Math.floor(Math.random() * cfg.wordPool.length)];
+    words.push({
+      id: wordIdCounter++,
+      text,
+      x: randomSpawnX(text),
+      y: -20,
+      speed: cfg.speedMin + Math.random() * (cfg.speedMax - cfg.speedMin)
+    });
+  }

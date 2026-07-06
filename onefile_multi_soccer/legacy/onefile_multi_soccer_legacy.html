@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>슬링샷 축구 — 온라인 대전</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; min-height: 100%; background: #1a1a2e; color: #eee;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+  }
+  .hidden { display: none !important; }
+
+  /* ── 로비 ── */
+  #lobby {
+    min-height: 100dvh; padding: 20px; max-width: 520px; margin: 0 auto;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  #lobby h1 {
+    font-size: 1.5rem; margin: 0;
+    background: linear-gradient(90deg, #4ade80, #22d3ee);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  #lobby .sub { color: #94a3b8; font-size: 0.85rem; line-height: 1.5; margin: 0; }
+  .mode-block { background: #16213e; border: 1px solid #334; border-radius: 12px; padding: 14px; }
+  .mode-block h2 { margin: 0 0 6px; font-size: 1rem; color: #7ec8e3; }
+  .mode-block p { margin: 0 0 10px; font-size: 0.78rem; color: #888; line-height: 1.4; }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  button {
+    border: none; border-radius: 8px; padding: 10px 14px; font-size: 0.85rem;
+    cursor: pointer; touch-action: manipulation; font-weight: bold;
+  }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-green { background: #4ade80; color: #1a1a2e; }
+  .btn-red { background: #dc2626; color: #fff; }
+  .btn-ghost { background: #334; color: #ddd; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  input {
+    width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #445;
+    background: #1a1a2e; color: #eee; font-size: 0.9rem;
+  }
+  #waitingBox {
+    background: #0f3460; padding: 12px; border-radius: 10px; font-size: 0.82rem;
+    word-break: break-all; border: 1px solid #2563eb; color: #ddd;
+  }
+  #inviteLink { color: #7ec8e3; font-size: 0.78rem; display: block; margin: 8px 0; }
+  #rosterList { margin: 10px 0; padding: 0; list-style: none; line-height: 1.8; }
+  #rosterList .empty { color: #666; font-style: italic; }
+  #lobbyLog { font-size: 0.72rem; color: #4ade80; max-height: 70px; overflow-y: auto; white-space: pre-wrap; }
+
+  /* ── 게임 화면 ── */
+  #gameRoot {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 100dvh; padding: 10px; position: relative;
+  }
+  #info { font-size: 0.82rem; color: #94a3b8; margin-bottom: 8px; text-align: center; line-height: 1.5; }
+  #hud { display: flex; gap: 16px; margin-bottom: 8px; font-size: 0.9rem; flex-wrap: wrap; justify-content: center; }
+  #hud span.val { color: #4ade80; font-weight: bold; }
+  #roleTag {
+    display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: bold;
+  }
+  #roleTag.attacker { background: rgba(74,222,128,0.2); color: #4ade80; }
+  #roleTag.keeper { background: rgba(251,191,36,0.2); color: #fbbf24; }
+  #backBtn { position: absolute; top: 10px; right: 10px; z-index: 10; padding: 6px 12px; font-size: 11px; }
+
+  canvas#game {
+    border: 2px solid #334155; border-radius: 8px;
+    box-shadow: 0 0 30px rgba(74, 222, 128, 0.15);
+    touch-action: none; display: block; max-width: 94vw; height: auto;
+  }
+  #overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+    display: none; align-items: center; justify-content: center; flex-direction: column; z-index: 20;
+  }
+  #overlay.show { display: flex; }
+  #overlay h2 { font-size: 2rem; margin-bottom: 12px; }
+  #overlay p { color: #94a3b8; margin-bottom: 20px; text-align: center; }
+  #gameWrap { position: relative; }
+  #popup {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.5);
+    font-size: 3rem; font-weight: bold; color: #4ade80;
+    text-shadow: 0 0 20px rgba(74,222,128,0.8); opacity: 0; pointer-events: none;
+    transition: transform 0.15s ease-out, opacity 0.15s ease-out; white-space: nowrap;
+  }
+  #popup.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+</style>
+</head>
+<body>
+
+<div id="lobby">
+  <h1>⚽ 슬링샷 축구</h1>
+  <p class="sub">여러 번 터치해서 수비수를 제끼고 골키퍼까지 피해 슛! · 온라인 1:1 대전에서는 상대가 직접 골키퍼를 조종합니다.</p>
+
+  <div class="mode-block">
+    <h2>① 혼자 하기</h2>
+    <p>AI 골키퍼를 상대로 최고 기록에 도전</p>
+    <button class="btn-green" id="btnSolo">솔로 시작</button>
+  </div>
+
+  <div class="mode-block">
+    <h2>② 온라인 대전 (1:1)</h2>
+    <p>번갈아 공격수 / 골키퍼 · 골키퍼는 사람이 직접 막습니다</p>
+    <div class="btn-row">
+      <button class="btn-primary" id="btnHost">방 만들기</button>
+    </div>
+  </div>
+
+  <div class="mode-block" id="joinPanel">
+    <h2>참가하기</h2>
+    <input id="joinCodeInput" placeholder="상대 방 코드 입력" autocomplete="off">
+    <div class="btn-row" style="margin-top:8px"><button class="btn-red" id="btnJoin">참가</button></div>
+  </div>
+
+  <div id="waitingBox" class="hidden">
+    <div id="waitingTitle">대기실</div>
+    <a id="inviteLink" href="#"></a>
+    <ul id="rosterList"></ul>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn-green hidden" id="btnStartGame" disabled>게임 시작</button>
+      <button class="btn-ghost" id="btnCancelWait">나가기</button>
+    </div>
+    <p id="guestWaitHint" class="hidden" style="font-size:0.78rem;color:#888">방장이 시작하길 기다리는 중…</p>
+  </div>
+
+  <div id="lobbyLog"></div>
+</div>
+
+<div id="gameRoot" class="hidden">
+  <button type="button" id="backBtn" class="btn-ghost">← 로비</button>
+  <div id="info">한 턴에 여러 번 터치 가능 · 수비수에 닿으면 턴 종료</div>
+  <div id="hud">
+    <div id="roleTag" class="hidden"></div>
+    <div id="soloHud1">골: <span class="val" id="goals">0</span></div>
+    <div id="soloHud2">레벨: <span class="val" id="level">1</span></div>
+    <div id="duelHud" class="hidden">라운드 <span class="val" id="roundNum">1</span>/<span id="roundTotal">6</span> · 나 <span class="val" id="myScore">0</span> : <span class="val" id="oppScore">0</span> 상대</div>
+    <div>남은 턴: <span class="val" id="shots">10</span></div>
+    <div>터치: <span class="val" id="touches">0</span>/<span id="maxTouches">5</span></div>
+  </div>
+  <div id="gameWrap">
+    <canvas id="game" width="900" height="560"></canvas>
+    <div id="popup"></div>
+  </div>
+</div>
+
+<div id="overlay">
+  <h2 id="overlayTitle">게임 종료</h2>
+  <p id="overlayMsg">수고하셨습니다!</p>
+  <div class="btn-row">
+    <button class="btn-green" id="restartBtn">다시 시작</button>
+    <button class="btn-ghost" id="toLobbyBtn">로비로</button>
+  </div>
+</div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ══════════════════ 공통 상수 & 필드 지오메트리 ══════════════════ */
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width;
+  const H = canvas.height;
+
+  const BALL_R = 13;
+  const MAX_PULL = 150;
+  const POWER_SCALE = 0.11;
+  const MAX_SPEED = 17;
+  const FRICTION = 0.991;
+  const STOP_SPEED = 0.15;
+  const DEFENDER_R = 18;
+  const KEEPER_R = 17;
+  const MAX_TOUCHES = 5;
+  const TOTAL_SHOTS_SOLO = 10;
+
+  const GOAL_LINE_X = W - 34;
+  const GOAL_HALF = 85;
+  const GOAL_TOP = H / 2 - GOAL_HALF;
+  const GOAL_BOTTOM = H / 2 + GOAL_HALF;
+
+  const PLAYER_DEFS = [
+    { emoji: '🧙', name: '방장' },
+    { emoji: '🦸', name: '참가자' }
+  ];
+
+  function rand(min, max) { return Math.random() * (max - min) + min; }
+  function dist(x1, y1, x2, y2) { return Math.hypot(x2 - x1, y2 - y1); }
+  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+  function canvasPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = W / rect.width;
+    const scaleY = H / rect.height;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+  }
+
+  function makeDefenders(n, levelForSpeed) {
+    const list = [];
+    let attempts = 0;
+    while (list.length < n && attempts < 500) {
+      attempts++;
+      const x = rand(260, GOAL_LINE_X - 80);
+      const y = rand(70, H - 70);
+      if (dist(x, y, 110, H / 2) < 110) continue;
+      let ok = true;
+      for (const d of list) {
+        if (dist(x, y, d.x, d.y) < DEFENDER_R * 2.8) { ok = false; break; }
+      }
+      if (ok) {
+        list.push({
+          x, baseY: y, y,
+          range: rand(20, 55),
+          speed: rand(0.01, 0.025) * (1 + levelForSpeed * 0.08),
+          phase: rand(0, Math.PI * 2)
+        });
+      }
+    }
+    return list;
+  }
+
+  function updateDefendersIdle(defenders, frame) {
+    for (const d of defenders) {
+      d.y = clamp(d.baseY + Math.sin(frame * d.speed + d.phase) * d.range, 45, H - 45);
+    }
+  }
+
+  /* ── 공용 렌더링 함수 ── */
+  function drawField() {
+    ctx.fillStyle = '#1e5631';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(255,255,255,0.03)';
+    for (let x = 0; x < W; x += 80) if ((x / 80) % 2 === 0) ctx.fillRect(x, 0, 80, H);
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(15, 15, W - 30, H - 30);
+    ctx.beginPath(); ctx.moveTo(W / 2, 15); ctx.lineTo(W / 2, H - 15); ctx.stroke();
+    ctx.beginPath(); ctx.arc(W / 2, H / 2, 55, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeRect(GOAL_LINE_X - 90, GOAL_TOP - 30, 90, GOAL_HALF * 2 + 60);
+  }
+
+  function drawGoal() {
+    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.moveTo(GOAL_LINE_X, GOAL_TOP); ctx.lineTo(GOAL_LINE_X, GOAL_BOTTOM); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(GOAL_LINE_X, GOAL_TOP); ctx.lineTo(W - 15, GOAL_TOP);
+    ctx.moveTo(GOAL_LINE_X, GOAL_BOTTOM); ctx.lineTo(W - 15, GOAL_BOTTOM);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1;
+    for (let y = GOAL_TOP; y <= GOAL_BOTTOM; y += 10) {
+      ctx.beginPath(); ctx.moveTo(GOAL_LINE_X, y); ctx.lineTo(W - 15, y); ctx.stroke();
+    }
+    for (let x = GOAL_LINE_X; x <= W - 15; x += 10) {
+      ctx.beginPath(); ctx.moveTo(x, GOAL_TOP); ctx.lineTo(x, GOAL_BOTTOM); ctx.stroke();
+    }
+  }
+
+  function drawKeeperAt(y, isHuman) {
+    ctx.beginPath(); ctx.arc(GOAL_LINE_X, y, KEEPER_R, 0, Math.PI * 2);
+    ctx.fillStyle = isHuman ? '#fb7185' : '#fbbf24'; ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = '#1a1a2e'; ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('GK', GOAL_LINE_X, y);
+  }
+
+  function drawDefendersAt(list) {
+    for (const d of list) {
+      ctx.beginPath(); ctx.arc(d.x, d.y, DEFENDER_R, 0, Math.PI * 2);
+      ctx.fillStyle = '#60a5fa'; ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 2; ctx.stroke();
+    }
+  }
+
+  function drawBallAt(x, y) {
+    ctx.beginPath(); ctx.arc(x, y, BALL_R, 0, Math.PI * 2);
+    ctx.fillStyle = '#f8fafc'; ctx.fill();
+    ctx.strokeStyle = '#1a1a2e'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = '#1a1a2e'; ctx.beginPath();
+    ctx.moveTo(x, y - 5); ctx.lineTo(x - 4.5, y - 1.5); ctx.lineTo(x - 2.8, y + 4);
+    ctx.lineTo(x + 2.8, y + 4); ctx.lineTo(x + 4.5, y - 1.5); ctx.closePath(); ctx.fill();
+  }
+
+  function drawAimLine(ballX, ballY, dragX, dragY) {
+    const dx = ballX - dragX, dy = ballY - dragY;
+    const pullDist = Math.hypot(dx, dy);
+    const power = clamp(pullDist / MAX_PULL, 0, 1);
+    ctx.setLineDash([6, 6]);
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(ballX, ballY); ctx.lineTo(dragX, dragY); ctx.stroke();
+    ctx.setLineDash([]);
+    const dirX = dx / (pullDist || 1), dirY = dy / (pullDist || 1);
+    const arrowLen = 40 + power * 100;
+    const ax = ballX + dirX * arrowLen, ay = ballY + dirY * arrowLen;
+    const hue = 140 - power * 140;
+    ctx.strokeStyle = `hsl(${hue}, 90%, 55%)`; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(ballX, ballY); ctx.lineTo(ax, ay); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(Math.round(power * 100) + '%', ballX, ballY - 30);
+  }
+
+  function showPopup(text, color) {
+    const el = document.getElementById('popup');
+    el.textContent = text;
+    el.style.color = color || '#4ade80';
+    el.classList.remove('show');
+    void el.offsetWidth;
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 700);
+  }
+
+  /* ══════════════════ PeerJS 네트워크 레이어 ══════════════════ */
+  const WwNet = (function () {
+    let peer = null, guestConn = null, hostConn = null;
+    let isHost = false, myIndex = 0, gameStarted = false;
+    let onData = null, onOpen = null, onClose = null, onError = null, onLobby = null;
+    let joined = false;
+
+    function buildRoster() {
+      const roster = [{ index: 0, ...PLAYER_DEFS[0] }];
+      if (joined || hostConn) roster.push({ index: 1, ...PLAYER_DEFS[1] });
+      return roster;
+    }
+
+    function broadcastLobby() {
+      const payload = { type: 'LOBBY', roster: buildRoster() };
+      if (hostConn && hostConn.open) hostConn.send(payload);
+      onLobby && onLobby(payload);
+    }
+
+    function sendToHost(data) { if (guestConn && guestConn.open) guestConn.send(data); }
+    function sendToGuest(data) { if (hostConn && hostConn.open) hostConn.send(data); }
+    function send(data) { if (isHost) sendToGuest(data); else sendToHost(data); }
+
+    function initPeer(opts) {
+      const { asHost, remoteId, handlers } = opts;
+      isHost = asHost; myIndex = asHost ? 0 : 1; gameStarted = false; joined = false;
+      hostConn = null; guestConn = null;
+      onData = handlers.onData; onOpen = handlers.onOpen;
+      onClose = handlers.onClose; onError = handlers.onError; onLobby = handlers.onLobby;
+
+      peer = new Peer({ debug: 1 });
+      peer.on('open', id => {
+        if (asHost) {
+          peer.on('connection', conn => {
+            if (hostConn) { conn.on('open', () => { conn.send({ type: 'REJECT', reason: '방이 가득 참' }); setTimeout(() => conn.close(), 300); }); return; }
+            hostConn = conn;
+            conn.on('open', () => {
+              joined = true;
+              conn.send({ type: 'WELCOME', index: 1, roster: buildRoster() });
+              broadcastLobby();
+              onOpen && onOpen({ role: 'host', clientJoined: true });
+            });
+            conn.on('data', d => onData && onData(d));
+            conn.on('close', () => {
+              hostConn = null; joined = false;
+              if (!gameStarted) broadcastLobby();
+              else onData && onData({ type: 'PEER_LEFT' });
+            });
+          });
+          onOpen && onOpen({ id, role: 'host', roomReady: true });
+        } else {
+          guestConn = peer.connect(remoteId.trim(), { reliable: true });
+          guestConn.on('open', () => onOpen && onOpen({ role: 'client', connOpen: true }));
+          guestConn.on('data', d => onData && onData(d));
+          guestConn.on('close', () => { guestConn = null; onClose && onClose(); });
+        }
+      });
+      peer.on('error', e => onError && onError(e));
+    }
+
+    function startGameBroadcast() { gameStarted = true; sendToGuest({ type: 'START' }); }
+
+    function destroy() {
+      try { if (hostConn) hostConn.close(); } catch (e) {}
+      try { if (guestConn) guestConn.close(); } catch (e) {}
+      try { if (peer) peer.destroy(); } catch (e) {}
+      peer = null; hostConn = null; guestConn = null; gameStarted = false; myIndex = 0; joined = false;
+    }
+
+    return {
+      initPeer, destroy, send, sendToGuest, sendToHost, startGameBroadcast, buildRoster,
+      get isHost() { return isHost; },
+      get myIndex() { return myIndex; },
+      get hasGuest() { return !!hostConn; },
+      get gameStarted() { return gameStarted; }
+    };
+  })();
+
+  /* ══════════════════ DOM refs & 로비 화면 전환 ══════════════════ */
+  const lobby = document.getElementById('lobby');
+  const gameRoot = document.getElementById('gameRoot');
+  const overlay = document.getElementById('overlay');
+  const waitingBox = document.getElementById('waitingBox');
+  const joinPanel = document.getElementById('joinPanel');
+  const lobbyLogEl = document.getElementById('lobbyLog');
+
+  let currentGame = null;      // 'solo' | Duel 인스턴스
+  let currentMode = null;      // 'solo' | 'duel'
+  let currentInviteId = '';
+
+  function lobbyLog(msg) {
+    lobbyLogEl.textContent = (lobbyLogEl.textContent ? lobbyLogEl.textContent + '\n' : '') + msg;
+    lobbyLogEl.scrollTop = lobbyLogEl.scrollHeight;
+  }
+
+  function showLobby() {
+    if (currentGame && currentGame.stop) currentGame.stop();
+    currentGame = null; currentMode = null;
+    WwNet.destroy();
+    waitingBox.classList.add('hidden');
+    joinPanel.classList.remove('hidden');
+    gameRoot.classList.add('hidden');
+    overlay.classList.remove('show');
+    lobby.classList.remove('hidden');
+  }
+
+  function showGameScreen() {
+    lobby.classList.add('hidden');
+    gameRoot.classList.remove('hidden');
+    overlay.classList.remove('show');
+  }
+
+  function showWaitingRoom(hostId, asHost) {
+    joinPanel.classList.add('hidden');
+    waitingBox.classList.remove('hidden');
+    document.getElementById('btnStartGame').classList.toggle('hidden', !asHost);
+    document.getElementById('guestWaitHint').classList.toggle('hidden', asHost);
+    if (asHost) {
+      currentInviteId = hostId;
+      document.getElementById('inviteLink').textContent = '방 코드: ' + hostId;
+    }
+    updateRosterUI();
+  }
+
+  function updateRosterUI(roster) {
+    const list = roster || WwNet.buildRoster();
+    const ul = document.getElementById('rosterList');
+    ul.innerHTML = '';
+    list.forEach(r => {
+      const li = document.createElement('li');
+      li.textContent = `${r.emoji} ${r.name}`;
+      ul.appendChild(li);
+    });
+    if (list.length < 2) {
+      const li = document.createElement('li');
+      li.className = 'empty';
+      li.textContent = `${PLAYER_DEFS[1].emoji} (대기 중…)`;
+      ul.appendChild(li);
+    }
+    document.getElementById('waitingTitle').textContent = `대기실 — ${list.length}/2`;
+    const btn = document.getElementById('btnStartGame');
+    if (WwNet.isHost) {
+      btn.disabled = list.length < 2;
+      btn.textContent = list.length < 2 ? '게임 시작 (2인 필요)' : '게임 시작';
+    }
+  }
+
+  /* ══════════════════ 솔로 게임 (vs AI 골키퍼) ══════════════════ */
+  class SoloGame {
+    constructor() {
+      this.ball = { x: 0, y: 0, vx: 0, vy: 0, moving: false };
+      this.defenders = [];
+      this.keeper = { y: H / 2, dir: 1, speed: 1.6, range: 60 };
+      this.goals = 0; this.level = 1; this.shotsLeft = TOTAL_SHOTS_SOLO;
+      this.gameOver = false;
+      this.frame = 0;
+      this.touchesUsed = 0; this.turnResolved = false;
+      this.dragging = false; this.dragX = 0; this.dragY = 0;
+
+      document.getElementById('soloHud1').classList.remove('hidden');
+      document.getElementById('soloHud2').classList.remove('hidden');
+      document.getElementById('duelHud').classList.add('hidden');
+      document.getElementById('roleTag').classList.add('hidden');
+      this.setupLevel();
+      this.updateHUD();
+    }
+    resetBall() { this.ball.x = 110; this.ball.y = H / 2; this.ball.vx = 0; this.ball.vy = 0; this.ball.moving = false; }
+    setupLevel() {
+      this.resetBall(); this.touchesUsed = 0; this.turnResolved = false;
+      this.defenders = makeDefenders(Math.min(1 + this.level, 7), this.level);
+      this.keeper.speed = 1.4 + this.level * 0.25;
+      this.keeper.range = Math.min(GOAL_HALF - KEEPER_R - 4, 45 + this.level * 6);
+      this.keeper.y = H / 2; this.keeper.dir = 1;
+    }
+    newAttempt() { this.resetBall(); this.touchesUsed = 0; this.turnResolved = false; }
+    updateHUD() {
+      document.getElementById('goals').textContent = this.goals;
+      document.getElementById('level').textContent = this.level;
+      document.getElementById('shots').textContent = this.shotsLeft;
+      document.getElementById('touches').textContent = this.touchesUsed;
+      document.getElementById('maxTouches').textContent = MAX_TOUCHES;
+    }
+    fireShot() {
+      if (this.turnResolved || this.gameOver) return;
+      const dx = this.ball.x - this.dragX, dy = this.ball.y - this.dragY;
+      let vx = dx * POWER_SCALE, vy = dy * POWER_SCALE;
+      const speed = Math.hypot(vx, vy);
+      if (speed > MAX_SPEED) { const s = MAX_SPEED / speed; vx *= s; vy *= s; }
+      if (speed < 1) return;
+      this.ball.vx = vx; this.ball.vy = vy; this.ball.moving = true;
+      this.touchesUsed++; this.updateHUD();
+    }
+    endTurn(result) {
+      if (this.turnResolved || this.gameOver) return;
+      this.turnResolved = true; this.ball.moving = false; this.ball.vx = 0; this.ball.vy = 0;
+      this.shotsLeft--;
+      if (result === 'goal') { this.goals++; this.level++; showPopup('GOAL!', '#4ade80'); }
+      else if (result === 'defender') showPopup('가로채임!', '#f87171');
+      else if (result === 'keeper') showPopup('SAVE!', '#f87171');
+      else showPopup('턴 종료', '#94a3b8');
+      this.updateHUD();
+      setTimeout(() => {
+        if (this.gameOver) return;
+        if (this.shotsLeft <= 0) this.endGame();
+        else if (result === 'goal') this.setupLevel();
+        else { this.newAttempt(); this.updateHUD(); }
+      }, 650);
+    }
+    endGame() {
+      this.gameOver = true;
+      document.getElementById('overlayTitle').textContent = '⚽ 게임 종료';
+      document.getElementById('overlayMsg').textContent = `레벨 ${this.level}까지 도달, 총 ${this.goals}골을 넣었습니다!`;
+      overlay.classList.add('show');
+    }
+    tick() {
+      this.frame++;
+      updateDefendersIdle(this.defenders, this.frame);
+      this.keeper.y += this.keeper.dir * this.keeper.speed;
+      const top = H / 2 - this.keeper.range, bottom = H / 2 + this.keeper.range;
+      if (this.keeper.y < top) { this.keeper.y = top; this.keeper.dir = 1; }
+      if (this.keeper.y > bottom) { this.keeper.y = bottom; this.keeper.dir = -1; }
+      this.updateBall();
+    }
+    updateBall() {
+      const ball = this.ball;
+      if (!ball.moving || this.turnResolved) return;
+      ball.x += ball.vx; ball.y += ball.vy; ball.vx *= FRICTION; ball.vy *= FRICTION;
+      if (ball.y < BALL_R) { ball.y = BALL_R; ball.vy *= -0.8; }
+      if (ball.y > H - BALL_R) { ball.y = H - BALL_R; ball.vy *= -0.8; }
+      if (ball.x < BALL_R) { ball.x = BALL_R; ball.vx *= -0.8; }
+      for (const d of this.defenders) {
+        if (dist(ball.x, ball.y, d.x, d.y) < BALL_R + DEFENDER_R) { this.endTurn('defender'); return; }
+      }
+      if (ball.x + BALL_R >= GOAL_LINE_X) {
+        if (ball.y > GOAL_TOP + BALL_R && ball.y < GOAL_BOTTOM - BALL_R) {
+          if (dist(ball.x, ball.y, GOAL_LINE_X, this.keeper.y) < BALL_R + KEEPER_R) { this.endTurn('keeper'); return; }
+          this.endTurn('goal'); return;
+        } else { ball.x = GOAL_LINE_X - BALL_R; ball.vx *= -0.7; }
+      }
+      const speed = Math.hypot(ball.vx, ball.vy);
+      if (speed < STOP_SPEED) {
+        ball.moving = false; ball.vx = 0; ball.vy = 0;
+        if (this.touchesUsed >= MAX_TOUCHES) this.endTurn('touches');
+      }
+    }
+    draw() {
+      drawField(); drawGoal(); drawDefendersAt(this.defenders); drawKeeperAt(this.keeper.y, false);
+      drawBallAt(this.ball.x, this.ball.y);
+      if (this.dragging) drawAimLine(this.ball.x, this.ball.y, this.dragX, this.dragY);
+    }
+    getDragPoint(pos) {
+      const dx = pos.x - this.ball.x, dy = pos.y - this.ball.y, d = Math.hypot(dx, dy);
+      if (d > MAX_PULL) { const s = MAX_PULL / d; return { x: this.ball.x + dx * s, y: this.ball.y + dy * s }; }
+      return pos;
+    }
+    onDown(pos) {
+      if (this.gameOver || this.ball.moving || this.turnResolved) return;
+      if (dist(pos.x, pos.y, this.ball.x, this.ball.y) < 60) {
+        this.dragging = true;
+        const p = this.getDragPoint(pos); this.dragX = p.x; this.dragY = p.y;
+      }
+    }
+    onMove(pos) { if (!this.dragging) return; const p = this.getDragPoint(pos); this.dragX = p.x; this.dragY = p.y; }
+    onUp() { if (!this.dragging) return; this.dragging = false; this.fireShot(); }
+    stop() {}
+  }
+
+  /* ══════════════════ 온라인 대전 (공격수 vs 골키퍼) ══════════════════ */
+  const TOTAL_ROUNDS = 6; // 각 3회씩 공격
+  const STATE_BROADCAST_EVERY = 2; // 프레임마다 상태 전송 (30fps 상당)
+
+  class DuelGame {
+    constructor() {
+      this.isHost = WwNet.isHost;
+      this.myIndex = WwNet.myIndex;
+      this.gameOver = false;
+      this.round = 0;
+      this.attackerIndex = 0;
+      this.scores = [0, 0];
+      this.ball = { x: 110, y: H / 2 };
+      this.defenders = [];
+      this.keeperY = H / 2;
+      this.touchesUsed = 0;
+      this.turnResolved = false;
+      this.simFrame = 0;
+      this.dragging = false; this.dragX = 0; this.dragY = 0;
+      this._sendCounter = 0;
+      this._ended = false;
+
+      document.getElementById('soloHud1').classList.add('hidden');
+      document.getElementById('soloHud2').classList.add('hidden');
+      document.getElementById('duelHud').classList.remove('hidden');
+      document.getElementById('roleTag').classList.remove('hidden');
+      document.getElementById('roundTotal').textContent = TOTAL_ROUNDS;
+
+      if (this.isHost) this.startMatch();
+    }
+
+    get myRole() { return this.myIndex === this.attackerIndex ? 'attacker' : 'keeper'; }
+
+    /* ── 호스트 전용: 매치/라운드 진행 ── */
+    startMatch() {
+      this.round = 0; this.scores = [0, 0]; this.attackerIndex = 0;
+      this.startRound();
+    }
+    startRound() {
+      this.round++;
+      this.attackerIndex = (this.round - 1) % 2;
+      this.ball.x = 110; this.ball.y = H / 2; this.ball.vx = 0; this.ball.vy = 0; this.ball.moving = false;
+      this.touchesUsed = 0; this.turnResolved = false; this.keeperY = H / 2;
+      const diff = Math.ceil(this.round / 2);
+      this.defenders = makeDefenders(Math.min(1 + diff, 6), diff);
+      this.broadcastState(true);
+      this.updateHUD();
+    }
+    handleShootInput(dx, dy) {
+      if (this.turnResolved || this.gameOver) return;
+      let vx = dx * POWER_SCALE, vy = dy * POWER_SCALE;
+      const speed = Math.hypot(vx, vy);
+      if (speed > MAX_SPEED) { const s = MAX_SPEED / speed; vx *= s; vy *= s; }
+      if (speed < 1) return;
+      this.ball.vx = vx; this.ball.vy = vy; this.ball.moving = true;
+      this.touchesUsed++; this.updateHUD();
+    }
+    handleKeeperMove(y) {
+      const top = H / 2 - (GOAL_HALF - KEEPER_R - 4), bottom = H / 2 + (GOAL_HALF - KEEPER_R - 4);
+      this.keeperY = clamp(y, top, bottom);
+    }
+    endTurn(result) {
+      if (this.turnResolved || this.gameOver) return;
+      this.turnResolved = true; this.ball.moving = false; this.ball.vx = 0; this.ball.vy = 0;
+      if (result === 'goal') this.scores[this.attackerIndex]++;
+      this.broadcastState(false, result);
+      this.showResultPopup(result);
+      this.updateHUD();
+      setTimeout(() => {
+        if (this._ended) return;
+        if (this.round >= TOTAL_ROUNDS) this.finishMatch();
+        else this.startRound();
+      }, 650);
+    }
+    finishMatch() {
+      this.gameOver = true;
+      WwNet.sendToGuest({ type: 'MATCH_OVER', scores: this.scores });
+      this.showFinalOverlay();
+    }
+    hostTick() {
+      this.simFrame++;
+      updateDefendersIdle(this.defenders, this.simFrame);
+      if (this.ball.moving && !this.turnResolved) this.stepBallPhysics();
+      this._sendCounter++;
+      if (this._sendCounter >= STATE_BROADCAST_EVERY) { this._sendCounter = 0; this.broadcastState(false); }
+    }
+    stepBallPhysics() {
+      const ball = this.ball;
+      ball.x += ball.vx; ball.y += ball.vy; ball.vx *= FRICTION; ball.vy *= FRICTION;
+      if (ball.y < BALL_R) { ball.y = BALL_R; ball.vy *= -0.8; }
+      if (ball.y > H - BALL_R) { ball.y = H - BALL_R; ball.vy *= -0.8; }
+      if (ball.x < BALL_R) { ball.x = BALL_R; ball.vx *= -0.8; }
+      for (const d of this.defenders) {
+        if (dist(ball.x, ball.y, d.x, d.y) < BALL_R + DEFENDER_R) { this.endTurn('defender'); return; }
+      }
+      if (ball.x + BALL_R >= GOAL_LINE_X) {
+        if (ball.y > GOAL_TOP + BALL_R && ball.y < GOAL_BOTTOM - BALL_R) {
+          if (dist(ball.x, ball.y, GOAL_LINE_X, this.keeperY) < BALL_R + KEEPER_R) { this.endTurn('keeper'); return; }
+          this.endTurn('goal'); return;
+        } else { ball.x = GOAL_LINE_X - BALL_R; ball.vx *= -0.7; }
+      }
+      const speed = Math.hypot(ball.vx, ball.vy);
+      if (speed < STOP_SPEED) {
+        ball.moving = false; ball.vx = 0; ball.vy = 0;
+        if (this.touchesUsed >= MAX_TOUCHES) this.endTurn('touches');
+      }
+    }
+    broadcastState(withDefenders, result) {
+      const payload = {
+        type: 'STATE',
+        round: this.round, attackerIndex: this.attackerIndex, scores: this.scores,
+        bx: this.ball.x, by: this.ball.y, keeperY: this.keeperY,
+        touchesUsed: this.touchesUsed, simFrame: this.simFrame, moving: this.ball.moving,
+        turnResolved: this.turnResolved
+      };
+      if (withDefenders) payload.defenders = this.defenders.map(d => ({ x: d.x, baseY: d.baseY, range: d.range, speed: d.speed, phase: d.phase }));
+      if (result) payload.result = result;
+      WwNet.sendToGuest(payload);
+    }
+
+    /* ── 게스트 전용: 받은 상태 적용 ── */
+    applyState(data) {
+      const isNewRound = data.round !== this.round;
+      this.round = data.round; this.attackerIndex = data.attackerIndex; this.scores = data.scores;
+      this.ball.x = data.bx; this.ball.y = data.by;
+      if (this.myRole !== 'keeper') this.keeperY = data.keeperY; // 내가 키퍼면 로컬 입력 우선(낙관적)
+      this.touchesUsed = data.touchesUsed; this.simFrame = data.simFrame;
+      if (data.defenders) this.defenders = data.defenders.map(d => ({ ...d, y: d.baseY }));
+      if (this.defenders.length) updateDefendersIdle(this.defenders, this.simFrame);
+      if (isNewRound) this.dragging = false;
+      if (data.result) this.showResultPopup(data.result);
+      this.updateHUD();
+    }
+    handleMatchOver(scores) {
+      this.gameOver = true; this.scores = scores;
+      this.showFinalOverlay();
+    }
+    handlePeerLeft() {
+      if (this.gameOver) return;
+      this.gameOver = true;
+      document.getElementById('overlayTitle').textContent = '상대방이 나갔습니다';
+      document.getElementById('overlayMsg').textContent = `현재 스코어 ${this.scores[this.myIndex]} : ${this.scores[1 - this.myIndex]}`;
+      overlay.classList.add('show');
+    }
+
+    showResultPopup(result) {
+      const iAmAttacker = this.myRole === 'attacker';
+      if (result === 'goal') showPopup(iAmAttacker ? 'GOAL!' : '실점...', iAmAttacker ? '#4ade80' : '#f87171');
+      else if (result === 'defender') showPopup(iAmAttacker ? '가로채임!' : '수비 성공!', iAmAttacker ? '#f87171' : '#4ade80');
+      else if (result === 'keeper') showPopup(iAmAttacker ? 'SAVE 당함!' : 'SAVE!', iAmAttacker ? '#f87171' : '#4ade80');
+      else showPopup('턴 종료', '#94a3b8');
+    }
+    showFinalOverlay() {
+      const my = this.scores[this.myIndex], opp = this.scores[1 - this.myIndex];
+      document.getElementById('overlayTitle').textContent =
+        my > opp ? '🏆 승리!' : my < opp ? '패배' : '무승부';
+      document.getElementById('overlayMsg').textContent = `최종 스코어 — 나 ${my} : ${opp} 상대`;
+      overlay.classList.add('show');
+    }
+
+    updateHUD() {
+      document.getElementById('roundNum').textContent = this.round;
+      document.getElementById('myScore').textContent = this.scores[this.myIndex] || 0;
+      document.getElementById('oppScore').textContent = this.scores[1 - this.myIndex] || 0;
+      document.getElementById('shots').textContent = '-';
+      document.getElementById('touches').textContent = this.touchesUsed;
+      document.getElementById('maxTouches').textContent = MAX_TOUCHES;
+      const tag = document.getElementById('roleTag');
+      const attacking = this.myRole === 'attacker';
+      tag.textContent = attacking ? '⚔️ 공격수' : '🧤 골키퍼';
+      tag.className = attacking ? 'attacker' : 'keeper';
+    }
+
+    tick() { if (this.isHost && !this.gameOver) this.hostTick(); }
+
+    draw() {
+      drawField(); drawGoal(); drawDefendersAt(this.defenders);
+      drawKeeperAt(this.keeperY, true);
+      drawBallAt(this.ball.x, this.ball.y);
+      if (this.dragging && this.myRole === 'attacker') drawAimLine(this.ball.x, this.ball.y, this.dragX, this.dragY);
+    }
+
+    getDragPoint(pos) {
+      const dx = pos.x - this.ball.x, dy = pos.y - this.ball.y, d = Math.hypot(dx, dy);
+      if (d > MAX_PULL) { const s = MAX_PULL / d; return { x: this.ball.x + dx * s, y: this.ball.y + dy * s }; }
+      return pos;
+    }
+    onDown(pos) {
+      if (this.gameOver) return;
+      if (this.myRole === 'attacker') {
+        if (this.turnResolved || this.touchesUsed >= MAX_TOUCHES) return;
+        if (dist(pos.x, pos.y, this.ball.x, this.ball.y) < 60) {
+          this.dragging = true;
+          const p = this.getDragPoint(pos); this.dragX = p.x; this.dragY = p.y;
+        }
+      } else {
+        this.dragging = true;
+        this.applyLocalKeeperY(pos.y);
+      }
+    }
+    onMove(pos) {
+      if (!this.dragging) return;
+      if (this.myRole === 'attacker') {
+        const p = this.getDragPoint(pos); this.dragX = p.x; this.dragY = p.y;
+      } else {
+        this.applyLocalKeeperY(pos.y);
+      }
+    }
+    onUp() {
+      if (!this.dragging) return;
+      this.dragging = false;
+      if (this.myRole === 'attacker') {
+        const dx = this.ball.x - this.dragX, dy = this.ball.y - this.dragY;
+        if (this.isHost) this.handleShootInput(dx, dy);
+        else WwNet.sendToHost({ type: 'SHOOT', dx, dy });
+      }
+    }
+    applyLocalKeeperY(y) {
+      const top = H / 2 - (GOAL_HALF - KEEPER_R - 4), bottom = H / 2 + (GOAL_HALF - KEEPER_R - 4);
+      this.keeperY = clamp(y, top, bottom);
+      if (this.isHost) this.handleKeeperMove(y);
+      else WwNet.sendToHost({ type: 'KEEPER', y });
+    }
+    stop() {}
+  }
+
+  /* ══════════════════ 통합 루프 & 입력 ══════════════════ */
+  function loop() {
+    if (currentGame) { currentGame.tick(); currentGame.draw(); }
+    requestAnimationFrame(loop);
+  }
+
+  canvas.addEventListener('pointerdown', e => { if (currentGame) { currentGame.onDown(canvasPos(e)); e.preventDefault(); } });
+  canvas.addEventListener('pointermove', e => { if (currentGame) { currentGame.onMove(canvasPos(e)); e.preventDefault(); } });
+  canvas.addEventListener('pointerup', () => { if (currentGame) currentGame.onUp(); });
+  canvas.addEventListener('pointercancel', () => { if (currentGame) currentGame.onUp(); });
+  canvas.addEventListener('pointerleave', () => { if (currentGame) currentGame.onUp(); });
+
+  /* ══════════════════ 네트워크 메시지 처리 ══════════════════ */
+  function handleNetData(data) {
+    if (data.type === 'LOBBY') updateRosterUI(data.roster);
+    else if (data.type === 'WELCOME') { updateRosterUI(data.roster); }
+    else if (data.type === 'START' && !WwNet.isHost) {
+      showGameScreen();
+      currentMode = 'duel';
+      currentGame = new DuelGame();
+    }
+    else if (data.type === 'STATE' && currentGame instanceof DuelGame) currentGame.applyState(data);
+    else if (data.type === 'SHOOT' && currentGame instanceof DuelGame && currentGame.isHost) currentGame.handleShootInput(data.dx, data.dy);
+    else if (data.type === 'KEEPER' && currentGame instanceof DuelGame && currentGame.isHost) currentGame.handleKeeperMove(data.y);
+    else if (data.type === 'MATCH_OVER' && currentGame instanceof DuelGame) currentGame.handleMatchOver(data.scores);
+    else if (data.type === 'PEER_LEFT' && currentGame instanceof DuelGame) currentGame.handlePeerLeft();
+    else if (data.type === 'REJECT') { lobbyLog('거부됨: ' + data.reason); }
+  }
+
+  /* ══════════════════ 버튼 바인딩 ══════════════════ */
+  document.getElementById('btnSolo').onclick = () => {
+    showGameScreen();
+    currentMode = 'solo';
+    currentGame = new SoloGame();
+  };
+
+  document.getElementById('btnHost').onclick = () => {
+    WwNet.initPeer({
+      asHost: true, remoteId: '',
+      handlers: {
+        onOpen: info => { if (info.roomReady) showWaitingRoom(info.id, true); else if (info.clientJoined) { lobbyLog(PLAYER_DEFS[1].emoji + ' 참가자 입장!'); updateRosterUI(WwNet.buildRoster()); } },
+        onLobby: payload => updateRosterUI(payload.roster), onData: handleNetData,
+        onClose: () => lobbyLog('연결 종료'), onError: e => lobbyLog('오류: ' + (e.type || e.message))
+      }
+    });
+  };
+
+  document.getElementById('btnJoin').onclick = () => {
+    const code = document.getElementById('joinCodeInput').value.trim();
+    if (!code) { lobbyLog('방 코드를 입력하세요'); return; }
+    WwNet.initPeer({
+      asHost: false, remoteId: code,
+      handlers: {
+        onOpen: info => { if (info.connOpen) { lobbyLog('연결됨! 방장 대기 중…'); showWaitingRoom('', false); } },
+        onData: handleNetData,
+        onClose: () => lobbyLog('연결이 끊겼습니다'),
+        onError: e => lobbyLog('오류: ' + (e.type || e.message))
+      }
+    });
+  };
+
+  document.getElementById('btnStartGame').onclick = () => {
+    if (!WwNet.hasGuest) return;
+    WwNet.startGameBroadcast();
+    showGameScreen();
+    currentMode = 'duel';
+    currentGame = new DuelGame();
+  };
+
+  document.getElementById('btnCancelWait').onclick = showLobby;
+  document.getElementById('backBtn').onclick = showLobby;
+  document.getElementById('toLobbyBtn').onclick = showLobby;
+  document.getElementById('restartBtn').onclick = () => {
+    overlay.classList.remove('show');
+    if (currentMode === 'solo') { currentGame = new SoloGame(); }
+    else showLobby();
+  };
+
+  loop();
+})();
+</script>
+</body>
+</html>

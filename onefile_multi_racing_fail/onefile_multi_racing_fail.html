@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Neon Rush [FAIL] — P2P 레이싱 (중단)</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #030308; overflow: hidden; font-family: system-ui, sans-serif; color: #eee; }
+  .hidden { display: none !important; }
+
+  #lobby {
+    min-height: 100dvh; padding: 20px; max-width: 500px; margin: 0 auto;
+    display: flex; flex-direction: column; gap: 12px; justify-content: center;
+  }
+  #lobby h1 { font-size: 1.5rem; text-align: center; text-shadow: 0 0 20px #0ff, 0 0 40px #f0f; }
+  #lobby p, #lobby .hint { font-size: 0.82rem; color: #888; line-height: 1.5; }
+  #lobby .hint {
+    background: #0a0a18; border: 1px solid #334; border-radius: 10px; padding: 12px; color: #aaa;
+  }
+  #lobby kbd { background: #1a1a30; border: 1px solid #446; border-radius: 4px; padding: 2px 6px; color: #0ff; }
+  .mode-block { background: #16213e; border: 1px solid #334; border-radius: 12px; padding: 14px; }
+  .mode-block h2 { margin: 0 0 6px; font-size: 0.95rem; color: #7ec8e3; }
+  .mode-block p { margin: 0 0 8px; font-size: 0.75rem; color: #666; }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  button {
+    border: none; border-radius: 10px; padding: 12px 14px; font-size: 0.9rem;
+    cursor: pointer; touch-action: manipulation; font-weight: 600;
+  }
+  .btn-go { background: linear-gradient(135deg, #0ff, #f0f); color: #000; box-shadow: 0 0 20px rgba(0,255,255,0.3); }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-red { background: #dc2626; color: #fff; }
+  .btn-yellow { background: #ca8a04; color: #fff; }
+  .btn-ghost { background: #334; color: #ddd; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #445; background: #1a1a2e; color: #eee; }
+  #roomBox, #waitingBox {
+    background: #0f3460; padding: 12px; border-radius: 8px; font-size: 0.82rem;
+    border: 1px solid #2563eb; word-break: break-all;
+  }
+  #waitingBox { border-color: #ca8a04; }
+  #rosterList { list-style: none; margin: 8px 0; line-height: 1.7; }
+  #log { font-size: 0.72rem; color: #4ade80; max-height: 80px; overflow-y: auto; white-space: pre-wrap; }
+
+  #gameRoot { position: fixed; inset: 0; }
+  #gameCanvas { display: block; width: 100%; height: 100%; }
+  #hud {
+    position: absolute; top: 0; left: 0; right: 0; padding: 10px 14px;
+    display: flex; justify-content: space-between; pointer-events: none;
+    font-variant-numeric: tabular-nums; background: linear-gradient(rgba(3,3,8,0.85), transparent);
+  }
+  #hud .speed { font-size: clamp(1.3rem, 4.5vw, 1.8rem); font-weight: 800; color: #0ff; text-shadow: 0 0 12px #0ff; }
+  #hud .rank { color: #f0f; font-size: 0.85rem; margin-top: 2px; }
+  #hud .hint-keys { color: #555; font-size: 0.7rem; text-align: right; align-self: flex-end; }
+  #rankList { font-size: 0.72rem; color: #888; line-height: 1.5; text-align: right; }
+
+  #touchPad { position: absolute; bottom: 0; left: 0; right: 0; height: 36%; display: none; }
+  #touchPad .zone { position: absolute; bottom: 0; top: 0; width: 50%; }
+  #touchLeft { left: 0; } #touchRight { right: 0; }
+
+  #overlay {
+    position: absolute; inset: 0; display: none; flex-direction: column; align-items: center;
+    justify-content: center; background: rgba(3,3,8,0.9); text-align: center; padding: 20px;
+  }
+  #overlay.show { display: flex; }
+  #overlay h2 { color: #0ff; text-shadow: 0 0 16px #0ff; margin-bottom: 8px; }
+  #backBtn { position: absolute; top: 8px; right: 8px; z-index: 10; padding: 6px 10px; font-size: 11px; }
+  @media (pointer: coarse) { #touchPad { display: block; } #hud .hint-keys { display: none; } }
+</style>
+</head>
+<body>
+
+<div id="lobby">
+  <h1>⚡ Neon Rush <span style="color:#f87171;font-size:0.85em">[FAIL]</span></h1>
+  <p style="text-align:center;color:#666">프로토타입 중단 · 솔로만 그나마 · 멀티 미완</p>
+  <div class="hint" id="hintWeb">
+    <strong>멀티:</strong> 각자 1인칭 화면 · 내 <kbd>z/x</kbd> 기준으로 상대 차 렌더<br>
+    <kbd>←→</kbd> 조향 · <kbd>↑</kbd> 가속 · 상대 차는 앞/뒤 원근 + 거리 표시
+  </div>
+  <div class="hint hidden" id="hintFile">로컬: 방 코드 공유 → 2~4인</div>
+
+  <div class="mode-block">
+    <h2>① 솔로</h2>
+    <button class="btn-go" id="btnSolo">솔로 드라이브</button>
+  </div>
+  <div class="mode-block">
+    <h2>② 멀티 (2~4인)</h2>
+    <button class="btn-primary" id="btnHost">방 만들기</button>
+  </div>
+  <div class="mode-block hidden" id="joinPanel">
+    <input id="joinCodeInput" placeholder="방 코드">
+    <div class="btn-row" style="margin-top:8px"><button class="btn-red" id="btnJoin">참가</button></div>
+  </div>
+  <div id="waitingBox" class="hidden">
+    <div id="waitingTitle">대기실</div>
+    <a id="inviteLink" href="#" style="color:#7ec8e3;font-size:0.78rem"></a>
+    <ul id="rosterList"></ul>
+    <div class="btn-row">
+      <button class="btn-yellow" id="btnCopyLink">링크 복사</button>
+      <button class="btn-go hidden" id="btnStartGame" disabled>시작 (2인+)</button>
+      <button class="btn-ghost" id="btnCancelWait">나가기</button>
+    </div>
+    <p id="guestWaitHint" class="hidden" style="font-size:0.75rem;color:#666">방장 시작 대기</p>
+  </div>
+  <input id="roomInput" type="hidden">
+  <div id="roomBox" class="hidden">Peer: <b id="roomCode">—</b></div>
+  <div id="log"></div>
+</div>
+
+<div id="gameRoot" class="hidden">
+  <canvas id="gameCanvas"></canvas>
+  <button type="button" id="backBtn" class="btn-ghost">← 로비</button>
+  <div id="hud">
+    <div>
+      <div class="speed"><span id="speedVal">0</span> km/h</div>
+      <div class="rank"><span id="distVal">0</span>m · <span id="rankVal">—</span></div>
+    </div>
+    <div>
+      <div id="rankList"></div>
+      <div class="hint-keys">← → · ↑ 가속</div>
+    </div>
+  </div>
+  <div id="touchPad"><div class="zone" id="touchLeft"></div><div class="zone" id="touchRight"></div></div>
+  <div id="overlay">
+    <h2 id="overlayTitle">FINISH</h2>
+    <p id="overlayMsg"></p>
+    <button class="btn-go" id="btnRetry">다시</button>
+    <button class="btn-ghost" id="btnMenu">로비</button>
+  </div>
+</div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  const IS_FILE = location.protocol === 'file:';
+  const USE_ROOM_CODE = IS_FILE;
+  const MAX_PLAYERS = 4;
+  const SYNC_HZ = 20;
+  const SYNC_MS = 1000 / SYNC_HZ;
+
+  const SEG_LEN = 120;
+  const SEG_COUNT = 300;
+  const DRAW_SEGS = 150;
+  const RUMBLE = 3;
+  const ROAD_W = 2200;
+  const TRACK_LEN = SEG_COUNT * SEG_LEN;
+  const MAX_SPEED = 300;
+  const ACCEL = 155;
+  const BRAKE = 200;
+  const FRICTION = 32;
+  const Z_SPEED = 88;
+  const OPP_AHEAD = 5500;
+  const OPP_BEHIND = 1000;
+  const MIN_CAR_PX = 18;
+  const INTERP_EXTRAP = 0.85;
+  const ROAD_EDGE = 0.88;
+  const WALL_SCRAPE = 0.22;
+  const STEER_SPEED = 2.8;
+  const CAM_H = 1200;
+  const CAM_DEPTH = 0.84;
+  const LANE_X = [-0.66, -0.22, 0.22, 0.66];
+  const RACER = [
+    { emoji: '🧙', color: '#60a5fa', name: '마법사' },
+    { emoji: '🦸', color: '#f87171', name: '용사' },
+    { emoji: '👸', color: '#fbbf24', name: '공주' },
+    { emoji: '🥷', color: '#a78bfa', name: '닌자' }
+  ];
+
+  const COL = {
+    sky1: '#030308', sky2: '#0a0820',
+    grass: '#060610', grassL: '#0c0c22',
+    rumbleD: '#ff00aa', rumbleL: '#00ffff',
+    roadD: '#141428', roadL: '#22224a',
+    lane: '#00ffff', laneDim: 'rgba(0,255,255,0.35)',
+    wallL: 'rgba(255,0,170,0.92)', wallR: 'rgba(0,255,255,0.92)',
+    wallCore: 'rgba(20,8,40,0.95)'
+  };
+
+  /* ── PeerJS ── */
+  const Net = (function () {
+    let peer, guestConn, clients = new Map();
+    let isHost = false, myIndex = 0, roomId = '', gameStarted = false;
+    let onData, onOpen, onClose, onError, onLobby;
+
+    function allocSlot() {
+      for (let i = 1; i < MAX_PLAYERS; i++) if (!clients.has(i)) return i;
+      return -1;
+    }
+    function buildRoster() {
+      const r = [{ index: 0, emoji: RACER[0].emoji, name: RACER[0].name + (isHost ? ' (방장)' : '') }];
+      [...clients.keys()].sort((a, b) => a - b).forEach(i => {
+        r.push({ index: i, emoji: RACER[i].emoji, name: RACER[i].name });
+      });
+      return r;
+    }
+    function broadcast(d) { clients.forEach(({ conn }) => { if (conn.open) conn.send(d); }); }
+    function broadcastLobby() {
+      const p = { type: 'LOBBY', roster: buildRoster(), playerCount: buildRoster().length };
+      broadcast(p); onLobby && onLobby(p);
+    }
+    function sendToHost(d) { if (guestConn?.open) guestConn.send(d); }
+
+    function init(opts) {
+      const { asHost, remoteId, handlers } = opts;
+      isHost = asHost; myIndex = asHost ? 0 : -1; gameStarted = false;
+      clients.clear(); guestConn = null;
+      onData = handlers.onData; onOpen = handlers.onOpen;
+      onClose = handlers.onClose; onError = handlers.onError; onLobby = handlers.onLobby;
+      peer = new Peer({ debug: 0 });
+      peer.on('open', id => {
+        roomId = id;
+        if (asHost) {
+          peer.on('connection', conn => {
+            conn.on('open', () => {
+              if (gameStarted) { conn.send({ type: 'REJECT', reason: '이미 시작' }); conn.close(); return; }
+              const slot = allocSlot();
+              if (slot < 0) { conn.send({ type: 'REJECT', reason: '방 가득' }); conn.close(); return; }
+              clients.set(slot, { conn });
+              conn.send({ type: 'WELCOME', index: slot, roster: buildRoster() });
+              broadcastLobby();
+              onOpen && onOpen({ clientJoined: true, index: slot });
+              conn.on('data', d => onData && onData(d, slot));
+              conn.on('close', () => {
+                clients.delete(slot);
+                if (!gameStarted) broadcastLobby();
+                else onData && onData({ type: 'PEER_LEFT', index: slot });
+              });
+            });
+          });
+          onOpen && onOpen({ id, roomReady: true });
+        } else {
+          guestConn = peer.connect(remoteId.trim(), { reliable: true });
+          guestConn.on('open', () => onOpen && onOpen({ connOpen: true }));
+          guestConn.on('data', d => { if (d.type === 'WELCOME') myIndex = d.index; onData && onData(d); });
+          guestConn.on('close', () => { guestConn = null; onClose && onClose(); });
+        }
+      });
+      peer.on('error', e => onError && onError(e));
+    }
+
+    function startRace(trackSeed, playerCount) {
+      gameStarted = true;
+      broadcast({ type: 'START', trackSeed, playerCount });
+    }
+    function destroy() {
+      clients.forEach(({ conn }) => { try { conn.close(); } catch (e) {} });
+      clients.clear();
+      if (guestConn) guestConn.close();
+      if (peer) peer.destroy();
+      peer = null; gameStarted = false; myIndex = 0;
+    }
+    return {
+      init, broadcast, sendToHost, startRace, destroy, buildRoster,
+      get isHost() { return isHost; },
+      get myIndex() { return myIndex; },
+      get roomId() { return roomId; },
+      get playerCount() { return isHost ? buildRoster().length : 0; }
+    };
+  })();
+
+  /* ── Engine ── */
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0, cx = 0, cy = 0;
+  let segments = [];
+  let game = null;
+  let currentInviteUrl = '';
+  let skyGrad = null;
+
+  const keys = { left: false, right: false, up: false, down: false };
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  function createRoad(seed) {
+    const rnd = seed != null ? mulberry32(seed) : null;
+    segments = [];
+    for (let i = 0; i < SEG_COUNT; i++) {
+      let curve = Math.sin(i * 0.018) * 2.2 + Math.sin(i * 0.07) * 0.8;
+      if (rnd) curve += (rnd() - 0.5) * 0.6;
+      segments.push({
+        index: i,
+        z: i * SEG_LEN,
+        curve,
+        y: Math.sin(i * 0.04) * 600,
+        color: Math.floor(i / RUMBLE) % 2 ? 'dark' : 'light'
+      });
+    }
+  }
+
+  function findSegment(z) {
+    return segments[Math.floor(wrapZ(z) / SEG_LEN) % segments.length];
+  }
+
+  /** drawRoad와 동일한 상대 커브 — 멀티 차량 배치용 */
+  function makeCurveCache(camZ) {
+    camZ = wrapZ(camZ);
+    const len = segments.length;
+    const baseSeg = Math.floor(camZ / SEG_LEN);
+    const basePct = (camZ % SEG_LEN) / SEG_LEN;
+    const zBase = baseSeg * SEG_LEN;
+    const xs = new Array(DRAW_SEGS + 1);
+    let x = 0, dx = -segments[baseSeg % len].curve * basePct;
+    for (let n = 0; n <= DRAW_SEGS; n++) {
+      if (n === 0) { x = 0; dx = -segments[baseSeg % len].curve * basePct; }
+      x += dx;
+      xs[n] = x;
+      if (n < DRAW_SEGS) dx += segments[(baseSeg + n + 1) % len].curve;
+    }
+    return { camZ, baseSeg, zBase, xs };
+  }
+
+  function curveAtZ(camZ, worldZ, cache) {
+    if (cache && cache.camZ === wrapZ(camZ)) {
+      let dz = wrapZ(worldZ) - cache.camZ;
+      if (dz > TRACK_LEN / 2) dz -= TRACK_LEN;
+      if (dz < -TRACK_LEN / 2) dz += TRACK_LEN;
+      const targetZ = cache.camZ + dz;
+      const n = Math.floor((targetZ - cache.zBase) / SEG_LEN);
+      if (n < 0 || n >= cache.xs.length) return cache.xs[Math.max(0, cache.xs.length - 1)] || 0;
+      const z1 = cache.zBase + n * SEG_LEN;
+      const pct = (targetZ - z1) / SEG_LEN;
+      const i2 = (cache.baseSeg + n + 1) % segments.length;
+      return cache.xs[n] + segments[i2].curve * pct;
+    }
+    camZ = wrapZ(camZ);
+    worldZ = wrapZ(worldZ);
+    let dz = worldZ - camZ;
+    if (dz > TRACK_LEN / 2) dz -= TRACK_LEN;
+    if (dz < -TRACK_LEN / 2) dz += TRACK_LEN;
+    const targetZ = camZ + dz;
+    const len = segments.length;
+    const baseSeg = Math.floor(camZ / SEG_LEN);
+    const basePct = (camZ % SEG_LEN) / SEG_LEN;
+    let x = 0, dx = -segments[baseSeg % len].curve * basePct;
+    for (let n = 0; n < DRAW_SEGS; n++) {
+      const z1 = (baseSeg + n) * SEG_LEN;
+      const z2 = z1 + SEG_LEN;
+      const i2 = (baseSeg + n + 1) % len;
+      if (n === 0) { x = 0; dx = -segments[baseSeg % len].curve * basePct; }
+      x += dx;
+      dx += segments[i2].curve;
+      if (targetZ >= z1 && targetZ < z2) {
+        return x + segments[i2].curve * ((targetZ - z1) / SEG_LEN);
+      }
+      if (z1 > targetZ) break;
+    }
+    return x;
+  }
+
+  function carWorldX(camZ, p, cache) {
+    const rz = p.rz != null ? p.rz : wrapZ(p.z);
+    const rx = p.rx != null ? p.rx : p.x;
+    return curveAtZ(camZ, rz, cache) + rx * ROAD_W;
+  }
+
+  function wrapZ(z) {
+    while (z >= TRACK_LEN) z -= TRACK_LEN;
+    while (z < 0) z += TRACK_LEN;
+    return z;
+  }
+
+  function zDiff(from, to) {
+    let d = to - from;
+    if (d > TRACK_LEN / 2) d -= TRACK_LEN;
+    if (d < -TRACK_LEN / 2) d += TRACK_LEN;
+    return d;
+  }
+
+  function lerpZ(z0, z1, t) {
+    let dz = wrapZ(z1) - wrapZ(z0);
+    if (dz > TRACK_LEN / 2) dz -= TRACK_LEN;
+    if (dz < -TRACK_LEN / 2) dz += TRACK_LEN;
+    return wrapZ(wrapZ(z0) + dz * t);
+  }
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  function pushSnap(p, sp, t) {
+    const snap = { z: wrapZ(sp.z), x: sp.x, speed: sp.speed, steer: sp.steer, t };
+    if (!p.snapCur) {
+      p.snapPrev = { ...snap };
+      p.snapCur = { ...snap };
+    } else {
+      p.snapPrev = { ...p.snapCur };
+      p.snapCur = snap;
+    }
+  }
+
+  function resize() {
+    W = window.innerWidth; H = window.innerHeight;
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    canvas.width = Math.floor(W * dpr); canvas.height = Math.floor(H * dpr);
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cx = W / 2; cy = H * 0.42;
+    skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+    skyGrad.addColorStop(0, COL.sky2);
+    skyGrad.addColorStop(0.55, COL.sky1);
+    skyGrad.addColorStop(1, '#000');
+  }
+
+  function project(wx, wy, wz, camX, camY, camZ) {
+    const dz = wz - camZ;
+    if (dz <= 0) return null;
+    const sc = CAM_DEPTH / dz;
+    return {
+      sx: cx + sc * (wx - camX) * cx,
+      sy: cy - sc * (wy - camY) * cy,
+      sw: sc * ROAD_W * cx * 0.5,
+      sc
+    };
+  }
+
+  function drawPoly8(x1, y1, x2, y2, x3, y3, x4, y4, fill) {
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(x3, y3); ctx.lineTo(x4, y4);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawWallSide(p1, p2, w1, w2, y1, y2, side) {
+    if (w2 < 10) return;
+    const col = side < 0 ? COL.wallL : COL.wallR;
+    const eo1 = Math.max(2, w1 * 0.07);
+    const eo2 = Math.max(2, w2 * 0.07);
+    const h1 = Math.max(4, w1 * 0.5);
+    const h2 = Math.max(4, w2 * 0.5);
+    const lx1 = p1.sx + side * w1;
+    const lx2 = p2.sx + side * w2;
+    const ox1 = lx1 + side * eo1;
+    const ox2 = lx2 + side * eo2;
+
+    drawPoly8(lx1, y1, ox1, y1, ox2, y2, lx2, y2, COL.wallCore);
+    drawPoly8(lx1, y1 - h1, ox1, y1 - h1 * 0.92, ox2, y2 - h2, lx2, y2 - h2, col);
+
+    if (w2 > 24) {
+      ctx.strokeStyle = side < 0 ? '#ff44cc' : '#44ffff';
+      ctx.lineWidth = Math.max(1.5, w2 * 0.014);
+      ctx.beginPath();
+      ctx.moveTo(lx1, y1 - h1);
+      ctx.lineTo(lx2, y2 - h2);
+      ctx.stroke();
+    }
+  }
+
+  function clampToWalls(p, dt) {
+    let hit = false;
+    if (p.x > ROAD_EDGE) {
+      p.x = ROAD_EDGE;
+      if (p.steer > 0) p.steer *= -0.15;
+      hit = true;
+    } else if (p.x < -ROAD_EDGE) {
+      p.x = -ROAD_EDGE;
+      if (p.steer < 0) p.steer *= -0.15;
+      hit = true;
+    }
+    if (hit && p.speed > 30) {
+      p.speed = Math.max(30, p.speed * (1 - WALL_SCRAPE * dt * 10));
+    }
+    return hit;
+  }
+
+  function drawSegment(s1, s2, z1, z2, camX, camY, camZ, dashOff) {
+    const p1 = project(0, s1.y, z1, camX, camY, camZ);
+    const p2 = project(0, s2.y, z2, camX, camY, camZ);
+    if (!p1 || !p2 || p2.sy >= H || p2.sw <= 0) return;
+
+    const dark = s1.color === 'dark';
+    const w1 = p1.sw, w2 = p2.sw;
+    const x1 = p1.sx - w1, x2 = p1.sx + w1;
+    const x3 = p2.sx + w2, x4 = p2.sx - w2;
+    const y1 = p1.sy, y2 = p2.sy;
+
+    drawPoly8(0, y2, W, y2, W, y1, 0, y1, dark ? COL.grass : COL.grassL);
+    const rw1 = w1 * 1.15, rw2 = w2 * 1.15;
+    drawPoly8(p1.sx - rw1, y1, p1.sx + rw1, y1, p2.sx + rw2, y2, p2.sx - rw2, y2, dark ? COL.rumbleD : COL.rumbleL);
+    drawPoly8(x1, y1, x2, y1, x3, y2, x4, y2, dark ? COL.roadD : COL.roadL);
+
+    drawWallSide(p1, p2, w1, w2, y1, y2, -1);
+    drawWallSide(p1, p2, w1, w2, y1, y2, 1);
+
+    const dashPhase = (dashOff + z1 * 0.08) % 24;
+    if (dashPhase < 12 && w2 > 4) {
+      ctx.strokeStyle = COL.lane;
+      ctx.lineWidth = Math.max(1, w2 * 0.025);
+      ctx.beginPath();
+      ctx.moveTo(p1.sx, y1);
+      ctx.lineTo(p2.sx, y2);
+      ctx.stroke();
+    }
+
+    if (w2 > 20) {
+      [-0.33, 0.33].forEach(off => {
+        ctx.strokeStyle = COL.laneDim;
+        ctx.lineWidth = Math.max(1, w2 * 0.012);
+        ctx.beginPath();
+        ctx.moveTo(p1.sx + w1 * off * 2, y1);
+        ctx.lineTo(p2.sx + w2 * off * 2, y2);
+        ctx.stroke();
+      });
+    }
+  }
+
+  function drawRoad(camX, camY, camZ, dashOff) {
+    camZ = wrapZ(camZ);
+    const len = segments.length;
+    const baseSeg = Math.floor(camZ / SEG_LEN);
+    const basePct = (camZ % SEG_LEN) / SEG_LEN;
+    let x = 0, dx = -segments[baseSeg % len].curve * basePct;
+
+    for (let n = 0; n < DRAW_SEGS; n++) {
+      const i = (baseSeg + n) % len;
+      const i2 = (i + 1) % len;
+      const s1 = segments[i];
+      const s2 = segments[i2];
+      const z1 = (baseSeg + n) * SEG_LEN;
+      const z2 = z1 + SEG_LEN;
+      if (n === 0) { x = 0; dx = -segments[baseSeg % len].curve * basePct; }
+      x += dx;
+      dx += s2.curve;
+      const peek = project(0, s1.y, z2, camX + x, camY, camZ);
+      if (!peek || peek.sy >= H) continue;
+      drawSegment(s1, s2, z1, z2, camX + x, camY, camZ, dashOff);
+      if (peek.sy <= 0) break;
+    }
+  }
+
+  class RaceGame {
+    constructor(opts) {
+      this.solo = opts.solo;
+      this.isHost = opts.isHost;
+      this.myIndex = opts.myIndex;
+      this.playerCount = opts.playerCount || 1;
+      this.trackSeed = opts.trackSeed || Date.now() % 999999 | 0;
+      this.running = false;
+      this.players = [];
+      this.dashOff = 0;
+      this.lastSync = 0;
+      this.rafId = 0;
+      this.lastT = 0;
+      this.raceTime = 90;
+      this.elapsed = 0;
+      this.crash = false;
+      this.hudTick = 0;
+    }
+
+    initPlayers() {
+      const n = this.solo ? 1 : this.playerCount;
+      this.players = [];
+      for (let i = 0; i < n; i++) {
+        this.players.push({
+          idx: i,
+          z: i * 8,
+          x: this.solo ? 0 : LANE_X[i],
+          speed: 0,
+          steer: 0,
+          dist: 0,
+          crash: false,
+          input: { left: false, right: false, up: false, down: false }
+        });
+      }
+      if (this.solo) {
+        this.players.push({
+          idx: 1, z: 40, x: 0.35, speed: 80, steer: 0, dist: 0,
+          input: {}, ai: true
+        });
+      }
+    }
+
+    me() { return this.players[this.myIndex]; }
+
+    physics(p, dt) {
+      if (p.crash) return;
+
+      const seg = findSegment(p.z + CAM_H);
+      const curve = seg.curve;
+      const sr = p.speed / MAX_SPEED;
+      const inp = p.input || {};
+
+      if (inp.up) p.speed = Math.min(MAX_SPEED, p.speed + ACCEL * dt);
+      else if (inp.down) p.speed = Math.max(0, p.speed - BRAKE * dt);
+      else p.speed = Math.max(0, p.speed - FRICTION * dt);
+
+      if (inp.left) p.steer = Math.max(-1, p.steer - STEER_SPEED * dt);
+      else if (inp.right) p.steer = Math.min(1, p.steer + STEER_SPEED * dt);
+      else p.steer *= Math.pow(0.02, dt);
+
+      p.x += p.steer * sr * 1.8 * dt;
+      p.x -= curve * sr * sr * 0.012 * dt;
+      p.x *= 0.98;
+
+      clampToWalls(p, dt);
+
+      p.z = wrapZ(p.z + p.speed * Z_SPEED * dt);
+      p.dist += p.speed * dt * 0.28;
+    }
+
+    aiStep(p, dt) {
+      p.input = { up: true, left: false, right: false, down: false };
+      if (Math.abs(p.x) > 0.65) p.input[p.x > 0 ? 'left' : 'right'] = true;
+      this.physics(p, dt);
+    }
+
+    hostTick(dt) {
+      this.players.forEach(p => {
+        if (p.ai) this.aiStep(p, dt);
+        else this.physics(p, dt);
+      });
+      this.dashOff += (this.me()?.speed || 0) * dt * 0.5;
+      this.elapsed += dt;
+    }
+
+    clientPredict(dt) {
+      const me = this.me();
+      if (!me) return;
+      this.physics(me, dt);
+      this.dashOff += me.speed * dt * 0.6;
+    }
+
+    broadcastState() {
+      if (!this.isHost) return;
+      Net.broadcast({
+        type: 'STATE',
+        t: Date.now(),
+        elapsed: this.elapsed,
+        dashOff: this.dashOff,
+        players: this.players.map(p => ({
+          idx: p.idx, z: p.z, x: p.x, speed: p.speed, steer: p.steer, dist: Math.round(p.dist)
+        }))
+      });
+    }
+
+    endGame(msg) {
+      this.running = false;
+      cancelAnimationFrame(this.rafId);
+      document.getElementById('overlayTitle').textContent = 'CRASH';
+      document.getElementById('overlayMsg').textContent = msg;
+      document.getElementById('overlay').classList.add('show');
+    }
+
+    applyState(data) {
+      if (data.elapsed !== undefined) this.elapsed = data.elapsed;
+      if (data.dashOff !== undefined) this.dashOff = data.dashOff;
+      if (!data.players) return;
+      const serverT = data.t || performance.now();
+      data.players.forEach(sp => {
+        let p = this.players.find(x => x.idx === sp.idx);
+        if (!p) {
+          p = { idx: sp.idx, input: {} };
+          this.players.push(p);
+        }
+        if (sp.idx !== this.myIndex) {
+          p.z = wrapZ(sp.z); p.x = sp.x; p.speed = sp.speed; p.steer = sp.steer; p.dist = sp.dist;
+          if (!this.isHost) pushSnap(p, sp, serverT);
+        } else if (!this.isHost) {
+          p.z = wrapZ(sp.z); p.x = sp.x; p.speed = sp.speed; p.steer = sp.steer; p.dist = sp.dist;
+          pushSnap(p, sp, serverT);
+        }
+      });
+      this.players.sort((a, b) => a.idx - b.idx);
+    }
+
+    updateRenderPoses(now) {
+      this.players.forEach(p => {
+        if (this.solo || this.isHost || p.ai) {
+          p.rz = wrapZ(p.z);
+          p.rx = p.x;
+          p.rsteer = p.steer;
+          return;
+        }
+        if (!p.snapCur) {
+          p.rz = wrapZ(p.z);
+          p.rx = p.x;
+          p.rsteer = p.steer;
+          return;
+        }
+        const prev = p.snapPrev;
+        const cur = p.snapCur;
+        const span = Math.max(1, cur.t - prev.t);
+        const alpha = Math.min(1, (now - prev.t) / span);
+        p.rx = lerp(prev.x, cur.x, alpha);
+        p.rsteer = lerp(prev.steer, cur.steer, alpha);
+        p.rz = lerpZ(prev.z, cur.z, alpha);
+        if (now > cur.t && cur.speed > 0) {
+          const extra = (now - cur.t) / 1000;
+          p.rz = wrapZ(p.rz + cur.speed * Z_SPEED * extra * INTERP_EXTRAP);
+        }
+      });
+    }
+
+    drawCar(p, camX, camZ, cache, me) {
+      const rz = p.rz != null ? p.rz : wrapZ(p.z);
+      const wx = carWorldX(camZ, p, cache);
+      const pr = project(wx, CAM_H + 60, rz, camX, CAM_H, camZ);
+      if (!pr || pr.sy < cy - 40 || pr.sy > H + 60) return;
+
+      const dz = zDiff(me.z, rz);
+      const gapM = Math.round((p.dist || 0) - (me.dist || 0));
+      const w = Math.max(MIN_CAR_PX, pr.sw * 0.22);
+      const h = w * 1.5;
+      const rc = RACER[p.idx % RACER.length];
+      const far = Math.abs(gapM) > 15 || Math.abs(dz) > 500;
+
+      ctx.save();
+      ctx.translate(pr.sx, pr.sy);
+      ctx.fillStyle = far ? 'rgba(0,0,0,0.65)' : 'rgba(0,0,0,0.5)';
+      ctx.fillRect(-w * 0.55, -h * 0.3, w * 1.1, h * 0.65);
+      ctx.strokeStyle = rc.color;
+      ctx.lineWidth = Math.max(2, w * 0.1);
+      ctx.strokeRect(-w / 2, -h / 2, w, h);
+      ctx.font = `${Math.max(12, h * 0.55)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(rc.emoji, 0, 0);
+      if (far && gapM !== 0) {
+        ctx.font = `${Math.max(9, w * 0.38)}px sans-serif`;
+        ctx.fillStyle = gapM > 0 ? rc.color : '#888';
+        ctx.fillText(gapM > 0 ? `+${gapM}m` : `${gapM}m`, 0, -h * 0.75);
+      }
+      ctx.restore();
+    }
+
+    drawSteeringWheel(steer) {
+      const wy = H * 0.88, r = Math.min(W * 0.2, 85);
+      ctx.save();
+      ctx.translate(cx, wy);
+      ctx.rotate(steer * 0.4);
+      ctx.strokeStyle = '#0ff';
+      ctx.lineWidth = 4;
+      ctx.shadowColor = '#0ff';
+      ctx.shadowBlur = 4;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, Math.PI * 0.85, Math.PI * 0.15);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.restore();
+      ctx.fillStyle = 'rgba(0,255,255,0.05)';
+      ctx.fillRect(0, H * 0.78, W, H * 0.22);
+    }
+
+    render(dt) {
+      const me = this.me();
+      if (!me) return;
+
+      ctx.fillStyle = skyGrad || COL.sky1;
+      ctx.fillRect(0, 0, W, H);
+
+      this.updateRenderPoses(performance.now());
+
+      const camX = me.x * ROAD_W;
+      const camZ = wrapZ(me.z);
+      const curveCache = makeCurveCache(camZ);
+
+      const sorted = [...this.players].filter(p => !p.ai || this.solo)
+        .map(p => {
+          const rz = p.rz != null ? p.rz : wrapZ(p.z);
+          const wx = carWorldX(camZ, p, curveCache);
+          return { p, pr: project(wx, CAM_H, rz, camX, CAM_H, camZ) };
+        })
+        .filter(x => x.pr)
+        .sort((a, b) => b.pr.sy - a.pr.sy);
+
+      drawRoad(camX, CAM_H, camZ, this.dashOff);
+      sorted.forEach(({ p }) => {
+        if (p.idx === me.idx) return;
+        const rz = p.rz != null ? p.rz : wrapZ(p.z);
+        const dz = zDiff(me.z, rz);
+        if (dz < -OPP_BEHIND || dz > OPP_AHEAD) return;
+        this.drawCar(p, camX, camZ, curveCache, me);
+      });
+      this.drawSteeringWheel(me.steer);
+
+      this.hudTick++;
+      if (this.hudTick % 4 === 0) {
+        document.getElementById('speedVal').textContent = Math.round(me.speed);
+        document.getElementById('distVal').textContent = Math.round(me.dist);
+        const ranked = [...this.players].filter(p => !p.ai || this.solo)
+          .sort((a, b) => b.dist - a.dist);
+        const myRank = ranked.findIndex(p => p.idx === me.idx) + 1;
+        document.getElementById('rankVal').textContent = myRank + ' / ' + ranked.length;
+        document.getElementById('rankList').innerHTML = ranked.map((p, i) =>
+          `${i + 1}. ${RACER[p.idx].emoji} ${Math.round(p.dist)}m`
+        ).join('<br>');
+      }
+    }
+
+    loop(t) {
+      if (!this.running || this.crash) return;
+      const dt = Math.min(0.05, (t - this.lastT) / 1000 || 0.016);
+      this.lastT = t;
+
+      if (this.isHost) {
+        const meP = this.me();
+        if (meP) Object.assign(meP.input, keys);
+        this.hostTick(dt);
+        if (t - this.lastSync >= SYNC_MS) {
+          this.broadcastState();
+          this.lastSync = t;
+        }
+      } else if (!this.solo) {
+        if (t - this.lastSync >= SYNC_MS) {
+          Net.sendToHost({ type: 'INPUT', input: { ...keys } });
+          this.lastSync = t;
+        }
+      } else {
+        this.physics(this.players[0], dt);
+        if (this.players[1]) this.aiStep(this.players[1], dt);
+        this.dashOff += this.players[0].speed * dt * 0.5;
+      }
+
+      this.render(dt);
+      this.rafId = requestAnimationFrame(ts => this.loop(ts));
+    }
+
+    start() {
+      createRoad(this.trackSeed);
+      this.initPlayers();
+      resize();
+      this.running = true;
+      this.lastT = 0;
+      this.lastSync = 0;
+      this.elapsed = 0;
+      this.crash = false;
+      document.getElementById('overlay').classList.remove('show');
+      cancelAnimationFrame(this.rafId);
+      this.rafId = requestAnimationFrame(ts => this.loop(ts));
+    }
+
+    stop() {
+      this.running = false;
+      cancelAnimationFrame(this.rafId);
+    }
+  }
+
+  /* ── UI ── */
+  function lobbyLog(m) {
+    const el = document.getElementById('log');
+    el.textContent = (el.textContent ? el.textContent + '\n' : '') + m;
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function showLobby() {
+    if (game) game.stop();
+    game = null;
+    Net.destroy();
+    document.getElementById('waitingBox').classList.add('hidden');
+    document.getElementById('gameRoot').classList.add('hidden');
+    document.getElementById('lobby').classList.remove('hidden');
+    document.getElementById('overlay').classList.remove('show');
+  }
+
+  function showGame() {
+    document.getElementById('lobby').classList.add('hidden');
+    document.getElementById('gameRoot').classList.remove('hidden');
+  }
+
+  function showWait(hostId, asHost) {
+    document.getElementById('roomCode').textContent = hostId;
+    document.getElementById('roomBox').classList.remove('hidden');
+    document.getElementById('waitingBox').classList.remove('hidden');
+    document.getElementById('btnStartGame').classList.toggle('hidden', !asHost);
+    document.getElementById('guestWaitHint').classList.toggle('hidden', asHost);
+    document.getElementById('btnCopyLink').classList.toggle('hidden', !asHost);
+    const link = document.getElementById('inviteLink');
+    if (asHost) {
+      currentInviteUrl = USE_ROOM_CODE ? hostId : (() => {
+        const u = new URL(location.href); u.search = ''; u.searchParams.set('join', hostId); return u.toString();
+      })();
+      link.textContent = USE_ROOM_CODE ? '코드: ' + hostId : currentInviteUrl;
+    }
+    updateRoster({ roster: Net.buildRoster(), playerCount: Net.isHost ? 1 : 0 });
+  }
+
+  function updateRoster(data) {
+    const ul = document.getElementById('rosterList');
+    const count = data.playerCount || data.roster.length;
+    ul.innerHTML = '';
+    (data.roster || Net.buildRoster()).forEach(r => {
+      const li = document.createElement('li');
+      li.textContent = `${r.emoji} ${r.name}`;
+      ul.appendChild(li);
+    });
+    for (let i = count; i < MAX_PLAYERS; i++) {
+      const li = document.createElement('li');
+      li.style.color = '#555';
+      li.textContent = `${RACER[i].emoji} (빈)`;
+      ul.appendChild(li);
+    }
+    document.getElementById('waitingTitle').textContent = `대기실 ${count}/${MAX_PLAYERS}`;
+    const btn = document.getElementById('btnStartGame');
+    btn.disabled = count < 2;
+    btn.textContent = count < 2 ? '시작 (2인+)' : `레이스 시작 (${count}인)`;
+  }
+
+  function handleNet(d, slot) {
+    if (d.type === 'LOBBY') updateRoster(d);
+    else if (d.type === 'WELCOME' && !Net.isHost) {
+      showWait(document.getElementById('roomInput').value, false);
+      updateRoster({ roster: d.roster, playerCount: d.roster.length });
+    } else if (d.type === 'START' && !Net.isHost) {
+      showGame();
+      game = new RaceGame({
+        solo: false, isHost: false, myIndex: Net.myIndex,
+        playerCount: d.playerCount, trackSeed: d.trackSeed
+      });
+      game.start();
+      lobbyLog('레이스 시작! 각자 1인칭 화면');
+    } else if (d.type === 'STATE' && game) game.applyState(d);
+    else if (d.type === 'INPUT' && game?.isHost) {
+      const p = game.players.find(x => x.idx === slot);
+      if (p) p.input = d.input;
+    } else if (d.type === 'REJECT') { lobbyLog('거부: ' + d.reason); if (!Net.isHost) showLobby(); }
+    else if (d.type === 'PEER_LEFT' && game?.isHost) {
+      game.players = game.players.filter(p => p.idx !== d.index);
+      game.broadcastState();
+    }
+  }
+
+  document.getElementById('btnSolo').onclick = () => {
+    showGame();
+    game = new RaceGame({ solo: true, isHost: true, myIndex: 0, playerCount: 1 });
+    game.start();
+  };
+
+  document.getElementById('btnHost').onclick = () => {
+    document.getElementById('roomInput').value = '';
+    Net.init({
+      asHost: true, remoteId: '',
+      handlers: {
+        onOpen: info => {
+          if (info.roomReady) showWait(info.id, true);
+          else if (info.clientJoined) lobbyLog(RACER[info.index].emoji + ' 입장');
+        },
+        onLobby: updateRoster,
+        onData: handleNet,
+        onClose: () => lobbyLog('연결 종료'),
+        onError: e => lobbyLog('Peer: ' + (e.type || e.message))
+      }
+    });
+  };
+
+  document.getElementById('btnJoin').onclick = () => {
+    document.getElementById('roomInput').value = document.getElementById('joinCodeInput').value.trim();
+    Net.init({
+      asHost: false, remoteId: document.getElementById('roomInput').value,
+      handlers: {
+        onOpen: () => lobbyLog('연결됨'),
+        onData: handleNet,
+        onError: e => lobbyLog('Peer: ' + e.type)
+      }
+    });
+  };
+
+  document.getElementById('btnStartGame').onclick = () => {
+    const seed = Date.now() % 999999 | 0;
+    const n = Net.playerCount;
+    Net.startRace(seed, n);
+    showGame();
+    game = new RaceGame({ solo: false, isHost: true, myIndex: 0, playerCount: n, trackSeed: seed });
+    game.start();
+  };
+
+  document.getElementById('btnCopyLink').onclick = () => {
+    const t = currentInviteUrl || document.getElementById('roomCode').textContent;
+    navigator.clipboard?.writeText(t).then(() => lobbyLog('복사됨'));
+  };
+  document.getElementById('btnCancelWait').onclick = showLobby;
+  document.getElementById('backBtn').onclick = showLobby;
+  document.getElementById('btnMenu').onclick = showLobby;
+  document.getElementById('btnRetry').onclick = () => {
+    if (game?.solo) {
+      document.getElementById('overlay').classList.remove('show');
+      game.start();
+    } else showLobby();
+  };
+
+  window.addEventListener('keydown', e => {
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = true;
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = true;
+    if (e.code === 'ArrowUp' || e.code === 'KeyW') keys.up = true;
+    if (e.code === 'ArrowDown' || e.code === 'KeyS') keys.down = true;
+    if (game && !game.solo && !game.isHost) { /* input sent in loop */ }
+    else if (game?.isHost && game.me()) Object.assign(game.me().input, keys);
+    else if (game?.solo && game.players[0]) Object.assign(game.players[0].input, keys);
+  });
+  window.addEventListener('keyup', e => {
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = false;
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = false;
+    if (e.code === 'ArrowUp' || e.code === 'KeyW') keys.up = false;
+    if (e.code === 'ArrowDown' || e.code === 'KeyS') keys.down = false;
+    if (game?.isHost && game.me()) Object.assign(game.me().input, keys);
+    else if (game?.solo && game.players[0]) Object.assign(game.players[0].input, keys);
+  });
+
+  ['touchLeft', 'touchRight'].forEach((id, i) => {
+    const el = document.getElementById(id);
+    const set = on => {
+      keys.up = on;
+      if (i === 0) keys.left = on; else keys.right = on;
+      if (game?.isHost && game.me()) Object.assign(game.me().input, keys);
+      else if (game?.solo && game.players[0]) Object.assign(game.players[0].input, keys);
+    };
+    el.addEventListener('touchstart', e => { e.preventDefault(); set(true); });
+    el.addEventListener('touchend', e => { e.preventDefault(); set(false); keys.up = false; });
+  });
+
+  if (USE_ROOM_CODE) {
+    document.getElementById('hintWeb').classList.add('hidden');
+    document.getElementById('hintFile').classList.remove('hidden');
+    document.getElementById('joinPanel').classList.remove('hidden');
+  } else {
+    const join = new URLSearchParams(location.search).get('join');
+    if (join) {
+      document.getElementById('roomInput').value = join;
+      lobbyLog('초대 링크 연결…');
+      Net.init({ asHost: false, remoteId: join, handlers: { onData: handleNet, onError: e => lobbyLog('Peer: ' + e.type) } });
+    }
+  }
+
+  window.addEventListener('resize', () => { if (game?.running) resize(); });
+})();
+</script>
+</body>
+</html>

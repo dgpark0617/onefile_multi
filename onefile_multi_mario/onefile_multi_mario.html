@@ -1,0 +1,1983 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>🍄 버섯 어드벤처 — 멀티</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    .hidden { display: none !important; }
+    #lobby {
+      min-height: 100dvh; padding: 16px; max-width: 520px; margin: 0 auto;
+      display: flex; flex-direction: column; gap: 12px; overflow-y: auto;
+    }
+    #lobby h1 { font-size: 1.35rem; margin: 0; background: none; -webkit-text-fill-color: #eee; color: #eee; }
+    #lobby .sub { color: #94a3b8; font-size: 0.85rem; line-height: 1.5; }
+    #lobby .hint {
+      background: #16213e; border: 1px solid #334; border-radius: 10px;
+      padding: 12px 14px; font-size: 0.82rem; color: #bbb; line-height: 1.55;
+    }
+    #lobby .hint strong { color: #fbbf24; }
+    .mode-block { background: #16213e; border: 1px solid #334; border-radius: 12px; padding: 14px; }
+    .mode-block h2 { margin: 0 0 8px; font-size: 1rem; color: #7ec8e3; }
+    .mode-block p { margin: 0 0 10px; font-size: 0.78rem; color: #888; line-height: 1.4; }
+    .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .lobby-btn {
+      border: none; border-radius: 8px; padding: 10px 14px; font-size: 0.85rem;
+      cursor: pointer; touch-action: manipulation;
+    }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-green { background: #059669; color: #fff; }
+    .btn-red { background: #dc2626; color: #fff; }
+    .btn-yellow { background: #ca8a04; color: #fff; }
+    .btn-ghost { background: #334; color: #ddd; }
+    .lobby-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    #lobby input[type="text"] {
+      width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #445;
+      background: #1a1a2e; color: #eee; font-size: 0.9rem;
+    }
+    #roomBox, #waitingBox {
+      background: #0f3460; padding: 12px; border-radius: 8px; font-size: 0.82rem;
+      word-break: break-all; border: 1px solid #2563eb; color: #ddd;
+    }
+    #waitingBox { border-color: #ca8a04; }
+    #inviteLink { color: #7ec8e3; font-size: 0.78rem; display: block; margin: 8px 0; }
+    #rosterList { margin: 10px 0; padding: 0; list-style: none; line-height: 1.8; }
+    #rosterList li { font-size: 0.9rem; }
+    #rosterList .empty { color: #666; font-style: italic; }
+    #netLog { font-size: 0.75rem; color: #4ade80; max-height: 80px; overflow-y: auto; white-space: pre-wrap; }
+    #gameRoot { display: flex; flex-direction: column; height: 100dvh; width: 100%; }
+    #backBtn {
+      position: absolute; top: 6px; right: 6px; z-index: 20;
+      padding: 5px 10px; font-size: 11px; border: none; border-radius: 6px;
+      background: rgba(51,65,85,0.9); color: #ddd; cursor: pointer;
+    }
+    #stage { position: relative; }
+    #playerTags {
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 8px;
+      margin-top: 2px; font-size: clamp(0.68rem, 2.5vw, 0.78rem);
+    }
+    .ptag {
+      padding: 1px 6px; border-radius: 6px; background: rgba(30,30,50,0.85);
+      border: 1px solid transparent;
+    }
+    .ptag.me { border-color: #fbbf24; color: #fbbf24; }
+    .ptag.dead { opacity: 0.35; text-decoration: line-through; }
+    :root {
+      --design-w: 900;
+      --design-h: 500;
+      --design-ar: calc(var(--design-w) / var(--design-h));
+      --frame-max-w: 960px;
+      --frame-min-w: 260px;
+      --frame-min-h: calc(var(--frame-min-w) / (var(--design-w) / var(--design-h)));
+    }
+    html, body {
+      height: 100%;
+      max-height: 100dvh;
+      overflow: hidden;
+    }
+    body {
+      background: #1a1a2e;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      height: 100dvh;
+      font-family: 'Segoe UI', sans-serif;
+      color: #eee;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+    #topBar {
+      flex: 0 0 auto;
+      padding: 6px 10px 4px;
+      text-align: center;
+    }
+    h1 {
+      font-size: clamp(1rem, 4vw, 1.5rem);
+      margin-bottom: 2px;
+      background: linear-gradient(90deg, #ef4444, #fbbf24);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    #info {
+      font-size: clamp(0.68rem, 2.8vw, 0.82rem);
+      color: #94a3b8;
+      line-height: 1.35;
+    }
+    @media (max-height: 520px) {
+      #info { display: none; }
+      #topBar { padding: 4px 8px 2px; }
+      #hud { margin-top: 2px; gap: 6px 12px; }
+    }
+    @media (max-height: 420px) {
+      h1 { font-size: 0.95rem; margin-bottom: 0; }
+      #hud { font-size: 0.72rem; }
+      .ctrl-btn {
+        min-width: 52px;
+        height: 44px;
+        padding: 0 8px;
+      }
+    }
+    #hud {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px 18px;
+      margin-top: 4px;
+      font-size: clamp(0.78rem, 2.8vw, 0.9rem);
+    }
+    #hud span { color: #fbbf24; font-weight: bold; }
+    /* 무대: 900×500(1.8:1) 디자인 비율 고정, 남은 공간에 contain-fit + 레터박스 */
+    #stage {
+      flex: 1 1 0;
+      min-height: 0;
+      width: 100%;
+      container-type: size;
+      container-name: stage;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px 8px;
+      background: #0f0f1a;
+    }
+    #gameFrame {
+      position: relative;
+      aspect-ratio: 900 / 500;
+      width: min(100cqw, calc(100cqh * 900 / 500), var(--frame-max-w));
+      max-height: 100cqh;
+      min-width: min(var(--frame-min-w), 100cqw);
+      min-height: min(var(--frame-min-h), 100cqh);
+      height: auto;
+      border: 2px solid #334155;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #5c94fc;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+      flex-shrink: 0;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+    }
+    #controls {
+      flex: 0 0 auto;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      padding: 8px 10px max(10px, env(safe-area-inset-bottom));
+      min-height: var(--chrome-bottom);
+      align-items: center;
+    }
+    .ctrl-btn {
+      min-width: clamp(56px, 18vw, 72px);
+      height: clamp(48px, 12vw, 56px);
+      padding: 0 12px;
+      font-size: clamp(0.95rem, 3.5vw, 1.1rem);
+      background: rgba(251, 191, 36, 0.15);
+      color: #fbbf24;
+      border: 2px solid #fbbf24;
+      border-radius: 12px;
+      cursor: pointer;
+      user-select: none;
+      touch-action: none;
+    }
+    .ctrl-btn.active { background: #fbbf24; color: #1a1a2e; }
+    #overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      z-index: 10;
+    }
+    #overlay.show { display: flex; }
+    #overlay h2 { font-size: 2rem; margin-bottom: 10px; }
+    #overlay p { color: #94a3b8; margin-bottom: 18px; }
+    #restartBtn {
+      padding: 12px 28px;
+      font-size: 1rem;
+      background: #fbbf24;
+      color: #1a1a2e;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div id="lobby">
+    <h1>🍄 버섯 어드벤처</h1>
+    <p class="sub">실시간 횡스크롤 · 2~4인 P2P 협동</p>
+    <div class="hint">
+      <strong>조작:</strong> ← → 이동 · 스페이스/점프 (2단 점프!) · 모바일 하단 버튼<br>
+      <strong>멀티:</strong> 방 만들기 → 친구 초대 → 2인 이상이면 시작 · 호스트가 물리 처리
+    </div>
+    <div class="mode-block" id="modeBlocks">
+      <h2>① 솔로</h2>
+      <p>혼자 보스까지 클리어</p>
+      <button class="lobby-btn btn-green" id="btnSolo">솔로 시작</button>
+    </div>
+    <div class="mode-block" id="coopBlock">
+      <h2>② 협동 (2~4인)</h2>
+      <p>🍄🔵🟡🟣 · 같은 맵 · 코인·보스 공유</p>
+      <div class="btn-row">
+        <button class="lobby-btn btn-primary" id="btnCoopHost">방 만들기</button>
+      </div>
+    </div>
+    <div class="mode-block hidden" id="joinPanel">
+      <h2>친구 방 참가</h2>
+      <input id="joinCodeInput" type="text" placeholder="방 코드 붙여넣기" autocomplete="off" spellcheck="false">
+      <div class="btn-row" style="margin-top:8px">
+        <button class="lobby-btn btn-red" id="btnJoin">참가</button>
+      </div>
+    </div>
+    <div id="waitingBox" class="hidden">
+      <div id="waitingTitle">대기실</div>
+      <a id="inviteLink" href="#" rel="noopener"></a>
+      <ul id="rosterList"></ul>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="lobby-btn btn-yellow" id="btnCopyLink">방 코드 복사</button>
+        <button class="lobby-btn btn-green hidden" id="btnStartGame" disabled>게임 시작 (2인 이상)</button>
+        <button class="lobby-btn btn-ghost" id="btnCancelWait">나가기</button>
+      </div>
+      <p id="guestWaitHint" class="hidden" style="margin:8px 0 0;font-size:0.78rem;color:#888">방장이 「게임 시작」을 누를 때까지 대기…</p>
+    </div>
+    <input id="roomInput" type="text" class="hidden" autocomplete="off">
+    <div id="roomBox" class="hidden">Peer ID: <b id="roomCode">—</b></div>
+    <div id="netLog"></div>
+  </div>
+
+  <div id="gameRoot" class="hidden">
+    <div id="topBar">
+      <h1>🍄 버섯 어드벤처</h1>
+      <div id="info">← → 이동 · 스페이스 점프(2단!) · s/ArrowDown 불쏘기 · 모바일: 하단 버튼</div>
+      <div id="hud">
+        <div>코인: <span id="coins">0</span></div>
+        <div>불꽃: <span id="fireballsAmmo">0</span></div>
+        <div>상태: <span id="status">작음</span></div>
+        <div>보스 HP: <span id="bossHp">-</span></div>
+      </div>
+      <div id="playerTags"></div>
+    </div>
+    <div id="stage">
+      <button type="button" id="backBtn" class="btn-ghost">← 로비</button>
+      <div id="gameFrame">
+        <canvas id="game"></canvas>
+      </div>
+    </div>
+    <div id="controls">
+      <button id="btnLeft" class="ctrl-btn">◀</button>
+      <button id="btnDown" class="ctrl-btn">▼</button>
+      <button id="btnJump" class="ctrl-btn">점프</button>
+      <button id="btnRight" class="ctrl-btn">▶</button>
+    </div>
+    <div id="overlay">
+      <h2 id="overlayTitle">게임 오버</h2>
+      <p id="overlayMsg"></p>
+      <button id="restartBtn">다시 시작</button>
+      <button id="btnToLobby" class="lobby-btn btn-ghost" style="margin-top:10px">로비로</button>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    const IS_FILE = location.protocol === 'file:';
+    const USE_ROOM_CODE = IS_FILE;
+    const MAX_PLAYERS = 4;
+    const SYNC_MS = 50;
+    const PLAYER_DEFS = [
+      { emoji: '🍄', name: '레드', hat: '#dc2626', overall: '#2563eb' },
+      { emoji: '🔵', name: '블루', hat: '#1d4ed8', overall: '#0369a1' },
+      { emoji: '🟡', name: '옐로', hat: '#ca8a04', overall: '#b45309' },
+      { emoji: '🟣', name: '퍼플', hat: '#7c3aed', overall: '#5b21b6' }
+    ];
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const DESIGN_W = 900;
+    const DESIGN_H = 500;
+    const DESIGN_AR = DESIGN_W / DESIGN_H;
+    const VW = DESIGN_W;
+    const VH = DESIGN_H;
+    canvas.width = VW;
+    canvas.height = VH;
+
+    const stageEl = document.getElementById('stage');
+    const frameEl = document.getElementById('gameFrame');
+    const topBarEl = document.getElementById('topBar');
+    const controlsEl = document.getElementById('controls');
+
+    function layoutGameFrame() {
+      const vv = window.visualViewport;
+      const vw = vv ? vv.width : window.innerWidth;
+      const vh = vv ? vv.height : window.innerHeight;
+      const topH = topBarEl.getBoundingClientRect().height;
+      const ctrlH = controlsEl.getBoundingClientRect().height;
+      const padX = 16;
+      const padY = 12;
+      const availW = Math.max(0, vw - padX);
+      const availH = Math.max(0, vh - topH - ctrlH - padY);
+      if (availW <= 0 || availH <= 0) return;
+
+      const maxScale = Math.min(availW / DESIGN_W, availH / DESIGN_H, 960 / DESIGN_W);
+      const minScale = 260 / DESIGN_W;
+      const canFitMin = availW >= 260 && availH >= 260 / DESIGN_AR;
+      const scale = canFitMin ? Math.max(maxScale, minScale) : maxScale;
+
+      const w = Math.floor(DESIGN_W * scale);
+      const h = Math.floor(DESIGN_H * scale);
+      frameEl.style.width = w + 'px';
+      frameEl.style.height = h + 'px';
+    }
+
+    let layoutQueued = false;
+    function queueLayout() {
+      if (layoutQueued) return;
+      layoutQueued = true;
+      requestAnimationFrame(() => {
+        layoutQueued = false;
+        layoutGameFrame();
+      });
+    }
+
+    const GRAVITY = 0.58;
+    const FRICTION = 0.8;
+    const MOVE_SPEED = 0.55;
+    const MAX_SPEED = 4.8;
+    const JUMP_FORCE = -11.5;
+    const DOUBLE_JUMP_FORCE = -10;
+    const WORLD_W = 4800;
+
+    let game = null;
+
+    const WwNet = (function () {
+      const PROTO = 1;
+      let peer = null, guestConn = null;
+      const clients = new Map();
+      let isHost = false, myIndex = 0, roomId = '', gameStarted = false;
+      let onData = null, onOpen = null, onClose = null, onError = null, onLobby = null;
+
+      function allocSlot() {
+        for (let i = 1; i < MAX_PLAYERS; i++) if (!clients.has(i)) return i;
+        return -1;
+      }
+      function buildRoster() {
+        const roster = [{ index: 0, emoji: PLAYER_DEFS[0].emoji, name: PLAYER_DEFS[0].name + (isHost ? ' (방장)' : ''), connected: true }];
+        [...clients.keys()].sort((a, b) => a - b).forEach(idx => {
+          roster.push({ index: idx, emoji: PLAYER_DEFS[idx].emoji, name: PLAYER_DEFS[idx].name, connected: true });
+        });
+        return roster;
+      }
+      function broadcast(data) { clients.forEach(({ conn }) => { if (conn.open) conn.send(data); }); }
+      function broadcastLobby() {
+        const payload = { type: 'LOBBY', proto: PROTO, roster: buildRoster(), playerCount: buildRoster().length };
+        broadcast(payload); onLobby && onLobby(payload);
+      }
+      function broadcastState(state) { broadcast({ type: 'STATE', proto: PROTO, ...state }); }
+      function sendToHost(data) { if (guestConn && guestConn.open) guestConn.send(data); }
+
+      function initPeer(opts) {
+        const { asHost, remoteId, handlers } = opts;
+        isHost = asHost; myIndex = asHost ? 0 : -1; gameStarted = false;
+        clients.clear(); guestConn = null;
+        onData = handlers.onData || null; onOpen = handlers.onOpen || null;
+        onClose = handlers.onClose || null; onError = handlers.onError || null; onLobby = handlers.onLobby || null;
+        peer = new Peer({ debug: 1 });
+        peer.on('open', (id) => {
+          roomId = id;
+          if (asHost) {
+            peer.on('connection', (connection) => {
+              connection.on('open', () => {
+                if (gameStarted) {
+                  connection.send({ type: 'REJECT', reason: '이미 게임이 시작되었습니다' });
+                  setTimeout(() => connection.close(), 300); return;
+                }
+                const slot = allocSlot();
+                if (slot < 0) {
+                  connection.send({ type: 'REJECT', reason: '방이 가득 찼습니다 (최대 4인)' });
+                  setTimeout(() => connection.close(), 300); return;
+                }
+                clients.set(slot, { conn: connection });
+                connection.send({ type: 'WELCOME', proto: PROTO, index: slot, roster: buildRoster() });
+                broadcastLobby();
+                onOpen && onOpen({ role: 'host', clientJoined: true, index: slot });
+                connection.on('data', (data) => { onData && onData(data); });
+                connection.on('close', () => {
+                  clients.delete(slot);
+                  if (!gameStarted) broadcastLobby();
+                  else onData && onData({ type: 'PEER_LEFT', index: slot });
+                });
+              });
+            });
+            onOpen && onOpen({ id, role: 'host', roomReady: true });
+          } else {
+            guestConn = peer.connect(remoteId.trim(), { reliable: true });
+            guestConn.on('open', () => onOpen && onOpen({ role: 'client', connOpen: true }));
+            guestConn.on('data', (data) => { if (data.type === 'WELCOME') myIndex = data.index; onData && onData(data); });
+            guestConn.on('close', () => { guestConn = null; onClose && onClose(); });
+          }
+        });
+        peer.on('error', (err) => { onError && onError(err); });
+      }
+      function startGameBroadcast(playerCount) {
+        gameStarted = true;
+        broadcast({ type: 'START', proto: PROTO, playerCount });
+      }
+      function destroy() {
+        clients.forEach(({ conn }) => { try { conn.close(); } catch (e) {} });
+        clients.clear();
+        if (guestConn) guestConn.close();
+        if (peer) peer.destroy();
+        guestConn = null; peer = null; gameStarted = false; myIndex = 0;
+      }
+      return {
+        initPeer, broadcast, broadcastState, sendToHost, startGameBroadcast, destroy, buildRoster,
+        get isHost() { return isHost; },
+        get myIndex() { return myIndex; },
+        get roomId() { return roomId; },
+        get gameStarted() { return gameStarted; },
+        get playerCount() { return isHost ? buildRoster().length : 0; }
+      };
+    })();
+
+    const lobby = document.getElementById('lobby');
+    const gameRoot = document.getElementById('gameRoot');
+    const netLogEl = document.getElementById('netLog');
+    const roomBox = document.getElementById('roomBox');
+    const roomCode = document.getElementById('roomCode');
+    const roomInput = document.getElementById('roomInput');
+    const waitingBox = document.getElementById('waitingBox');
+    const inviteLinkEl = document.getElementById('inviteLink');
+    const waitingTitle = document.getElementById('waitingTitle');
+    const rosterListEl = document.getElementById('rosterList');
+    const btnStartGame = document.getElementById('btnStartGame');
+    const guestWaitHint = document.getElementById('guestWaitHint');
+    const joinPanel = document.getElementById('joinPanel');
+    const modeBlocks = document.getElementById('modeBlocks');
+    const coopBlock = document.getElementById('coopBlock');
+    const playerTagsEl = document.getElementById('playerTags');
+    let inCoopWait = false, currentInviteUrl = '';
+
+    function lobbyLog(msg) { netLogEl.textContent = msg + '\n' + netLogEl.textContent; }
+    function copyText(text, msg) {
+      const done = () => lobbyLog(msg);
+      if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done).catch(fallback);
+      else fallback();
+      function fallback() {
+        const ta = document.createElement('textarea');
+        ta.value = text; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); ta.remove(); done();
+      }
+    }
+    function getInviteUrl(hostPeerId) {
+      const u = new URL(location.href);
+      u.search = ''; u.searchParams.set('join', hostPeerId);
+      return u.toString();
+    }
+    function updateRosterUI(data) {
+      const roster = data.roster || WwNet.buildRoster();
+      const count = data.playerCount || roster.length;
+      rosterListEl.innerHTML = '';
+      roster.forEach(r => {
+        const li = document.createElement('li');
+        li.textContent = `${r.emoji} ${r.name}`;
+        rosterListEl.appendChild(li);
+      });
+      for (let i = count; i < MAX_PLAYERS; i++) {
+        const li = document.createElement('li');
+        li.className = 'empty';
+        li.textContent = `${PLAYER_DEFS[i].emoji} (빈 슬롯)`;
+        rosterListEl.appendChild(li);
+      }
+      waitingTitle.textContent = `대기실 — ${count}/${MAX_PLAYERS}명`;
+      if (WwNet.isHost) {
+        btnStartGame.disabled = count < 2;
+        btnStartGame.textContent = count < 2 ? '게임 시작 (2인 이상)' : `게임 시작 (${count}인)`;
+      }
+    }
+    function showCoopWait(hostPeerId, asHost) {
+      inCoopWait = true;
+      roomCode.textContent = hostPeerId;
+      roomBox.classList.remove('hidden');
+      modeBlocks.classList.add('hidden');
+      coopBlock.classList.add('hidden');
+      joinPanel.classList.add('hidden');
+      waitingBox.classList.remove('hidden');
+      btnStartGame.classList.toggle('hidden', !asHost);
+      guestWaitHint.classList.toggle('hidden', asHost);
+      document.getElementById('btnCopyLink').classList.toggle('hidden', !asHost);
+      if (asHost) {
+        if (USE_ROOM_CODE) {
+          currentInviteUrl = hostPeerId;
+          inviteLinkEl.textContent = '방 코드: ' + hostPeerId;
+          inviteLinkEl.href = '#';
+        } else {
+          currentInviteUrl = getInviteUrl(hostPeerId);
+          inviteLinkEl.textContent = currentInviteUrl;
+          inviteLinkEl.href = currentInviteUrl;
+          document.getElementById('btnCopyLink').textContent = '초대 링크 복사';
+        }
+      } else {
+        inviteLinkEl.textContent = '방장이 「게임 시작」을 누를 때까지 대기';
+        inviteLinkEl.href = '#';
+      }
+      updateRosterUI({ roster: WwNet.buildRoster(), playerCount: WwNet.isHost ? 1 : 0 });
+      lobbyLog(asHost ? '대기실 열림 — 친구를 초대하세요' : '대기실 입장 — 방장 시작 대기');
+    }
+    function hideCoopWait() {
+      inCoopWait = false;
+      waitingBox.classList.add('hidden');
+      roomBox.classList.add('hidden');
+      modeBlocks.classList.remove('hidden');
+      coopBlock.classList.remove('hidden');
+      if (USE_ROOM_CODE) joinPanel.classList.remove('hidden');
+      currentInviteUrl = '';
+    }
+    function showLobby() {
+      if (game) { game.stop(); game = null; }
+      WwNet.destroy();
+      hideCoopWait();
+      document.getElementById('overlay').classList.remove('show');
+      gameRoot.classList.add('hidden');
+      lobby.classList.remove('hidden');
+      if (!IS_FILE) history.replaceState(null, '', location.pathname);
+    }
+    function showGameView() {
+      hideCoopWait();
+      lobby.classList.add('hidden');
+      gameRoot.classList.remove('hidden');
+      queueLayout();
+    }
+
+    let cameraX = 0;
+
+    const platforms = [
+      { x: 0, y: 440, w: 730, h: 60 },
+      { x: 815, y: 440, w: 370, h: 60 },
+      { x: 1270, y: 440, w: 420, h: 60 },
+      { x: 1775, y: 440, w: 310, h: 60 },
+      { x: 2170, y: 440, w: 380, h: 60 },
+      { x: 2635, y: 440, w: 330, h: 60 },
+      { x: 3135, y: 440, w: 420, h: 60 },
+      { x: 3645, y: 440, w: 1155, h: 60 },
+      { x: 200, y: 340, w: 100, h: 18 },
+      { x: 500, y: 280, w: 90, h: 18 },
+      { x: 900, y: 330, w: 110, h: 18 },
+      { x: 1200, y: 260, w: 90, h: 18 },
+      { x: 1500, y: 310, w: 100, h: 18 },
+      { x: 1800, y: 250, w: 90, h: 18 },
+      { x: 2100, y: 330, w: 110, h: 18 },
+      { x: 2500, y: 290, w: 100, h: 18 },
+      { x: 2900, y: 240, w: 90, h: 18 },
+      { x: 3200, y: 310, w: 100, h: 18 },
+      { x: 3500, y: 260, w: 90, h: 18 },
+      { x: 4000, y: 340, w: 200, h: 18 },
+      { x: 4300, y: 280, w: 180, h: 18 }
+    ];
+
+    const pits = [
+      { x: 730, w: 85 },
+      { x: 1185, w: 85 },
+      { x: 1690, w: 85 },
+      { x: 2085, w: 85 },
+      { x: 2550, w: 85 },
+      { x: 2965, w: 85 },
+      { x: 3555, w: 85 }
+    ];
+
+    function getPlatformUnder(x, w, maxY = 500) {
+      let best = null;
+      for (const p of platforms) {
+        if (x + w > p.x + 4 && x < p.x + p.w - 4 && p.y <= maxY) {
+          if (!best || p.y < best.y) best = p;
+        }
+      }
+      return best;
+    }
+
+    function hasGroundAhead(entity, dir) {
+      const checkX = dir > 0 ? entity.x + entity.w + 8 : entity.x - 8;
+      const plat = getPlatformUnder(checkX, entity.w, entity.y + entity.h + 80);
+      const current = getPlatformUnder(entity.x, entity.w, entity.y + entity.h + 80);
+      return plat && current && Math.abs(plat.y - current.y) < 5;
+    }
+
+    function snapToGround(entity) {
+      const plat = getPlatformUnder(entity.x, entity.w, entity.y + entity.h + 60);
+      if (plat) {
+        entity.y = plat.y - entity.h;
+        entity.onGround = true;
+        entity.groundPlat = plat;
+        return true;
+      }
+      entity.onGround = false;
+      return false;
+    }
+
+    function inPit(x, w) {
+      const cx = x + w / 2;
+      return pits.some(p => cx > p.x && cx < p.x + p.w);
+    }
+
+    class Player {
+      constructor(g, index) {
+        this.game = g;
+        this.index = index;
+        this.def = PLAYER_DEFS[index];
+        this.input = { left: false, right: false, jumpPressed: false };
+        this.alive = true;
+        this.reset();
+      }
+
+      reset() {
+        this.x = 80 + this.index * 48;
+        this.y = 408;
+        this.vx = 0;
+        this.vy = 0;
+        this.big = false;
+        this.onGround = false;
+        this.facing = 1;
+        this.invincible = 0;
+        this.w = 28;
+        this.h = 32;
+        this.jumpsLeft = 2;
+        this.alive = true;
+        this.fireCooldown = 0;
+        this.updateSize();
+        snapToGround(this);
+      }
+
+      updateSize() {
+        if (this.big) {
+          this.w = 36;
+          this.h = 52;
+        } else {
+          this.w = 28;
+          this.h = 32;
+        }
+      }
+
+      grow() {
+        if (!this.big) {
+          this.big = true;
+          this.y -= 20;
+          this.updateSize();
+        }
+        this.invincible = 60;
+      }
+
+      shrink() {
+        if (this.big) {
+          this.big = false;
+          this.y += 20;
+          this.updateSize();
+          this.invincible = 60;
+          return false;
+        }
+        return true;
+      }
+
+      get cx() { return this.x + this.w / 2; }
+      get cy() { return this.y + this.h / 2; }
+      get bottom() { return this.y + this.h; }
+      get top() { return this.y; }
+
+      update() {
+        if (!this.alive) return;
+        const input = this.input;
+        if (this.fireCooldown > 0) this.fireCooldown--;
+        if (input.downPressed && this.fireCooldown <= 0) {
+          this.game.shootFireball(this.index);
+          this.fireCooldown = 18;
+        }
+        if (input.left) { this.vx -= MOVE_SPEED; this.facing = -1; }
+        if (input.right) { this.vx += MOVE_SPEED; this.facing = 1; }
+        if (input.jumpPressed && this.jumpsLeft > 0) {
+          this.vy = this.jumpsLeft === 2 ? JUMP_FORCE : DOUBLE_JUMP_FORCE;
+          this.jumpsLeft--;
+          this.onGround = false;
+        }
+        input.jumpPressed = false;
+
+        this.vx *= FRICTION;
+        this.vx = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, this.vx));
+        this.vy += GRAVITY;
+
+        this.x += this.vx;
+        this.y += this.vy;
+        this.onGround = false;
+
+        if (this.x < 0) { this.x = 0; this.vx = 0; }
+        if (this.x + this.w > WORLD_W) { this.x = WORLD_W - this.w; this.vx = 0; }
+
+        for (const p of platforms) {
+          if (this.x + this.w > p.x && this.x < p.x + p.w &&
+              this.y + this.h > p.y && this.y < p.y + p.h) {
+            const overlapL = (this.x + this.w) - p.x;
+            const overlapR = (p.x + p.w) - this.x;
+            const overlapT = (this.y + this.h) - p.y;
+            const overlapB = (p.y + p.h) - this.y;
+            const minOverlap = Math.min(overlapL, overlapR, overlapT, overlapB);
+
+            if (minOverlap === overlapT && this.vy >= 0) {
+              this.y = p.y - this.h;
+              this.vy = 0;
+              this.onGround = true;
+              this.jumpsLeft = 2;
+            } else if (minOverlap === overlapB && this.vy < 0) {
+              this.y = p.y + p.h;
+              this.vy = 0;
+            } else if (minOverlap === overlapL) {
+              this.x = p.x - this.w;
+              this.vx = 0;
+            } else if (minOverlap === overlapR) {
+              this.x = p.x + p.w;
+              this.vx = 0;
+            }
+          }
+        }
+
+        if (this.y > VH + 50 || (inPit(this.x, this.w) && this.y + this.h > 445 && !this.onGround)) {
+          this.game.playerDie(this);
+        }
+
+        if (this.invincible > 0) this.invincible--;
+        if (Math.abs(this.vx) > 0.2 && this.onGround) {
+          this.animPhase = (this.animPhase || 0) + 0.25;
+        } else {
+          this.animPhase = 0;
+        }
+      }
+
+      draw() {
+        if (!this.alive) return;
+        const sx = this.x - cameraX;
+        if (this.invincible > 0 && Math.floor(this.invincible / 4) % 2 === 0) return;
+        drawHero(sx, this.y, this.w, this.h, this.facing, this.big, this.animPhase || 0, this.onGround, this.def);
+        if (this.game && this.index === game.myIndex) {
+          ctx.strokeStyle = 'rgba(251,191,36,0.85)';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(sx - 2, this.y - 2, this.w + 4, this.h + 4);
+        }
+      }
+
+      toNet() {
+        return {
+          x: this.x, y: this.y, vx: this.vx, vy: this.vy, big: this.big, facing: this.facing,
+          invincible: this.invincible, w: this.w, h: this.h, jumpsLeft: this.jumpsLeft,
+          alive: this.alive, animPhase: this.animPhase || 0
+        };
+      }
+
+      applyNet(s) {
+        this.x = s.x; this.y = s.y; this.vx = s.vx; this.vy = s.vy;
+        this.big = s.big; this.facing = s.facing; this.invincible = s.invincible;
+        this.w = s.w; this.h = s.h; this.jumpsLeft = s.jumpsLeft;
+        this.alive = s.alive; this.animPhase = s.animPhase || 0;
+      }
+    }
+
+    function drawHero(sx, y, w, h, facing, big, anim, onGround, def) {
+      const hatColor = def?.hat || '#dc2626';
+      const overallColor = def?.overall || '#2563eb';
+      const dir = facing > 0 ? 1 : -1;
+      const walk = onGround ? Math.sin(anim) : 0;
+      const cx = sx + w / 2;
+      const baseY = y + h;
+
+      ctx.save();
+      ctx.translate(cx, baseY);
+      ctx.scale(dir, 1);
+      ctx.translate(-w / 2, -h + walk * -1.5);
+
+      const scale = big ? 1.28 : 1;
+      const headR = (big ? 13 : 10) * scale;
+      const headCx = w / 2;
+      const headCy = headR + (big ? 4 : 2);
+      const bodyTop = headCy + headR - 2;
+      const bodyH = (big ? 22 : 14) * scale;
+      const legH = h - (headCy + headR) - bodyH + 4;
+      const legSwing = walk * 4;
+
+      ctx.fillStyle = '#4a2c14';
+      ctx.beginPath();
+      ctx.ellipse(w * 0.35 - legSwing, h - 3, 6 * scale, 4, 0, 0, Math.PI * 2);
+      ctx.ellipse(w * 0.65 + legSwing, h - 3, 6 * scale, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#1e4fa8';
+      ctx.fillRect(w * 0.28, bodyTop + bodyH - 2, w * 0.18, legH);
+      ctx.fillRect(w * 0.54, bodyTop + bodyH - 2, w * 0.18, legH);
+
+      ctx.fillStyle = overallColor;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(w * 0.18, bodyTop, w * 0.64, bodyH, 4);
+      else ctx.rect(w * 0.18, bodyTop, w * 0.64, bodyH);
+      ctx.fill();
+
+      ctx.fillStyle = hatColor;
+      ctx.fillRect(w * 0.18, bodyTop + 2, w * 0.64, bodyH * 0.45);
+      ctx.fillRect(w * 0.05, bodyTop + 4, w * 0.18, bodyH * 0.35);
+      ctx.fillRect(w * 0.77, bodyTop + 4, w * 0.18, bodyH * 0.35);
+
+      ctx.fillStyle = '#fbbf24';
+      ctx.beginPath();
+      ctx.arc(w * 0.42, bodyTop + bodyH * 0.55, 2.5, 0, Math.PI * 2);
+      ctx.arc(w * 0.58, bodyTop + bodyH * 0.55, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#ffcba4';
+      ctx.beginPath();
+      ctx.arc(headCx, headCy, headR, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = hatColor;
+      ctx.beginPath();
+      ctx.arc(headCx, headCy - headR * 0.35, headR * 1.05, Math.PI, 0);
+      ctx.fill();
+      ctx.fillRect(headCx - headR * 1.1, headCy - headR * 0.2, headR * 2.2, headR * 0.35);
+      ctx.fillStyle = hatColor;
+      ctx.fillRect(headCx - headR * 1.15, headCy - headR * 0.05, headR * 2.3, headR * 0.22);
+
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(headCx, headCy - headR * 0.55, headR * 0.32, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = hatColor;
+      ctx.beginPath();
+      ctx.arc(headCx, headCy - headR * 0.55, headR * 0.18, 0, Math.PI * 2);
+      ctx.fill();
+
+      const eyeX = headCx + headR * 0.28;
+      const eyeY = headCy + headR * 0.05;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.ellipse(eyeX, eyeY, headR * 0.28, headR * 0.34, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#1e293b';
+      ctx.beginPath();
+      ctx.arc(eyeX + headR * 0.1, eyeY + headR * 0.04, headR * 0.14, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(eyeX + headR * 0.16, eyeY - headR * 0.06, headR * 0.05, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#5c3d1e';
+      ctx.beginPath();
+      ctx.ellipse(headCx + headR * 0.35, headCy + headR * 0.42, headR * 0.42, headR * 0.12, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(headCx, headCy, headR, 0.2, Math.PI * 2 - 0.2);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    class Coin {
+      constructor(x, y) {
+        this.x = x; this.y = y; this.r = 10; this.collected = false;
+        this.bob = Math.random() * Math.PI * 2;
+      }
+      update() { this.bob += 0.08; }
+      draw() {
+        if (this.collected) return;
+        const y = this.y + Math.sin(this.bob) * 3;
+        const sx = this.x - cameraX;
+        ctx.beginPath();
+        ctx.arc(sx, y, this.r, 0, Math.PI * 2);
+        ctx.fillStyle = '#fbbf24';
+        ctx.fill();
+        ctx.strokeStyle = '#d97706';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = '#fde68a';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('C', sx, y + 4);
+      }
+    }
+
+    class PowerMushroom {
+      constructor(x, y) {
+        this.x = x; this.y = y; this.w = 28; this.h = 28;
+        this.vx = 1.5; this.vy = 0; this.collected = false;
+        this.onGround = false;
+      }
+      update() {
+        if (this.collected) return;
+        this.vy += GRAVITY;
+        this.x += this.vx;
+        this.y += this.vy;
+        this.onGround = false;
+
+        if (this.x < 0) { this.x = 0; this.vx *= -1; }
+        if (this.x + this.w > WORLD_W) { this.x = WORLD_W - this.w; this.vx *= -1; }
+
+        for (const p of platforms) {
+          if (this.x + this.w > p.x && this.x < p.x + p.w &&
+              this.y + this.h > p.y && this.y < p.y + p.h) {
+            const overlapT = (this.y + this.h) - p.y;
+            const overlapB = (p.y + p.h) - this.y;
+            if (overlapT < overlapB && this.vy >= 0) {
+              this.y = p.y - this.h;
+              this.vy = 0;
+              this.onGround = true;
+            }
+          }
+        }
+        if (this.onGround && Math.abs(this.vx) < 0.5) this.vx = this.vx < 0 ? -1.5 : 1.5;
+      }
+      draw() {
+        if (this.collected) return;
+        const sx = this.x - cameraX;
+        drawEnemyMushroom(sx + this.w / 2, this.y + this.h, 14, '#ef4444', false);
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(sx + this.w / 2, this.y + 4, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#dc2626';
+        ctx.font = 'bold 7px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('★', sx + this.w / 2, this.y + 7);
+      }
+    }
+
+    class MushroomEnemy {
+      constructor(x, y, range = 100, speed = 1.8) {
+        this.x = x; this.y = y; this.w = 30; this.h = 30;
+        this.vx = -speed; this.startX = x; this.range = range;
+        this.speed = speed;
+        this.alive = true; this.squished = false; this.squishTimer = 0;
+        this.vy = 0;
+        snapToGround(this);
+      }
+      update() {
+        if (!this.alive) {
+          if (this.squished) { this.squishTimer--; if (this.squishTimer <= 0) this.alive = false; }
+          return;
+        }
+
+        if (!hasGroundAhead(this, this.vx > 0 ? 1 : -1)) this.vx *= -1;
+
+        this.vy += GRAVITY;
+        this.x += this.vx;
+        this.y += this.vy;
+
+        if (this.x < this.startX - this.range || this.x > this.startX + this.range) this.vx *= -1;
+
+        if (!snapToGround(this)) {
+          if (this.y > VH + 50) this.alive = false;
+        } else {
+          this.vy = 0;
+        }
+      }
+      stomp() {
+        this.squished = true;
+        this.squishTimer = 20;
+        this.h = 10;
+        this.y += 20;
+        snapToGround(this);
+        addParticles(this.x + this.w / 2, this.y, '#a16207');
+      }
+      draw() {
+        if (!this.alive && !this.squished) return;
+        const sx = this.x - cameraX;
+        if (this.squished) {
+          ctx.fillStyle = '#78350f';
+          ctx.beginPath();
+          ctx.ellipse(sx + this.w / 2, this.y + this.h / 2, this.w / 2, this.h / 2, 0, 0, Math.PI * 2);
+          ctx.fill();
+          return;
+        }
+        drawEnemyMushroom(sx + this.w / 2, this.y + this.h - 4, 15, '#a16207', true);
+      }
+    }
+
+    class TurtleEnemy {
+      constructor(x, y, range = 120, speed = 1.6) {
+        this.x = x; this.y = y; this.w = 34; this.h = 38;
+        this.vx = -speed; this.startX = x; this.range = range;
+        this.speed = speed;
+        this.alive = true; this.shell = false; this.shellTimer = 0;
+        this.shellVx = 0; this.vy = 0;
+        snapToGround(this);
+      }
+      update() {
+        if (!this.alive) return;
+        if (this.shell) {
+          this.shellTimer--;
+          if (this.shellTimer <= 0) {
+            this.shell = false;
+            this.h = 38;
+            snapToGround(this);
+            this.vx = -this.speed;
+          }
+          return;
+        }
+
+        if (!hasGroundAhead(this, this.vx > 0 ? 1 : -1)) this.vx *= -1;
+
+        this.vy += GRAVITY;
+        this.x += this.vx;
+        this.y += this.vy;
+
+        if (this.x < this.startX - this.range || this.x > this.startX + this.range) this.vx *= -1;
+
+        if (!snapToGround(this)) {
+          if (this.y > VH + 50) this.alive = false;
+        } else {
+          this.vy = 0;
+        }
+      }
+      stomp(stomper) {
+        if (!this.shell) {
+          this.shell = true;
+          this.shellTimer = 240;
+          this.h = 20;
+          this.y += 18;
+          snapToGround(this);
+          this.vx = 0;
+          addParticles(this.x + this.w / 2, this.y, '#22c55e');
+        } else if (stomper) {
+          this.shellVx = stomper.facing * 9;
+          this.alive = false;
+          addParticles(this.x + this.w / 2, this.y, '#22c55e', 12);
+        }
+      }
+      draw() {
+        if (!this.alive) return;
+        const sx = this.x - cameraX;
+        if (this.shell) {
+          drawTurtleShell(sx + this.w / 2, this.y + 12, 17);
+          return;
+        }
+        drawTurtleBody(sx, this.y, this.w, this.h, this.vx > 0 ? 1 : -1);
+      }
+    }
+
+    class Boss {
+      constructor(x, y) {
+        this.x = x; this.y = y;
+        this.w = 200; this.h = 210;
+        this.vx = 3;
+        this.vy = 0;
+        this.hp = 18;
+        this.maxHp = 18;
+        this.alive = true;
+        this.hurtTimer = 0;
+        this.bob = 0;
+        this.startX = x;
+        this.range = 280;
+        this.stompInvincible = 0;
+        this.jumpCooldown = 120;
+        this.onGround = true;
+        this.rage = 0;
+        this.spawnTimer = 200;
+        snapToGround(this);
+      }
+      update() {
+        if (!this.alive) return;
+        this.bob += 0.05;
+        this.jumpCooldown--;
+        this.spawnTimer--;
+
+        if (this.stompInvincible > 0) this.stompInvincible--;
+        if (this.hurtTimer > 0) this.hurtTimer--;
+
+        if (this.jumpCooldown <= 0 && this.onGround) {
+          this.vy = -16 - this.rage * 0.5;
+          this.onGround = false;
+          this.jumpCooldown = Math.max(60, 150 - this.rage * 8);
+        }
+
+        this.vy += GRAVITY * 0.9;
+        this.x += this.vx;
+        this.y += this.vy;
+
+        if (this.x < this.startX - this.range || this.x > this.startX + this.range) {
+          this.vx *= -1;
+          this.vx = Math.sign(this.vx) * (3 + this.rage * 0.3);
+        }
+
+        if (snapToGround(this)) {
+          this.vy = 0;
+        }
+
+        if (this.spawnTimer <= 0) {
+          this.spawnTimer = Math.max(90, 200 - this.rage * 10);
+          const mx = this.x + (Math.random() > 0.5 ? this.w + 20 : -50);
+          const m = new MushroomEnemy(mx, 0, 60, 2.2 + this.rage * 0.1);
+          snapToGround(m);
+          if (game) game.bossMinions.push(m);
+        }
+      }
+      get headZone() {
+        return { x: this.x + 30, y: this.y, w: this.w - 60, h: 55 };
+      }
+      stomp() {
+        if (this.stompInvincible > 0) return;
+        this.hp--;
+        this.hurtTimer = 20;
+        this.stompInvincible = 70;
+        this.rage++;
+        this.vx = Math.sign(this.vx || 1) * (3 + this.rage * 0.4);
+        addParticles(this.x + this.w / 2, this.y + 30, '#ef4444', 25);
+        if (this.hp <= 0) {
+          this.alive = false;
+          addParticles(this.x + this.w / 2, this.y + this.h / 2, '#fbbf24', 50);
+          win();
+        }
+      }
+      draw() {
+        if (!this.alive) return;
+        const sx = this.x - cameraX;
+        const bobY = Math.sin(this.bob) * 6;
+        const hurt = this.hurtTimer > 0 && Math.floor(this.hurtTimer / 3) % 2 === 0;
+        const cx = sx + this.w / 2;
+        const footY = this.y + this.h + bobY;
+
+        drawEnemyMushroom(cx, footY, 88, hurt ? '#f87171' : '#991b1b', true);
+
+        ctx.fillStyle = '#1e293b';
+        ctx.beginPath();
+        ctx.ellipse(cx - 35, this.y + 95 + bobY, 18, 22, 0, 0, Math.PI * 2);
+        ctx.ellipse(cx + 35, this.y + 95 + bobY, 18, 22, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fef08a';
+        ctx.beginPath();
+        ctx.arc(cx - 30, this.y + 90 + bobY, 7, 0, Math.PI * 2);
+        ctx.arc(cx + 30, this.y + 90 + bobY, 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(cx - 28, this.y + 92 + bobY, 3, 0, Math.PI * 2);
+        ctx.arc(cx + 32, this.y + 92 + bobY, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        const barW = this.w - 20;
+        ctx.fillStyle = '#334155';
+        if (ctx.roundRect) ctx.roundRect(sx + 10, this.y - 24 + bobY, barW, 12, 4);
+        else ctx.rect(sx + 10, this.y - 24 + bobY, barW, 12);
+        ctx.fill();
+        ctx.fillStyle = '#ef4444';
+        if (ctx.roundRect) ctx.roundRect(sx + 10, this.y - 24 + bobY, barW * (this.hp / this.maxHp), 12, 4);
+        else ctx.rect(sx + 10, this.y - 24 + bobY, barW * (this.hp / this.maxHp), 12);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 9px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('보스', cx, this.y - 14 + bobY);
+      }
+    }
+
+    function drawEnemyMushroom(cx, footY, r, capColor, angry) {
+      const cy = footY - r * 0.9;
+      ctx.fillStyle = '#fef3c7';
+      ctx.beginPath();
+      ctx.ellipse(cx, footY - 4, r * 0.55, r * 0.3, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = capColor;
+      ctx.beginPath();
+      ctx.arc(cx, cy - r * 0.15, r, Math.PI, 0);
+      ctx.lineTo(cx + r, cy + r * 0.35);
+      ctx.quadraticCurveTo(cx, cy + r * 0.55, cx - r, cy + r * 0.35);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      [[-0.35, -0.45], [0.25, -0.5]].forEach(([ox, oy]) => {
+        ctx.beginPath();
+        ctx.arc(cx + r * ox, cy + r * oy, r * 0.15, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      if (angry) {
+        ctx.strokeStyle = '#3b1f0b';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cx - r * 0.45, cy + r * 0.05);
+        ctx.lineTo(cx - r * 0.15, cy + r * 0.15);
+        ctx.moveTo(cx + r * 0.45, cy + r * 0.05);
+        ctx.lineTo(cx + r * 0.15, cy + r * 0.15);
+        ctx.stroke();
+        ctx.fillStyle = '#3b1f0b';
+        ctx.beginPath();
+        ctx.arc(cx - r * 0.25, cy + r * 0.3, 3, 0, Math.PI * 2);
+        ctx.arc(cx + r * 0.25, cy + r * 0.3, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function drawTurtleShell(cx, cy, r) {
+      const grad = ctx.createRadialGradient(cx, cy - 2, 2, cx, cy, r);
+      grad.addColorStop(0, '#4ade80');
+      grad.addColorStop(1, '#15803d');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, r, r * 0.82, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#052e16';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 0.55, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - r * 0.55);
+      ctx.lineTo(cx, cy + r * 0.55);
+      ctx.moveTo(cx - r * 0.55, cy);
+      ctx.lineTo(cx + r * 0.55, cy);
+      ctx.stroke();
+    }
+
+    function drawTurtleBody(sx, y, w, h, dir) {
+      const cx = sx + w / 2;
+      ctx.save();
+      ctx.translate(cx, y + h);
+      ctx.scale(dir, 1);
+      ctx.translate(-cx, -(y + h));
+
+      drawTurtleShell(cx, y + 14, 15);
+
+      ctx.fillStyle = '#86efac';
+      ctx.beginPath();
+      ctx.ellipse(cx - 10, y + 28, 5, 7, -0.3, 0, Math.PI * 2);
+      ctx.ellipse(cx + 10, y + 28, 5, 7, 0.3, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#ffcba4';
+      ctx.beginPath();
+      ctx.arc(cx + 12 * dir, y + 22, 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(cx + 15 * dir, y + 20, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#1e293b';
+      ctx.beginPath();
+      ctx.arc(cx + 16 * dir, y + 21, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    function drawMushroomShape(cx, cy, r, capColor, spotColor, spots) {
+      ctx.fillStyle = capColor;
+      ctx.beginPath();
+      ctx.arc(cx, cy - r * 0.2, r, Math.PI, 0);
+      ctx.lineTo(cx + r, cy + r * 0.3);
+      ctx.lineTo(cx - r, cy + r * 0.3);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = '#fef3c7';
+      ctx.fillRect(cx - r * 0.55, cy + r * 0.1, r * 1.1, r * 0.65);
+
+      if (spots) {
+        ctx.fillStyle = spotColor;
+        [[-0.4, -0.5], [0.3, -0.55], [0, -0.75], [-0.55, -0.2], [0.5, -0.25]].forEach(([ox, oy]) => {
+          ctx.beginPath();
+          ctx.arc(cx + r * ox, cy + r * oy, r * 0.18, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+    }
+
+    function addParticles(x, y, color, count = 8) {
+      if (!game) return;
+      for (let i = 0; i < count; i++) {
+        game.particles.push({
+          x, y,
+          vx: (Math.random() - 0.5) * 6,
+          vy: (Math.random() - 0.5) * 6 - 2,
+          life: 30 + Math.random() * 20,
+          color,
+          r: 3 + Math.random() * 3
+        });
+      }
+    }
+
+    class Fireball {
+      constructor(x, y, vx, vy, ownerIdx) {
+        this.x = x;
+        this.y = y;
+        this.w = 14;
+        this.h = 14;
+        this.vx = vx;
+        this.vy = vy;
+        this.ownerIdx = ownerIdx;
+        this.alive = true;
+      }
+      update() {
+        this.vy += GRAVITY;
+        this.x += this.vx;
+        this.y += this.vy;
+
+        if (this.x < 0 || this.x > WORLD_W || this.y > VH + 50) {
+          this.alive = false;
+          return;
+        }
+
+        for (const p of platforms) {
+          if (this.x + this.w > p.x && this.x < p.x + p.w &&
+              this.y + this.h > p.y && this.y < p.y + p.h) {
+            const overlapL = (this.x + this.w) - p.x;
+            const overlapR = (p.x + p.w) - this.x;
+            const overlapT = (this.y + this.h) - p.y;
+            const overlapB = (p.y + p.h) - this.y;
+            const minOverlap = Math.min(overlapL, overlapR, overlapT, overlapB);
+
+            if (minOverlap === overlapT && this.vy >= 0) {
+              this.y = p.y - this.h;
+              this.vy = -5.8;
+            } else if (minOverlap === overlapL || minOverlap === overlapR) {
+              this.alive = false;
+            }
+          }
+        }
+      }
+      draw() {
+        const sx = this.x - cameraX;
+        ctx.fillStyle = '#ef4444';
+        ctx.beginPath();
+        ctx.arc(sx + this.w / 2, this.y + this.h / 2, this.w / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fbbf24';
+        ctx.beginPath();
+        ctx.arc(sx + this.w / 2, this.y + this.h / 2, this.w / 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function spawnEnemy(EnemyClass, x, range, speed) {
+      const temp = { x, w: 34, y: 0, h: EnemyClass === TurtleEnemy ? 38 : 30 };
+      const plat = getPlatformUnder(x, temp.w);
+      if (!plat) return null;
+      const y = plat.y - temp.h;
+      return new EnemyClass(x, y, range, speed);
+    }
+
+    class MarioGame {
+      constructor(opts) {
+        this.solo = opts.solo;
+        this.isHost = opts.isHost;
+        this.myIndex = opts.myIndex;
+        this.playerCount = opts.playerCount || 1;
+        this.onNet = opts.onNet;
+        this.running = false;
+        this.gameOver = false;
+        this.gameWon = false;
+        this.players = [];
+        this.coins = [];
+        this.items = [];
+        this.enemies = [];
+        this.boss = null;
+        this.bossMinions = [];
+        this.particles = [];
+        this.fireballs = [];
+        this.coinsCount = 0;
+        this.lastSync = 0;
+        this.rafId = 0;
+      }
+
+      me() { return this.players[this.myIndex] || this.players[0]; }
+
+      initLevel() {
+        this.players = [];
+        for (let i = 0; i < this.playerCount; i++) {
+          this.players.push(new Player(this, i));
+        }
+        this.particles = [];
+        this.fireballs = [];
+        this.coinsCount = 0;
+        this.bossMinions = [];
+        this.coins = [
+          [250, 300], [520, 240], [950, 290], [1250, 220],
+          [1600, 260], [1950, 290], [2550, 250], [3000, 200],
+          [3400, 270], [4100, 300], [4500, 240]
+        ].map(([x, y]) => new Coin(x, y));
+
+        const m1plat = getPlatformUnder(500, 28);
+        this.items = [new PowerMushroom(500, m1plat ? m1plat.y - 60 : 350)];
+
+        this.enemies = [
+          spawnEnemy(MushroomEnemy, 300, 60, 2.0),
+          spawnEnemy(TurtleEnemy, 550, 50, 1.8),
+          spawnEnemy(MushroomEnemy, 900, 70, 2.2),
+          spawnEnemy(MushroomEnemy, 1000, 50, 2.0),
+          spawnEnemy(TurtleEnemy, 1400, 60, 2.0),
+          spawnEnemy(MushroomEnemy, 1600, 80, 2.3),
+          spawnEnemy(TurtleEnemy, 1950, 50, 2.1),
+          spawnEnemy(MushroomEnemy, 2100, 60, 2.2),
+          spawnEnemy(MushroomEnemy, 2400, 70, 2.4),
+          spawnEnemy(TurtleEnemy, 2600, 55, 2.2),
+          spawnEnemy(MushroomEnemy, 2900, 60, 2.3),
+          spawnEnemy(TurtleEnemy, 3100, 50, 2.3),
+          spawnEnemy(MushroomEnemy, 3400, 70, 2.5),
+          spawnEnemy(MushroomEnemy, 3600, 50, 2.4),
+          spawnEnemy(TurtleEnemy, 3800, 60, 2.5)
+        ].filter(Boolean);
+
+        const bossPlat = getPlatformUnder(4000, 200);
+        this.boss = new Boss(4050, bossPlat ? bossPlat.y - 210 : 230);
+        this.gameOver = false;
+        this.gameWon = false;
+        cameraX = 0;
+        document.getElementById('overlay').classList.remove('show');
+        this.updateHUD();
+        this.updatePlayerTags();
+      }
+
+      checkCollisions() {
+        for (const player of this.players) {
+          if (!player.alive) continue;
+          for (const coin of this.coins) {
+            if (coin.collected) continue;
+            if (Math.hypot(player.cx - coin.x, player.cy - coin.y) < coin.r + 16) {
+              coin.collected = true;
+              this.coinsCount++;
+              addParticles(coin.x, coin.y, '#fbbf24', 6);
+            }
+          }
+          for (const item of this.items) {
+            if (item.collected) continue;
+            if (player.x + player.w > item.x && player.x < item.x + item.w &&
+                player.y + player.h > item.y && player.y < item.y + item.h) {
+              item.collected = true;
+              player.grow();
+              addParticles(item.x + item.w / 2, item.y, '#ef4444', 10);
+            }
+          }
+          for (const e of [...this.enemies, ...this.bossMinions]) {
+            if (!e.alive && !e.squished) continue;
+            if (e.squished) continue;
+            if (!rectOverlap(player, e)) continue;
+            if (player.vy > 1 && player.bottom - player.vy <= e.y + 12) {
+              e.stomp(player);
+              player.vy = JUMP_FORCE * 0.45;
+            } else if (player.invincible <= 0) {
+              if (player.shrink()) this.playerDie(player);
+            }
+          }
+          if (this.boss.alive && rectOverlap(player, this.boss)) {
+            const head = this.boss.headZone;
+            const onHead = player.vy > 2 &&
+              player.bottom - player.vy <= head.y + head.h &&
+              player.cx > head.x && player.cx < head.x + head.w;
+            if (onHead) {
+              this.boss.stomp();
+              player.vy = JUMP_FORCE * 0.35;
+            } else if (player.invincible <= 0) {
+              if (player.shrink()) this.playerDie(player);
+              player.vx = (player.cx < this.boss.x + this.boss.w / 2 ? -6 : 6);
+            }
+          }
+        }
+      }
+
+      playerDie(player) {
+        player.alive = false;
+        player.vx = 0; player.vy = 0;
+        addParticles(player.cx, player.cy, '#ef4444', 16);
+        this.updatePlayerTags();
+        if (!this.players.some(p => p.alive)) {
+          this.endGame(false, `코인 ${this.coins.filter(c => c.collected).length}개 수집`);
+        }
+      }
+
+      win() {
+        if (this.gameWon) return;
+        this.gameWon = true;
+        this.gameOver = true;
+        this.endGame(true, `보스 처치! 코인 ${this.coins.filter(c => c.collected).length}개`);
+      }
+
+      endGame(won, msg) {
+        this.gameOver = true;
+        document.getElementById('overlayTitle').textContent = won ? '🎉 클리어!' : '💀 게임 오버';
+        document.getElementById('overlayMsg').textContent = msg;
+        document.getElementById('overlay').classList.add('show');
+        if (this.isHost && this.onNet) this.broadcastState();
+      }
+
+      shootFireball(playerIdx) {
+        const p = this.players[playerIdx];
+        if (!p || !p.alive) return;
+        if (this.coinsCount > 0) {
+          this.coinsCount--;
+          this.updateHUD();
+          const f = new Fireball(p.x + p.w / 2, p.y + p.h / 2 - 4, p.facing * 6.5, -2, playerIdx);
+          this.fireballs.push(f);
+          addParticles(p.cx, p.cy, '#ef4444', 5);
+        }
+      }
+
+      updateHUD() {
+        const me = this.me();
+        document.getElementById('coins').textContent = this.coins.filter(c => c.collected).length;
+        document.getElementById('fireballsAmmo').textContent = this.coinsCount;
+        document.getElementById('status').textContent = me && me.alive ? (me.big ? '큼' : '작음') : '전멸';
+        document.getElementById('bossHp').textContent = this.boss && this.boss.alive ? this.boss.hp : '처치!';
+      }
+
+      updatePlayerTags() {
+        if (this.solo) { playerTagsEl.innerHTML = ''; return; }
+        playerTagsEl.innerHTML = this.players.map((p, i) => {
+          const cls = 'ptag' + (i === this.myIndex ? ' me' : '') + (p.alive ? '' : ' dead');
+          return `<span class="${cls}">${p.def.emoji} ${p.def.name}${i === this.myIndex ? ' (나)' : ''}</span>`;
+        }).join('');
+      }
+
+      hostTick() {
+        if (this.gameOver) return;
+        this.players.forEach(p => { if (p.alive) p.update(); });
+        this.coins.forEach(c => c.update());
+        this.items.forEach(i => i.update());
+        this.enemies.forEach(e => e.update());
+        this.bossMinions.forEach(e => e.update());
+        this.bossMinions = this.bossMinions.filter(e => e.alive || e.squished);
+        if (this.boss) this.boss.update();
+        
+        this.fireballs.forEach(f => f.update());
+        this.fireballs.forEach(f => {
+          if (!f.alive) return;
+          for (const e of [...this.enemies, ...this.bossMinions]) {
+            if (!e.alive || e.squished) continue;
+            if (f.x + f.w > e.x && f.x < e.x + e.w &&
+                f.y + f.h > e.y && f.y < e.y + e.h) {
+              e.stomp();
+              f.alive = false;
+              addParticles(e.x + e.w/2, e.y + e.h/2, '#ef4444', 8);
+              break;
+            }
+          }
+          if (f.alive && this.boss && this.boss.alive) {
+            const b = this.boss;
+            if (f.x + f.w > b.x && f.x < b.x + b.w &&
+                f.y + f.h > b.y && f.y < b.y + b.h) {
+              b.stomp();
+              f.alive = false;
+              addParticles(b.x + b.w/2, b.y + b.h/2, '#ef4444', 12);
+            }
+          }
+        });
+        this.fireballs = this.fireballs.filter(f => f.alive);
+
+        this.checkCollisions();
+        this.particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.2; p.life--; });
+        this.particles = this.particles.filter(p => p.life > 0);
+      }
+
+      broadcastState() {
+        if (!this.onNet) return;
+        this.onNet({
+          type: 'STATE',
+          players: this.players.map(p => p.toNet()),
+          coins: this.coins.map(c => ({ x: c.x, y: c.y, collected: c.collected })),
+          items: this.items.map(i => ({ x: i.x, y: i.y, vx: i.vx, vy: i.vy, collected: i.collected })),
+          enemies: this.enemies.map(e => ({
+            x: e.x, y: e.y, vx: e.vx, vy: e.vy, w: e.w, h: e.h, alive: e.alive,
+            squished: e.squished, squishTimer: e.squishTimer,
+            shell: e.shell, shellTimer: e.shellTimer, shellVx: e.shellVx
+          })),
+          bossMinions: this.bossMinions.map(e => ({
+            x: e.x, y: e.y, vx: e.vx, alive: e.alive, squished: e.squished, squishTimer: e.squishTimer, h: e.h
+          })),
+          boss: this.boss ? {
+            x: this.boss.x, y: this.boss.y, vx: this.boss.vx, vy: this.boss.vy,
+            hp: this.boss.hp, alive: this.boss.alive, hurtTimer: this.boss.hurtTimer,
+            stompInvincible: this.boss.stompInvincible, rage: this.boss.rage
+          } : null,
+          fireballs: this.fireballs.map(f => ({ x: f.x, y: f.y })),
+          coinsCount: this.coinsCount,
+          gameOver: this.gameOver, gameWon: this.gameWon
+        });
+      }
+
+      applyState(data) {
+        if (data.players) data.players.forEach((s, i) => {
+          if (this.players[i]) this.players[i].applyNet(s);
+        });
+        if (data.coins) data.coins.forEach((s, i) => {
+          if (this.coins[i]) { this.coins[i].x = s.x; this.coins[i].y = s.y; this.coins[i].collected = s.collected; }
+        });
+        if (data.items) data.items.forEach((s, i) => {
+          if (this.items[i]) Object.assign(this.items[i], s);
+        });
+        if (data.enemies) data.enemies.forEach((s, i) => {
+          if (this.enemies[i]) Object.assign(this.enemies[i], s);
+        });
+        if (data.bossMinions) {
+          while (this.bossMinions.length < data.bossMinions.length) {
+            const m = new MushroomEnemy(0, 0, 60, 2);
+            this.bossMinions.push(m);
+          }
+          data.bossMinions.forEach((s, i) => { if (this.bossMinions[i]) Object.assign(this.bossMinions[i], s); });
+          this.bossMinions = this.bossMinions.filter((e, i) => i < data.bossMinions.length);
+        }
+        if (data.boss && this.boss) Object.assign(this.boss, data.boss);
+        if (data.fireballs) {
+          this.fireballs = data.fireballs.map(f => new Fireball(f.x, f.y, 0, 0, 0));
+        }
+        if (data.coinsCount !== undefined) {
+          this.coinsCount = data.coinsCount;
+        }
+        this.gameOver = !!data.gameOver;
+        this.gameWon = !!data.gameWon;
+        if (this.gameOver && !document.getElementById('overlay').classList.contains('show')) {
+          this.endGame(this.gameWon, this.gameWon
+            ? `보스 처치! 코인 ${this.coins.filter(c => c.collected).length}개`
+            : `코인 ${this.coins.filter(c => c.collected).length}개 수집`);
+        }
+        this.updateHUD();
+        this.updatePlayerTags();
+      }
+
+      applyGuestInput(idx, inp) {
+        const p = this.players[idx];
+        if (!p) return;
+        p.input.left = !!inp.l;
+        p.input.right = !!inp.r;
+        if (inp.j) p.input.jumpPressed = true;
+        p.input.downPressed = !!inp.d;
+      }
+
+      sendLocalInput() {
+        if (this.solo || this.isHost || !this.onNet) return;
+        const me = this.me();
+        if (!me) return;
+        this.onNet({
+          type: 'INPUT', idx: this.myIndex,
+          input: { l: me.input.left, r: me.input.right, j: me.input.jumpPressed, d: me.input.downPressed }
+        });
+        me.input.jumpPressed = false;
+        me.input.downPressed = false;
+      }
+
+      draw() {
+        const me = this.me();
+        if (me && me.alive) {
+          cameraX = Math.max(0, Math.min(WORLD_W - VW, me.cx - VW * 0.38));
+        } else if (this.players.length) {
+          const live = this.players.find(p => p.alive) || this.players[0];
+          cameraX = Math.max(0, Math.min(WORLD_W - VW, live.cx - VW * 0.38));
+        }
+
+        drawBackground();
+        this.coins.forEach(c => c.draw());
+        this.items.forEach(i => i.draw());
+        this.enemies.forEach(e => e.draw());
+        this.bossMinions.forEach(e => e.draw());
+        if (this.boss) this.boss.draw();
+        drawFlag();
+        this.fireballs.forEach(f => f.draw());
+        this.players.forEach(p => p.draw());
+
+        this.particles.forEach(p => {
+          ctx.beginPath();
+          ctx.arc(p.x - cameraX, p.y, p.r, 0, Math.PI * 2);
+          ctx.fillStyle = p.color;
+          ctx.fill();
+        });
+
+        this.updateHUD();
+      }
+
+      loop(t) {
+        if (!this.running) return;
+        this.sendLocalInput();
+        if (this.isHost || this.solo) {
+          this.hostTick();
+          if (t - this.lastSync >= SYNC_MS) {
+            this.broadcastState();
+            this.lastSync = t;
+          }
+        }
+        this.draw();
+        this.rafId = requestAnimationFrame(ts => this.loop(ts));
+      }
+
+      start() {
+        this.running = true;
+        this.initLevel();
+        this.lastSync = 0;
+        cancelAnimationFrame(this.rafId);
+        this.rafId = requestAnimationFrame(ts => this.loop(ts));
+        if (this.isHost && this.onNet) this.broadcastState();
+      }
+
+      stop() {
+        this.running = false;
+        cancelAnimationFrame(this.rafId);
+      }
+
+      restart() {
+        this.stop();
+        document.getElementById('overlay').classList.remove('show');
+        this.start();
+      }
+    }
+
+    function win() {
+      if (game) game.win();
+    }
+
+    function initLevel() {
+      if (game) game.initLevel();
+    }
+
+    function rectOverlap(a, b) {
+      return a.x + a.w > b.x && a.x < b.x + b.w &&
+             a.y + a.h > b.y && a.y < b.y + b.h;
+    }
+
+    function drawBackground() {
+      const grad = ctx.createLinearGradient(0, 0, 0, VH);
+      grad.addColorStop(0, '#5c94fc');
+      grad.addColorStop(1, '#94c5ff');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, VW, VH);
+
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      [[100, 80, 60], [300, 120, 40], [550, 60, 80]].forEach(([x, y, s]) => {
+        const sx = x - cameraX * 0.3;
+        ctx.beginPath();
+        ctx.arc(sx, y, s, 0, Math.PI * 2);
+        ctx.arc(sx + s * 1.2, y, s * 0.8, 0, Math.PI * 2);
+        ctx.arc(sx + s * 2, y, s * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      for (const p of platforms) {
+        const sx = p.x - cameraX;
+        if (sx + p.w < 0 || sx > VW) continue;
+        ctx.fillStyle = '#c84c0c';
+        ctx.fillRect(sx, p.y, p.w, p.h);
+        ctx.fillStyle = '#22c55e';
+        ctx.fillRect(sx, p.y, p.w, 14);
+        ctx.fillStyle = 'rgba(0,0,0,0.1)';
+        for (let i = 0; i < p.w; i += 30) ctx.fillRect(sx + i, p.y + 14, 2, p.h - 14);
+      }
+
+      for (const pit of pits) {
+        const sx = pit.x - cameraX;
+        if (sx + pit.w < 0 || sx > VW) continue;
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(sx, 440, pit.w, 80);
+        ctx.fillStyle = '#7f1d1d';
+        for (let i = 10; i < pit.w - 10; i += 18) {
+          ctx.beginPath();
+          ctx.moveTo(sx + i, 450);
+          ctx.lineTo(sx + i + 8, 470);
+          ctx.lineTo(sx + i + 16, 450);
+          ctx.fill();
+        }
+      }
+
+      if (game && game.boss && !game.boss.alive) {
+        ctx.fillStyle = 'rgba(251,191,36,0.3)';
+        ctx.fillRect(3600 - cameraX, 180, 400, 260);
+      }
+    }
+
+    function drawFlag() {
+      const fx = 4700 - cameraX;
+      ctx.fillStyle = '#64748b';
+      ctx.fillRect(fx, 200, 8, 240);
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.moveTo(fx + 8, 210);
+      ctx.lineTo(fx + 60, 230);
+      ctx.lineTo(fx + 8, 250);
+      ctx.fill();
+    }
+
+    function setInput(key, active) {
+      if (!game || game.gameOver) return;
+      const me = game.me();
+      if (!me || !me.alive) return;
+      if (key === 'left') me.input.left = active;
+      if (key === 'right') me.input.right = active;
+      if (key === 'jump' && active) me.input.jumpPressed = true;
+      if (key === 'down' && active) me.input.downPressed = true;
+      document.getElementById('btnLeft').classList.toggle('active', me.input.left);
+      document.getElementById('btnRight').classList.toggle('active', me.input.right);
+      document.getElementById('btnDown').classList.toggle('active', me.input.downPressed);
+    }
+
+    function bindBtn(btn, key) {
+      const start = (e) => { e.preventDefault(); setInput(key, true); };
+      const stop = () => { if (key !== 'jump' && key !== 'down') setInput(key, false); };
+      btn.addEventListener('pointerdown', start);
+      btn.addEventListener('pointerup', stop);
+      btn.addEventListener('pointerleave', stop);
+      btn.addEventListener('pointercancel', stop);
+    }
+
+    const keyMap = {
+      ArrowLeft: 'left', ArrowRight: 'right',
+      ArrowUp: 'jump', ' ': 'jump',
+      ArrowDown: 'down', s: 'down', S: 'down',
+      a: 'left', A: 'left', d: 'right', D: 'right',
+      w: 'jump', W: 'jump'
+    };
+
+    window.addEventListener('keydown', (e) => {
+      const k = keyMap[e.key];
+      if (!k) return;
+      e.preventDefault();
+      setInput(k, true);
+    });
+    window.addEventListener('keyup', (e) => {
+      const k = keyMap[e.key];
+      if (!k || k === 'jump' || k === 'down') return;
+      e.preventDefault();
+      setInput(k, false);
+    });
+    window.addEventListener('blur', () => {
+      if (!game) return;
+      const me = game.me();
+      if (!me) return;
+      me.input.left = false; me.input.right = false; me.input.downPressed = false;
+      document.getElementById('btnLeft').classList.remove('active');
+      document.getElementById('btnRight').classList.remove('active');
+      document.getElementById('btnDown').classList.remove('active');
+    });
+
+    bindBtn(document.getElementById('btnLeft'), 'left');
+    bindBtn(document.getElementById('btnRight'), 'right');
+    bindBtn(document.getElementById('btnJump'), 'jump');
+    bindBtn(document.getElementById('btnDown'), 'down');
+
+    document.getElementById('restartBtn').addEventListener('click', () => {
+      if (game) { game.restart(); queueLayout(); }
+    });
+    document.getElementById('btnToLobby').addEventListener('click', showLobby);
+    document.getElementById('backBtn').addEventListener('click', showLobby);
+
+    function makeNetHandler(isHost) {
+      return (payload) => {
+        if (payload.type === 'STATE') WwNet.broadcastState(payload);
+        else WwNet.broadcast(payload);
+      };
+    }
+
+    function hostBeginGame() {
+      const count = WwNet.playerCount;
+      if (count < 2) return;
+      WwNet.startGameBroadcast(count);
+      showGameView();
+      game = new MarioGame({
+        solo: false, isHost: true, myIndex: 0, playerCount: count,
+        onNet: makeNetHandler(true)
+      });
+      game.start();
+    }
+
+    function clientBeginGame(playerCount) {
+      showGameView();
+      game = new MarioGame({
+        solo: false, isHost: false, myIndex: WwNet.myIndex, playerCount,
+        onNet: (payload) => WwNet.sendToHost(payload)
+      });
+      game.start();
+    }
+
+    function startSolo() {
+      showGameView();
+      game = new MarioGame({ solo: true, isHost: true, myIndex: 0, playerCount: 1, onNet: null });
+      game.start();
+    }
+
+    function handleNetData(data) {
+      if (data.type === 'LOBBY') updateRosterUI(data);
+      else if (data.type === 'WELCOME' && !WwNet.isHost) {
+        showCoopWait(roomInput.value.trim(), false);
+        updateRosterUI({ roster: data.roster, playerCount: data.roster.length });
+        lobbyLog(`대기실 입장 (${PLAYER_DEFS[data.index].emoji} ${PLAYER_DEFS[data.index].name})`);
+      } else if (data.type === 'START' && !WwNet.isHost) {
+        clientBeginGame(data.playerCount);
+        lobbyLog(`${data.playerCount}인 협동 시작!`);
+      } else if (data.type === 'STATE' && game) {
+        game.applyState(data);
+      } else if (data.type === 'INPUT' && game && WwNet.isHost) {
+        game.applyGuestInput(data.idx, data.input);
+      } else if (data.type === 'PEER_LEFT' && game && WwNet.isHost) {
+        const p = game.players[data.index];
+        if (p && p.alive) game.playerDie(p);
+        lobbyLog(`${PLAYER_DEFS[data.index]?.emoji || '?'} 퇴장`);
+      } else if (data.type === 'REJECT') {
+        lobbyLog('거부: ' + data.reason);
+        if (!WwNet.isHost) showLobby();
+      }
+    }
+
+    function startNet(asHost) {
+      const remoteId = roomInput.value.trim();
+      if (!asHost && !remoteId) {
+        lobbyLog(USE_ROOM_CODE ? '방 코드를 입력하세요' : '초대 링크가 없습니다');
+        return;
+      }
+      WwNet.initPeer({
+        asHost, remoteId,
+        handlers: {
+          onOpen: (info) => {
+            if (info.role === 'host' && info.roomReady) showCoopWait(info.id, true);
+            else if (info.role === 'host' && info.clientJoined) lobbyLog(`${PLAYER_DEFS[info.index].emoji} 입장`);
+            else if (info.role === 'client' && info.connOpen) lobbyLog('호스트에 연결됨 — 대기실');
+          },
+          onLobby: updateRosterUI,
+          onData: handleNetData,
+          onClose: () => { if (!WwNet.gameStarted) lobbyLog('연결 종료'); else showLobby(); },
+          onError: (e) => lobbyLog('Peer 오류: ' + (e.type || e.message))
+        }
+      });
+    }
+
+    document.getElementById('btnSolo').addEventListener('click', startSolo);
+    document.getElementById('btnCoopHost').addEventListener('click', () => startNet(true));
+    document.getElementById('btnJoin').addEventListener('click', () => {
+      roomInput.value = document.getElementById('joinCodeInput').value.trim();
+      startNet(false);
+    });
+    document.getElementById('btnCopyLink').addEventListener('click', () => {
+      copyText(currentInviteUrl, USE_ROOM_CODE ? '방 코드 복사됨' : '초대 링크 복사됨');
+    });
+    document.getElementById('btnStartGame').addEventListener('click', hostBeginGame);
+    document.getElementById('btnCancelWait').addEventListener('click', showLobby);
+
+    if (USE_ROOM_CODE) joinPanel.classList.remove('hidden');
+
+    const joinParam = new URLSearchParams(location.search).get('join');
+    if (joinParam) {
+      roomInput.value = joinParam;
+      lobbyLog('초대 감지 — 연결 중…');
+      startNet(false);
+    }
+
+    layoutGameFrame();
+    window.addEventListener('resize', queueLayout);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', queueLayout);
+      window.visualViewport.addEventListener('scroll', queueLayout);
+    }
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(queueLayout).observe(stageEl);
+      new ResizeObserver(queueLayout).observe(topBarEl);
+      new ResizeObserver(queueLayout).observe(controlsEl);
+    }
+  })();
+  </script>
+</body>
+</html>

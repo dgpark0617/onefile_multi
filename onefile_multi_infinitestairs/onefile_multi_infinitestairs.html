@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>🏃‍♂️ 무한의 계단: P2P 실시간 서바이벌</title>
+<style>
+  :root {
+    --neon-yellow: #fbbf24;
+    --neon-blue: #06b6d4;
+    --neon-purple: #a855f7;
+    --neon-red: #ef4444;
+    --neon-green: #10b981;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background-color: #05050a;
+    color: #f1f5f9;
+    font-family: 'Courier New', Courier, monospace;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  /* Lobby View - 마리오 로비와 동일한 디자인 톤앤매너 */
+  #lobby {
+    width: 90%;
+    max-width: 400px;
+    background: rgba(13, 10, 24, 0.96);
+    border: 2px solid rgba(168, 85, 247, 0.4);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 0 25px rgba(168, 85, 247, 0.6), inset 0 0 10px rgba(6, 182, 212, 0.2);
+    text-align: center;
+    z-index: 10;
+  }
+  #lobby h1 {
+    font-size: 2.2rem;
+    font-weight: 900;
+    letter-spacing: -1px;
+    background: linear-gradient(135deg, var(--neon-blue), var(--neon-purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 6px;
+    text-shadow: 0 0 10px rgba(6, 182, 212, 0.3);
+  }
+  .sub {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    margin-bottom: 18px;
+    font-weight: bold;
+  }
+  .hint {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(168, 85, 247, 0.25);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 0.78rem;
+    text-align: left;
+    line-height: 1.45;
+    margin-bottom: 18px;
+    color: #cbd5e1;
+  }
+  .mode-block {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 12px;
+    text-align: left;
+  }
+  .mode-block h2 {
+    font-size: 1.05rem;
+    color: var(--neon-blue);
+    margin-bottom: 4px;
+  }
+  .mode-block p {
+    font-size: 0.78rem;
+    color: #94a3b8;
+    margin-bottom: 8px;
+  }
+  .lobby-btn {
+    display: inline-block;
+    width: 100%;
+    padding: 11px 16px;
+    font-size: 0.95rem;
+    font-weight: bold;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #0f0c1b;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.3);
+  }
+  .lobby-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(0,0,0,0.3); }
+  .btn-green { background: var(--neon-green); }
+  .btn-green:hover { background: #059669; }
+  .btn-primary { background: var(--neon-purple); color: #fff; }
+  .btn-primary:hover { background: #9333ea; }
+  .btn-red { background: var(--neon-red); color: #fff; }
+  .btn-red:hover { background: #dc2626; }
+  .btn-yellow { background: var(--neon-yellow); }
+  .btn-yellow:hover { background: #d97706; }
+  .btn-ghost { background: transparent; border: 1px solid rgba(255,255,255,0.2); color: #fff; box-shadow: none; }
+  .btn-ghost:hover { background: rgba(255,255,255,0.08); }
+
+  input[type="text"] {
+    width: 100%;
+    padding: 9px 12px;
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(168, 85, 247, 0.4);
+    border-radius: 6px;
+    color: #fff;
+    font-size: 0.9rem;
+    text-align: center;
+    outline: none;
+    margin-bottom: 8px;
+  }
+
+  #waitingBox {
+    background: rgba(0,0,0,0.3);
+    border-radius: 10px;
+    padding: 14px;
+    margin-top: 10px;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  #waitingTitle {
+    font-weight: bold;
+    color: var(--neon-yellow);
+    margin-bottom: 6px;
+  }
+  #roomCode {
+    font-size: 0.82rem;
+    color: var(--neon-blue);
+    word-break: break-all;
+    margin-bottom: 10px;
+  }
+  #rosterList {
+    list-style: none;
+    margin-bottom: 12px;
+    padding: 0;
+  }
+  #rosterList li {
+    background: rgba(255,255,255,0.04);
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    margin-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+    border: 1px solid rgba(255,255,255,0.02);
+  }
+  #netLog {
+    margin-top: 12px;
+    font-size: 0.7rem;
+    color: #64748b;
+    height: 48px;
+    overflow-y: auto;
+    text-align: left;
+    white-space: pre-wrap;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    padding-top: 4px;
+  }
+
+  /* Game Core Layout */
+  #gameRoot {
+    display: flex;
+    flex-direction: column;
+    width: 100vw;
+    height: 100vh;
+    background: #040409;
+  }
+  #topBar {
+    height: 64px;
+    background: #090915;
+    border-bottom: 2px solid rgba(168, 85, 247, 0.3);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 16px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  }
+  #topBar h1 {
+    font-size: 1.2rem;
+    background: linear-gradient(135deg, var(--neon-blue), var(--neon-purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 8px rgba(6, 182, 212, 0.4);
+  }
+  #hud {
+    font-size: 0.85rem;
+    color: #e2e8f0;
+    line-height: 1.4;
+  }
+  #rankHud {
+    font-size: 0.85rem;
+    text-align: right;
+    color: var(--neon-yellow);
+    line-height: 1.4;
+  }
+
+  #stage {
+    flex: 1;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 10px;
+    overflow: hidden;
+  }
+  #gameFrame {
+    position: relative;
+    background: #06060c;
+    border: 2px solid rgba(168, 85, 247, 0.4);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.25);
+  }
+  #fieldCanvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  #backBtn {
+    position: absolute;
+    top: 10px; left: 10px;
+    padding: 5px 12px;
+    font-size: 0.75rem;
+    border-radius: 6px;
+    z-index: 10;
+  }
+
+  /* Control Panel */
+  #controlPanel {
+    height: 150px;
+    background: #111122;
+    border-top: 3px solid #23233a;
+    display: flex;
+    flex-direction: column;
+    padding: 10px 16px;
+  }
+  #timerContainer {
+    width: 100%;
+    height: 12px;
+    background: #040408;
+    border-radius: 6px;
+    margin-bottom: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  #timerBar {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, var(--neon-blue), var(--neon-green));
+    box-shadow: 0 0 8px var(--neon-blue);
+  }
+  .buttonRow {
+    flex: 1;
+    display: flex;
+    gap: 14px;
+    margin-bottom: 4px;
+  }
+  .actionBtn {
+    flex: 1;
+    border: none;
+    border-radius: 12px;
+    font-size: 1.25rem;
+    font-weight: 900;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 5px 0 rgba(0,0,0,0.5);
+    transition: transform 0.05s;
+  }
+  .actionBtn:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(0,0,0,0.5); }
+  .btnClimb { background: var(--neon-green); color: #000; }
+  .btnTurn { background: var(--neon-yellow); color: #000; }
+  .btnSubText {
+    font-size: 0.75rem;
+    font-weight: normal;
+    opacity: 0.8;
+    margin-top: 2px;
+  }
+
+  /* Result overlay */
+  #resultOverlay {
+    position: absolute; inset: 0;
+    background: rgba(5,5,10,0.92);
+    display: none;
+    flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 50;
+  }
+  #resultOverlay.show { display: flex; }
+  #resultTitle { font-size: 2rem; color: var(--neon-yellow); margin-bottom: 8px; text-shadow: 0 0 10px rgba(251, 191, 36, 0.4); }
+  #resultMsg { font-size: 0.95rem; color: #94a3b8; margin-bottom: 24px; text-align: center; line-height: 1.5; }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+  <!-- LOBBY SCREEN -->
+  <div id="lobby">
+    <h1>🏃‍♂️ 무한의 계단</h1>
+    <p class="sub">실시간 P2P 서바이벌 계단 레이스</p>
+    
+    <div class="hint">
+      <strong>조작 방법:</strong><br>
+      • <b>방향전환 [← Left Arrow]</b>: 몸을 꺾어 반대편으로 상승. (또는 X)<br>
+      • <b>오르기 [→ Right Arrow]</b>: 보고 있는 방향 그대로 상승. (또는 Z)<br>
+      ※ 모바일 버튼 구조(좌: 회전 / 우: 전진)와 동일하게 방향키로 쉽게 가능합니다!
+    </div>
+
+    <!-- Solo Mode -->
+    <div class="mode-block" id="modeBlocks">
+      <h2>① 솔로 모드</h2>
+      <p>가장 빠른 타이핑 오르기로 계단 스코어 한계에 달성합니다.</p>
+      <button class="lobby-btn btn-green" id="btnSoloStart">싱글 챌린지 시작</button>
+    </div>
+
+    <!-- Coop Mode -->
+    <div class="mode-block" id="coopBlock">
+      <h2>② P2P 멀티플레이</h2>
+      <p>방을 개설하여 발급된 고유 코드로 경쟁 레이스를 진행합니다.</p>
+      <button class="lobby-btn btn-primary" id="btnCoopCreate">방 만들기</button>
+    </div>
+
+    <!-- Join Panel -->
+    <div class="mode-block hidden" id="joinPanel">
+      <h2>방 참여</h2>
+      <input id="inviteCodeInput" type="text" placeholder="방 코드(Peer ID) 입력" autocomplete="off">
+      <button class="lobby-btn btn-red" id="btnCoopJoin">입장하기</button>
+    </div>
+
+    <!-- Waiting room -->
+    <div id="waitingBox" class="hidden">
+      <div id="waitingTitle">대기실</div>
+      <div id="roomCode">대기 중…</div>
+      <ul id="rosterList"></ul>
+      <div style="display:flex; gap:6px;">
+        <button class="lobby-btn btn-yellow" id="btnCopyCode" style="flex:1;">코드 복사</button>
+        <button class="lobby-btn btn-green hidden" id="btnStartCoop" style="flex:1;" disabled>게임 시작</button>
+        <button class="lobby-btn btn-ghost" id="btnCancelWait" style="flex:1;">나가기</button>
+      </div>
+      <p id="guestWaitTip" class="hidden" style="margin-top:6px; font-size:11px; color:#64748b;">방장이 게임을 시작할 때까지 대기하세요…</p>
+    </div>
+
+    <div id="netLog"></div>
+  </div>
+
+  <!-- GAME SCREEN VIEW -->
+  <div id="gameRoot" class="hidden">
+    <div id="topBar">
+      <h1>🏃‍♂️ 무한의 계단</h1>
+      <div id="hud">
+        내 기록: <span id="myStairsVal" style="color:var(--neon-blue); font-weight:bold;">0</span>층<br>
+        최고 기록: <span id="bestStairsVal" style="color:var(--neon-yellow); font-weight:bold;">0</span>층
+      </div>
+      <div id="rankHud"></div>
+    </div>
+
+    <div id="stage">
+      <button type="button" class="lobby-btn btn-ghost" id="backBtn">← 로비</button>
+      <div id="gameFrame">
+        <canvas id="fieldCanvas"></canvas>
+      </div>
+
+      <!-- Result Overlay -->
+      <div id="resultOverlay">
+        <h2 id="resultTitle">게임 오버</h2>
+        <p id="resultMsg"></p>
+        <button class="lobby-btn btn-yellow" id="btnRestartGame" style="width:140px; margin-bottom:10px;">다시 도전</button>
+        <button class="lobby-btn btn-ghost" id="btnToLobby" style="width:140px;">로비로</button>
+      </div>
+    </div>
+
+    <!-- Control Buttons Panel -->
+    <div id="controlPanel">
+      <div id="timerContainer">
+        <div id="timerBar"></div>
+      </div>
+      <div class="buttonRow">
+        <button class="actionBtn btnTurn" id="actionTurn">
+          방향전환
+          <span class="btnSubText">[← 방향키 / X]</span>
+        </button>
+        <button class="actionBtn btnClimb" id="actionClimb">
+          오르기
+          <span class="btnSubText">[→ 방향키 / Z / Space]</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+(function(){
+  const canvas = document.getElementById('fieldCanvas');
+  const ctx = canvas.getContext('2d');
+  const lobby = document.getElementById('lobby');
+  const gameRoot = document.getElementById('gameRoot');
+  const timerBar = document.getElementById('timerBar');
+  const myStairsVal = document.getElementById('myStairsVal');
+  const bestStairsVal = document.getElementById('bestStairsVal');
+  const rankHud = document.getElementById('rankHud');
+  const resultOverlay = document.getElementById('resultOverlay');
+  const resultTitle = document.getElementById('resultTitle');
+  const resultMsg = document.getElementById('resultMsg');
+  
+  const btnSoloStart = document.getElementById('btnSoloStart');
+  const btnCoopCreate = document.getElementById('btnCoopCreate');
+  const btnCoopJoin = document.getElementById('btnCoopJoin');
+  const btnCopyCode = document.getElementById('btnCopyCode');
+  const btnStartCoop = document.getElementById('btnStartCoop');
+  const btnCancelWait = document.getElementById('btnCancelWait');
+  const inviteCodeInput = document.getElementById('inviteCodeInput');
+  const waitingBox = document.getElementById('waitingBox');
+  const rosterList = document.getElementById('rosterList');
+  const netLogEl = document.getElementById('netLog');
+  const joinPanel = document.getElementById('joinPanel');
+  const modeBlocks = document.getElementById('modeBlocks');
+  const coopBlock = document.getElementById('coopBlock');
+  
+  const PLAYER_DEFS = [
+    { emoji: '🏃‍♂️', name: '레드', color: '#ef4444' },
+    { emoji: '🏃‍♀️', name: '블루', color: '#06b6d4' },
+    { emoji: '🐯', name: '호랑이', color: '#f59e0b' },
+    { emoji: '🦊', name: '여우', color: '#a855f7' }
+  ];
+
+  let game = null;
+  let bestHeight = 0;
+  const MAX_PLAYERS = 4;
+
+  // Fixed Logical Canvas Resolution for scaling stability
+  const GAME_W = 360;
+  const GAME_H = 600;
+  canvas.width = GAME_W;
+  canvas.height = GAME_H;
+
+  function layoutGameFrame() {
+    const availW = window.innerWidth - 20;
+    const availH = window.innerHeight - 230;
+    const scale = Math.min(availW / GAME_W, availH / GAME_H);
+    const frame = document.getElementById('gameFrame');
+    frame.style.width = Math.floor(GAME_W * scale) + 'px';
+    frame.style.height = Math.floor(GAME_H * scale) + 'px';
+  }
+  window.addEventListener('resize', layoutGameFrame);
+  layoutGameFrame();
+
+  function showGameView() {
+    lobby.classList.add('hidden');
+    gameRoot.classList.remove('hidden');
+    layoutGameFrame();
+  }
+
+  function showLobbyView() {
+    if (game) { game.stop(); game = null; }
+    WwNet.destroy();
+    lobby.classList.remove('hidden');
+    gameRoot.classList.add('hidden');
+    waitingBox.classList.add('hidden');
+    joinPanel.classList.add('hidden');
+    modeBlocks.classList.remove('hidden');
+    coopBlock.classList.remove('hidden');
+    resultOverlay.classList.remove('show');
+  }
+
+  function updateRosterUI(data) {
+    const roster = data.roster || WwNet.buildRoster();
+    const count = data.playerCount || roster.length;
+    rosterList.innerHTML = '';
+    roster.forEach(r => {
+      const li = document.createElement('li');
+      li.textContent = `${r.emoji} ${r.name}`;
+      rosterList.appendChild(li);
+    });
+    for (let i = count; i < MAX_PLAYERS; i++) {
+      const li = document.createElement('li');
+      li.className = 'empty';
+      li.textContent = `${PLAYER_DEFS[i].emoji} (빈 슬롯)`;
+      rosterList.appendChild(li);
+    }
+    if (WwNet.isHost) {
+      btnStartCoop.disabled = count < 2;
+      btnStartCoop.classList.toggle('hidden', false);
+      btnStartCoop.textContent = count < 2 ? '게임 시작 (2인 이상)' : `게임 시작 (${count}인)`;
+    } else {
+      btnStartCoop.classList.toggle('hidden', true);
+    }
+  }
+
+  function showCoopWait(hostPeerId, asHost) {
+    waitingBox.classList.remove('hidden');
+    modeBlocks.classList.add('hidden');
+    coopBlock.classList.add('hidden');
+    joinPanel.classList.add('hidden');
+    document.getElementById('guestWaitTip').classList.toggle('hidden', asHost);
+    document.getElementById('roomCode').textContent = '방 코드: ' + hostPeerId;
+    updateRosterUI({ roster: WwNet.buildRoster(), playerCount: WwNet.isHost ? 1 : 0 });
+  }
+
+  function copyText(text, msg) {
+    const done = () => lobbyLog(msg);
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done).catch(fallback);
+    else fallback();
+    function fallback() {
+      const ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); ta.remove(); done();
+    }
+  }
+  function lobbyLog(msg) { netLogEl.textContent = msg + '\n' + netLogEl.textContent; }
+
+  // ==========================================
+  // P2P Network signaling
+  // ==========================================
+  const WwNet = (function () {
+    const PROTO = 1;
+    let peer = null, guestConn = null;
+    const clients = new Map();
+    let isHost = false, myIndex = 0, roomId = '', gameStarted = false;
+    let onData = null, onOpen = null, onClose = null, onError = null, onLobby = null;
+
+    function allocSlot() {
+      for (let i = 1; i < MAX_PLAYERS; i++) if (!clients.has(i)) return i;
+      return -1;
+    }
+    function buildRoster() {
+      const roster = [{ index: 0, emoji: PLAYER_DEFS[0].emoji, name: PLAYER_DEFS[0].name + (isHost ? ' (방장)' : ''), connected: true }];
+      [...clients.keys()].sort((a, b) => a - b).forEach(idx => {
+        roster.push({ index: idx, emoji: PLAYER_DEFS[idx].emoji, name: PLAYER_DEFS[idx].name, connected: true });
+      });
+      return roster;
+    }
+    function broadcast(data) { clients.forEach(({ conn }) => { if (conn.open) conn.send(data); }); }
+    function broadcastLobby() {
+      const payload = { type: 'LOBBY', proto: PROTO, roster: buildRoster(), playerCount: buildRoster().length };
+      broadcast(payload); onLobby && onLobby(payload);
+    }
+    function broadcastState(state) { broadcast({ type: 'STATE', proto: PROTO, ...state }); }
+    function sendToHost(data) { if (guestConn && guestConn.open) guestConn.send(data); }
+
+    function initPeer(opts) {
+      const { asHost, remoteId, handlers } = opts;
+      isHost = asHost; myIndex = asHost ? 0 : -1; gameStarted = false;
+      clients.clear(); guestConn = null;
+      onData = handlers.onData || null; onOpen = handlers.onOpen || null;
+      onClose = handlers.onClose || null; onError = handlers.onError || null; onLobby = handlers.onLobby || null;
+      peer = new Peer({ debug: 1 });
+      peer.on('open', (id) => {
+        roomId = id;
+        if (asHost) {
+          peer.on('connection', (connection) => {
+            connection.on('open', () => {
+              if (gameStarted) {
+                connection.send({ type: 'REJECT', reason: '이미 게임이 시작되었습니다' });
+                setTimeout(() => connection.close(), 300); return;
+              }
+              const slot = allocSlot();
+              if (slot < 0) {
+                connection.send({ type: 'REJECT', reason: '방이 가득 찼습니다' });
+                setTimeout(() => connection.close(), 300); return;
+              }
+              clients.set(slot, { conn: connection });
+              connection.send({ type: 'WELCOME', proto: PROTO, index: slot, roster: buildRoster() });
+              broadcastLobby();
+              onOpen && onOpen({ role: 'host', clientJoined: true, index: slot });
+              connection.on('data', (data) => { onData && onData(data); });
+              connection.on('close', () => {
+                clients.delete(slot);
+                if (!gameStarted) broadcastLobby();
+                else onData && onData({ type: 'PEER_LEFT', index: slot });
+              });
+            });
+          });
+          onOpen && onOpen({ id, role: 'host', roomReady: true });
+        } else {
+          guestConn = peer.connect(remoteId.trim(), { reliable: true });
+          guestConn.on('open', () => onOpen && onOpen({ role: 'client', connOpen: true }));
+          guestConn.on('data', (data) => { if (data.type === 'WELCOME') myIndex = data.index; onData && onData(data); });
+          guestConn.on('close', () => { guestConn = null; onClose && onClose(); });
+        }
+      });
+      peer.on('error', (err) => { onError && onError(err); });
+    }
+    function startGameBroadcast(playerCount, seedArray) {
+      gameStarted = true;
+      broadcast({ type: 'START', proto: PROTO, playerCount, seedArray });
+    }
+    function destroy() {
+      clients.forEach(({ conn }) => { try { conn.close(); } catch (e) {} });
+      clients.clear();
+      if (guestConn) guestConn.close();
+      if (peer) peer.destroy();
+      guestConn = null; peer = null; gameStarted = false; myIndex = 0;
+    }
+    return {
+      initPeer, broadcast, broadcastState, sendToHost, startGameBroadcast, destroy, buildRoster,
+      get isHost() { return isHost; },
+      get myIndex() { return myIndex; },
+      get roomId() { return roomId; },
+      get gameStarted() { return gameStarted; },
+      get playerCount() { return isHost ? buildRoster().length : 0; }
+    };
+  })();
+
+  // ==========================================
+  // Game Logic Core
+  // ==========================================
+  const ST_W = 32;
+  const ST_H = 22;
+
+  class InfiniteStairsGame {
+    constructor(opts) {
+      this.solo = opts.solo;
+      this.isHost = opts.isHost;
+      this.myIndex = opts.myIndex;
+      this.playerCount = opts.playerCount;
+      this.onNet = opts.onNet || null;
+
+      this.running = false;
+      this.timerVal = 100;
+      this.gameOver = false;
+      this.stairSeed = opts.seedArray || this.generateStairSeed(1800);
+
+      this.players = [];
+      for (let i = 0; i < this.playerCount; i++) {
+        this.players.push({
+          index: i,
+          height: 0,
+          facing: 1, // 1=Right, -1=Left
+          x: GAME_W / 2 - 10,
+          y: GAME_H - 120,
+          targetX: GAME_W / 2 - 10,
+          targetY: GAME_H - 120,
+          color: PLAYER_DEFS[i].color,
+          emoji: PLAYER_DEFS[i].emoji,
+          alive: true,
+          fallTimer: 0,
+          fallX: 0, fallY: 0,
+          fallVx: 0, fallVy: 0,
+          jumpProgress: 0 // for Squash/Stretch bounce anim
+        });
+      }
+
+      // Pre-evaluate World Stairs coordinates
+      this.stairs = [];
+      let curX = GAME_W / 2 - 10;
+      let curY = GAME_H - 120;
+      this.stairs.push({ x: curX, y: curY, dir: 1 });
+
+      for (let i = 0; i < this.stairSeed.length; i++) {
+        const nextDir = this.stairSeed[i];
+        curX += nextDir * ST_W;
+        curY -= ST_H;
+        this.stairs.push({ x: curX, y: curY, dir: nextDir });
+      }
+
+      // Particles system (Jump Sparks)
+      this.particles = [];
+
+      // Starfield Background (Neon flow space)
+      this.stars = [];
+      for (let i = 0; i < 45; i++) {
+        this.stars.push({
+          x: Math.random() * GAME_W,
+          y: Math.random() * GAME_H,
+          size: 1 + Math.random() * 2,
+          speed: 0.5 + Math.random() * 1.5,
+          color: ['rgba(6,182,212,0.4)', 'rgba(168,85,247,0.4)', 'rgba(251,191,36,0.3)'][Math.floor(Math.random()*3)]
+        });
+      }
+
+      this.cameraY = 0;
+      this.lastSync = 0;
+      this.syncMs = 50;
+    }
+
+    generateStairSeed(len) {
+      const arr = [];
+      let curDir = 1;
+      for (let i = 0; i < len; i++) {
+        if (Math.random() < 0.35) {
+          curDir = -curDir;
+        }
+        arr.push(curDir);
+      }
+      return arr;
+    }
+
+    actionClimb() {
+      if (this.gameOver) return;
+      const myP = this.players[this.myIndex];
+      if (!myP || !myP.alive) return;
+      this.sendPlayerAction({ type: 'CLIMB', playerIdx: this.myIndex });
+    }
+
+    actionTurn() {
+      if (this.gameOver) return;
+      const myP = this.players[this.myIndex];
+      if (!myP || !myP.alive) return;
+      this.sendPlayerAction({ type: 'TURN', playerIdx: this.myIndex });
+    }
+
+    sendPlayerAction(act) {
+      if (this.solo) {
+        this.executeAction(act);
+      } else {
+        if (this.isHost) {
+          this.executeAction(act);
+        } else {
+          this.onNet({ type: 'ACTION', action: act });
+        }
+      }
+    }
+
+    executeAction(act) {
+      const p = this.players[act.playerIdx];
+      if (!p || !p.alive) return;
+
+      const currentHeight = p.height;
+      const nextStair = this.stairs[currentHeight + 1];
+      if (!nextStair) return;
+
+      let success = false;
+      if (act.type === 'CLIMB') {
+        if (p.facing === nextStair.dir) {
+          p.height++;
+          p.targetX = nextStair.x;
+          p.targetY = nextStair.y;
+          success = true;
+        } else {
+          this.triggerFall(p);
+        }
+      }
+      else if (act.type === 'TURN') {
+        p.facing = -p.facing;
+        if (p.facing === nextStair.dir) {
+          p.height++;
+          p.targetX = nextStair.x;
+          p.targetY = nextStair.y;
+          success = true;
+        } else {
+          this.triggerFall(p);
+        }
+      }
+
+      if (success) {
+        p.jumpProgress = 1.0; // Trigger bounce squash animation
+        if (act.playerIdx === this.myIndex) {
+          this.timerVal = Math.min(100, this.timerVal + 3.8);
+        }
+
+        // Spawn jump dust particles at foot location
+        const footX = p.x;
+        const footY = p.y;
+        for (let i = 0; i < 6; i++) {
+          const angle = Math.random() * Math.PI + Math.PI; // upward spray
+          const speed = 1.2 + Math.random() * 2.0;
+          this.particles.push({
+            x: footX,
+            y: footY,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            alpha: 1.0,
+            color: p.color,
+            size: 2 + Math.random() * 3,
+            decay: 0.04 + Math.random() * 0.02
+          });
+        }
+      }
+    }
+
+    triggerFall(p) {
+      p.alive = false;
+      p.fallTimer = 50;
+      p.fallX = p.x;
+      p.fallY = p.y;
+      p.fallVx = -p.facing * 3.8;
+      p.fallVy = -6.0;
+
+      // Spawn red splash spark particles
+      for (let i = 0; i < 12; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 2.0 + Math.random() * 3.0;
+        this.particles.push({
+          x: p.x, y: p.y - 10,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          alpha: 1.0,
+          color: '#ef4444',
+          size: 3 + Math.random() * 3,
+          decay: 0.03
+        });
+      }
+
+      if (p.index === this.myIndex) {
+        this.checkLocalGameOver('낙하 하였습니다.');
+      }
+    }
+
+    checkLocalGameOver(reason) {
+      this.gameOver = true;
+      resultTitle.textContent = '게임 오버';
+      resultMsg.textContent = `${reason}\n나의 최종 기록: ${this.players[this.myIndex].height}층`;
+      resultOverlay.classList.add('show');
+    }
+
+    hostTick() {
+      if (this.gameOver) return;
+
+      // Update positions
+      this.players.forEach(p => {
+        if (p.alive) {
+          p.x += (p.targetX - p.x) * 0.35;
+          p.y += (p.targetY - p.y) * 0.35;
+          if (p.jumpProgress > 0) p.jumpProgress -= 0.15;
+        } else if (p.fallTimer > 0) {
+          p.fallTimer--;
+          p.fallX += p.fallVx;
+          p.fallY += p.fallVy;
+          p.fallVy += 0.4; // gravity
+        }
+      });
+
+      // Update particles
+      for (let i = this.particles.length - 1; i >= 0; i--) {
+        const pt = this.particles[i];
+        pt.x += pt.vx;
+        pt.y += pt.vy;
+        pt.alpha -= pt.decay;
+        if (pt.alpha <= 0) this.particles.splice(i, 1);
+      }
+
+      // Update starfield offset
+      this.stars.forEach(st => {
+        st.y += st.speed;
+        if (st.y > GAME_H) {
+          st.y = -10;
+          st.x = Math.random() * GAME_W;
+        }
+      });
+
+      // Local countdown timer decrease
+      if (this.players[this.myIndex].alive) {
+        this.timerVal = Math.max(0, this.timerVal - 0.35);
+        if (this.timerVal <= 0) {
+          this.triggerFall(this.players[this.myIndex]);
+          this.checkLocalGameOver('시간이 모두 소진되었습니다.');
+        }
+      }
+
+      // Check all dead
+      if (!this.players.some(p => p.alive || p.fallTimer > 0)) {
+        this.gameOver = true;
+        if (!this.solo) this.broadcastState();
+      }
+    }
+
+    applyState(data) {
+      data.players.forEach((pData, idx) => {
+        if (this.players[idx]) {
+          const wasAlive = this.players[idx].alive;
+          Object.assign(this.players[idx], pData);
+          if (wasAlive && !pData.alive) {
+            // Trigger explosion effects on client
+            for (let i = 0; i < 10; i++) {
+              const angle = Math.random() * Math.PI * 2;
+              this.particles.push({
+                x: pData.x, y: pData.y,
+                vx: Math.cos(angle) * 3, vy: Math.sin(angle) * 3,
+                alpha: 1.0, color: '#ef4444', size: 3, decay: 0.04
+              });
+            }
+          }
+        }
+      });
+      this.timerVal = data.timerVal;
+      this.gameOver = data.gameOver;
+
+      if (this.gameOver && !resultOverlay.classList.contains('show')) {
+        const sorted = [...this.players].sort((a,b) => b.height - a.height);
+        const winner = sorted[0];
+        resultTitle.textContent = '레이스 종료!';
+        resultMsg.textContent = `우승자: ${winner.emoji} ${PLAYER_DEFS[winner.index].name} (${winner.height}층)`;
+        resultOverlay.classList.add('show');
+      }
+    }
+
+    broadcastState() {
+      if (!this.onNet) return;
+      this.onNet({
+        type: 'STATE',
+        gameOver: this.gameOver,
+        timerVal: this.timerVal,
+        players: this.players.map(p => ({
+          height: p.height, facing: p.facing,
+          x: p.x, y: p.y, targetX: p.targetX, targetY: p.targetY,
+          alive: p.alive, fallTimer: p.fallTimer, fallX: p.fallX, fallY: p.fallY, fallVx: p.fallVx, fallVy: p.fallVy,
+          jumpProgress: p.jumpProgress
+        }))
+      });
+    }
+
+    loop(t) {
+      if (!this.running) return;
+
+      if (this.isHost || this.solo) {
+        this.hostTick();
+        if (t - this.lastSync >= this.syncMs) {
+          this.broadcastState();
+          this.lastSync = t;
+        }
+      } else {
+        // Client-side visual updates
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+          const pt = this.particles[i];
+          pt.x += pt.vx;
+          pt.y += pt.vy;
+          pt.alpha -= pt.decay;
+          if (pt.alpha <= 0) this.particles.splice(i, 1);
+        }
+        this.stars.forEach(st => {
+          st.y += st.speed * 1.5;
+          if (st.y > GAME_H) st.y = -10;
+        });
+      }
+
+      this.draw();
+      this.rafId = requestAnimationFrame(ts => this.loop(ts));
+    }
+
+    start() {
+      this.running = true;
+      this.lastSync = 0;
+      cancelAnimationFrame(this.rafId);
+      this.rafId = requestAnimationFrame(ts => this.loop(ts));
+    }
+
+    stop() {
+      this.running = false;
+      cancelAnimationFrame(this.rafId);
+    }
+
+    draw() {
+      ctx.clearRect(0, 0, GAME_W, GAME_H);
+
+      // Camera follow local height
+      const myP = this.players[this.myIndex];
+      const targetCamY = myP.alive ? myP.y : (myP.fallY || GAME_H - 120);
+      this.cameraY += ((GAME_H - 240 - targetCamY) - this.cameraY) * 0.15;
+
+      // 1. Draw Starfield Space background
+      ctx.fillStyle = '#05050f';
+      ctx.fillRect(0, 0, GAME_W, GAME_H);
+      this.stars.forEach(st => {
+        ctx.fillStyle = st.color;
+        ctx.beginPath();
+        ctx.arc(st.x, st.y, st.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Save view context
+      ctx.save();
+      ctx.translate(0, this.cameraY);
+
+      // 2. Draw Neon Cyber Stairs
+      const currentH = myP.height;
+      const startDrawIdx = Math.max(0, currentH - 14);
+      const endDrawIdx = Math.min(this.stairs.length, currentH + 20);
+
+      for (let i = startDrawIdx; i < endDrawIdx; i++) {
+        const st = this.stairs[i];
+        
+        // Neon Glow effect on stairs
+        ctx.shadowColor = 'rgba(168, 85, 247, 0.4)';
+        ctx.shadowBlur = 6;
+
+        // Gradient top stair plate
+        const grad = ctx.createLinearGradient(st.x - ST_W/2, st.y, st.x + ST_W/2, st.y);
+        grad.addColorStop(0, '#2e1c4e');
+        grad.addColorStop(0.5, '#4c2e80');
+        grad.addColorStop(1, '#2e1c4e');
+
+        ctx.fillStyle = grad;
+        ctx.fillRect(st.x - ST_W/2, st.y, ST_W, ST_H/2);
+
+        // Neon outline border
+        ctx.strokeStyle = 'rgba(6, 182, 212, 0.7)';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(st.x - ST_W/2, st.y, ST_W, ST_H/2);
+
+        // Front shadow 3D plate
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#180e2b';
+        ctx.fillRect(st.x - ST_W/2, st.y + ST_H/2, ST_W, ST_H/2);
+        
+        ctx.strokeStyle = '#271745';
+        ctx.strokeRect(st.x - ST_W/2, st.y + ST_H/2, ST_W, ST_H/2);
+
+        // Target next step pointer
+        if (i === currentH + 1 && myP.alive) {
+          ctx.fillStyle = 'rgba(251, 191, 36, 0.65)';
+          ctx.shadowColor = 'var(--neon-yellow)';
+          ctx.shadowBlur = 8;
+          ctx.beginPath();
+          ctx.arc(st.x, st.y + ST_H/4, 5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+      }
+
+      // 3. Draw Competitors
+      this.players.forEach(p => {
+        if (p.index === this.myIndex) return;
+        if (p.alive) {
+          this.drawAvatar(p.x, p.y, p.facing, p.emoji, p.jumpProgress, p.color);
+        } else if (p.fallTimer > 0) {
+          this.drawAvatar(p.fallX, p.fallY, p.facing, p.emoji, 0, p.color);
+        }
+      });
+
+      // 4. Draw Local Player (Me)
+      if (myP.alive) {
+        this.drawAvatar(myP.x, myP.y, myP.facing, myP.emoji, myP.jumpProgress, myP.color);
+      } else if (myP.fallTimer > 0) {
+        this.drawAvatar(myP.fallX, myP.fallY, myP.facing, myP.emoji, 0, myP.color);
+      }
+
+      // 5. Draw Jump Particles
+      this.particles.forEach(pt => {
+        ctx.fillStyle = pt.color;
+        ctx.globalAlpha = pt.alpha;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+      });
+
+      ctx.restore();
+
+      // Update timerbar width
+      timerBar.style.width = this.timerVal + '%';
+
+      // Update Local HUD values
+      myStairsVal.textContent = myP.height;
+      if (myP.height > bestHeight) {
+        bestHeight = myP.height;
+        bestStairsVal.textContent = bestHeight;
+      }
+
+      // Rank boards
+      const sorted = [...this.players].sort((a,b) => b.height - a.height);
+      rankHud.innerHTML = sorted.map((p, idx) => {
+        const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉';
+        const activeCls = p.index === this.myIndex ? 'color:var(--neon-yellow);font-weight:bold' : 'color:#94a3b8';
+        const stateText = p.alive ? `${p.height}층` : '💀 탈락';
+        return `<div style="${activeCls}">${medal} ${PLAYER_DEFS[p.index].name}: <b>${stateText}</b></div>`;
+      }).join('');
+    }
+
+    drawAvatar(x, y, facing, emoji, jumpProgress = 0, color) {
+      ctx.save();
+      // Squash & Stretch animations
+      let scaleX = 1.0;
+      let scaleY = 1.0;
+      if (jumpProgress > 0) {
+        // Squash down first, then stretch
+        scaleY = 1.0 - Math.sin(jumpProgress * Math.PI) * 0.25;
+        scaleX = 1.0 + Math.sin(jumpProgress * Math.PI) * 0.18;
+      }
+
+      ctx.translate(x, y - 10);
+      ctx.scale(facing * scaleX, scaleY);
+      
+      // Avatar neon base glow circle
+      ctx.fillStyle = 'rgba(255,255,255,0.06)';
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(0, 4, 13, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Emoji
+      ctx.font = '20px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(emoji, 0, 3);
+      ctx.restore();
+    }
+  }
+
+  // ==========================================
+  // Keyboard Events Mapping (Left/Right Arrows integrated)
+  // ==========================================
+  document.getElementById('actionClimb').addEventListener('click', () => { if (game) game.actionClimb(); });
+  document.getElementById('actionTurn').addEventListener('click', () => { if (game) game.actionTurn(); });
+
+  window.addEventListener('keydown', (e) => {
+    if (!game) return;
+    const myP = game.players[game.myIndex];
+    if (!myP || !myP.alive) return;
+
+    if (e.key === 'ArrowRight' || e.key === 'z' || e.key === 'Z' || e.key === 'ArrowUp' || e.key === ' ') {
+      e.preventDefault();
+      game.actionClimb();
+    } else if (e.key === 'ArrowLeft' || e.key === 'x' || e.key === 'X' || e.key === 'Shift') {
+      e.preventDefault();
+      game.actionTurn();
+    }
+  });
+
+  // UI Matchmaker actions
+  btnSoloStart.addEventListener('click', startSolo);
+  btnCoopCreate.addEventListener('click', () => startNet(true));
+  btnCoopJoin.addEventListener('click', () => {
+    const code = inviteCodeInput.value.trim();
+    if (!code) { lobbyLog('방 코드를 입력하세요.'); return; }
+    startNet(false);
+  });
+  btnCopyCode.addEventListener('click', () => {
+    copyText(WwNet.roomId, '방 코드가 복사되었습니다.');
+  });
+  btnStartCoop.addEventListener('click', hostBeginGame);
+  btnCancelWait.addEventListener('click', showLobbyView);
+  document.getElementById('backBtn').addEventListener('click', showLobbyView);
+  document.getElementById('btnToLobby').addEventListener('click', showLobbyView);
+
+  document.getElementById('btnRestartGame').addEventListener('click', () => {
+    resultOverlay.classList.remove('show');
+    if (game) {
+      game = new InfiniteStairsGame({
+        solo: game.solo,
+        isHost: WwNet.isHost,
+        myIndex: game.myIndex,
+        playerCount: game.playerCount,
+        seedArray: game.solo ? null : game.stairSeed,
+        onNet: game.solo ? null : makeNetHandler(true)
+      });
+      game.start();
+    }
+  });
+
+  function startSolo() {
+    showGameView();
+    game = new InfiniteStairsGame({
+      solo: true, isHost: true, myIndex: 0, playerCount: 1, onNet: null
+    });
+    game.start();
+  }
+
+  function hostBeginGame() {
+    const count = WwNet.playerCount;
+    if (count < 2) return;
+    const seed = new InfiniteStairsGame({ solo:true, isHost:true, myIndex:0, playerCount:1 }).generateStairSeed(1800);
+    WwNet.startGameBroadcast(count, seed);
+    showGameView();
+    game = new InfiniteStairsGame({
+      solo: false, isHost: true, myIndex: 0, playerCount: count,
+      seedArray: seed,
+      onNet: makeNetHandler(true)
+    });
+    game.start();
+  }
+
+  function clientBeginGame(playerCount, seedArray) {
+    showGameView();
+    game = new InfiniteStairsGame({
+      solo: false, isHost: false, myIndex: WwNet.myIndex, playerCount,
+      seedArray: seedArray,
+      onNet: (payload) => WwNet.sendToHost(payload)
+    });
+    game.start();
+  }
+
+  function makeNetHandler(isHost) {
+    return (payload) => {
+      if (payload.type === 'STATE') WwNet.broadcastState(payload);
+      else WwNet.broadcast(payload);
+    };
+  }
+
+  function startNet(asHost) {
+    const remoteId = inviteCodeInput.value.trim();
+    WwNet.initPeer({
+      asHost, remoteId,
+      handlers: {
+        onOpen: (info) => {
+          if (info.role === 'host' && info.roomReady) showCoopWait(info.id, true);
+          else if (info.role === 'host' && info.clientJoined) lobbyLog(`${PLAYER_DEFS[info.index].emoji} 대기실 합류 완료!`);
+          else if (info.role === 'client' && info.connOpen) lobbyLog('대기실 연결 완료!');
+        },
+        onLobby: updateRosterUI,
+        onData: handleNetData,
+        onClose: () => { if (!WwNet.gameStarted) lobbyLog('소켓 종료'); else showLobbyView(); },
+        onError: (e) => lobbyLog('P2P 오류: ' + (e.type || e.message))
+      }
+    });
+
+    if (!asHost) {
+      joinPanel.classList.remove('hidden');
+    }
+  }
+
+  function handleNetData(data) {
+    if (data.type === 'LOBBY') {
+      updateRosterUI(data);
+    } else if (data.type === 'WELCOME' && !WwNet.isHost) {
+      showCoopWait(inviteCodeInput.value.trim(), false);
+      updateRosterUI({ roster: data.roster, playerCount: data.roster.length });
+      lobbyLog(`참가 완료 (${PLAYER_DEFS[data.index].emoji} ${PLAYER_DEFS[data.index].name})`);
+    } else if (data.type === 'START' && !WwNet.isHost) {
+      clientBeginGame(data.playerCount, data.seedArray);
+      lobbyLog('게임 시작!');
+    } else if (data.type === 'STATE' && game) {
+      game.applyState(data);
+    } else if (data.type === 'ACTION' && game && WwNet.isHost) {
+      game.executeAction(data.action);
+    } else if (data.type === 'PEER_LEFT' && game && WwNet.isHost) {
+      const p = game.players[data.index];
+      if (p) p.alive = false;
+      lobbyLog(`${PLAYER_DEFS[data.index]?.emoji} 퇴장`);
+    } else if (data.type === 'REJECT') {
+      lobbyLog('거절됨: ' + data.reason);
+      if (!WwNet.isHost) showLobbyView();
+    }
+  }
+
+  const joinParam = new URLSearchParams(location.search).get('join');
+  if (joinParam) {
+    inviteCodeInput.value = joinParam;
+    startNet(false);
+  }
+})();
+</script>
+</body>
+</html>

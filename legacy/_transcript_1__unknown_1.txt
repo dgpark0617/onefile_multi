@@ -1,0 +1,554 @@
+/**
+ * ww_multi.js — 대전/협동 멀티모드 (솔로는 ww_mvp2.html)
+ */
+(function () {
+  const WORD_POOL = ['물결', '불꽃', '독기', '장풍', '벽돌', '화염', '번개', '폭탄', '마법', '방패'];
+  const MISSILE_SPEED = 8.5;
+  const KEY_TO_JAMO = {
+    q: 'ㅂ', w: 'ㅈ', e: 'ㄷ', r: 'ㄱ', t: 'ㅅ', y: 'ㅛ', u: 'ㅕ', i: 'ㅑ', o: 'ㅐ', p: 'ㅔ',
+    a: 'ㅁ', s: 'ㄴ', d: 'ㅇ', f: 'ㄹ', g: 'ㅎ', h: 'ㅗ', j: 'ㅓ', k: 'ㅏ', l: 'ㅣ',
+    z: 'ㅋ', x: 'ㅌ', c: 'ㅊ', v: 'ㅍ', b: 'ㅠ', n: 'ㅜ', m: 'ㅡ'
+  };
+  const KB_LAYOUT = [
+    [{ code: 'q', en: 'Q', ko: 'ㅂ' }, { code: 'w', en: 'W', ko: 'ㅈ' }, { code: 'e', en: 'E', ko: 'ㄷ' },
+      { code: 'r', en: 'R', ko: 'ㄱ' }, { code: 't', en: 'T', ko: 'ㅅ' }, { code: 'y', en: 'Y', ko: 'ㅛ' },
+      { code: 'u', en: 'U', ko: 'ㅕ' }, { code: 'i', en: 'I', ko: 'ㅑ' }, { code: 'o', en: 'O', ko: 'ㅐ' },
+      { code: 'p', en: 'P', ko: 'ㅔ' }, { code: 'Backspace', en: '⌫', mod: true, wide: 'w15' }],
+    [{ code: 'a', en: 'A', ko: 'ㅁ' }, { code: 's', en: 'S', ko: 'ㄴ' }, { code: 'd', en: 'D', ko: 'ㅇ' },
+      { code: 'f', en: 'F', ko: 'ㄹ' }, { code: 'g', en: 'G', ko: 'ㅎ' }, { code: 'h', en: 'H', ko: 'ㅗ' },
+      { code: 'j', en: 'J', ko: 'ㅓ' }, { code: 'k', en: 'K', ko: 'ㅏ' }, { code: 'l', en: 'L', ko: 'ㅣ' }],
+    [{ code: 'z', en: 'Z', ko: 'ㅋ' }, { code: 'x', en: 'X', ko: 'ㅌ' }, { code: 'c', en: 'C', ko: 'ㅊ' },
+      { code: 'v', en: 'V', ko: 'ㅍ' }, { code: 'b', en: 'B', ko: 'ㅠ' }, { code: 'n', en: 'N', ko: 'ㅜ' },
+      { code: 'm', en: 'M', ko: 'ㅡ' }, { code: 'Enter', en: 'Enter', ko: '발사', enter: true, wide: 'w2' }],
+    [{ code: 'Escape', en: 'Esc', mod: true, wide: 'w15' }, { code: 'Space', en: 'Space', mod: true, wide: 'w2' }]
+  ];
+
+  const lobby = document.getElementById('lobby');
+  const gameRoot = document.getElementById('gameRoot');
+  const logEl = document.getElementById('log');
+  const roomBox = document.getElementById('roomBox');
+  const roomCode = document.getElementById('roomCode');
+  const roomInput = document.getElementById('roomInput');
+
+  let game = null;
+  let netMode = null;
+  let useNet = false;
+
+  function log(msg) {
+    logEl.textContent = msg + '\n' + logEl.textContent;
+  }
+
+  function showLobby() {
+    if (game) { game.stop(); game = null; }
+    WwNet.destroy();
+    useNet = false;
+    gameRoot.classList.add('hidden');
+    lobby.classList.remove('hidden');
+  }
+
+  function showGame() {
+    lobby.classList.add('hidden');
+    gameRoot.classList.remove('hidden');
+  }
+
+  function startLocal(mode, withAi) {
+    netMode = mode;
+    useNet = false;
+    showGame();
+    game = new MultiGame({ mode, withAi, isHost: true, myIndex: 0, onNet: null });
+    game.start();
+  }
+
+  function startNet(mode, asHost) {
+    netMode = mode;
+    useNet = true;
+    const remoteId = roomInput.value.trim();
+    if (!asHost && !remoteId) { log('방 코드를 입력하세요'); return; }
+
+    WwNet.initPeer({
+      gameMode: mode,
+      asHost,
+      remoteId,
+      handlers: {
+        onOpen: (info) => {
+          if (info.role === 'host') {
+            roomCode.textContent = info.id;
+            roomBox.classList.remove('hidden');
+            log(`[${mode}] 방 개설: ${info.id}`);
+          } else {
+            log(`[${mode}] 입장 완료`);
+          }
+          if (info.role === 'host' && info.connOpen) beginNetGame(mode, true);
+        },
+        onData: (data) => {
+          if (!game) return;
+          if (data.type === 'WELCOME' && !WwNet.isHost) {
+            showGame();
+            game = new MultiGame({
+              mode, withAi: false, isHost: false, myIndex: WwNet.myIndex,
+              onNet: (payload) => WwNet.send(payload)
+            });
+            game.start();
+            game.applyRemoteState(data.state);
+          } else if (data.type === 'STATE') {
+            game.applyRemoteState(data);
+          } else if (data.type === 'EXPLODE') {
+            game.spawnExplode(data.x, data.y, data.color, data.text);
+          } else if (data.type === 'FIRE' && WwNet.isHost) {
+            game.hostFire(data.playerIdx, data.word);
+          } else if (data.type === 'REJECT') {
+            log('거부: ' + data.reason);
+          }
+        },
+        onClose: () => { log('연결 종료'); showLobby(); },
+        onError: (e) => log('Peer 오류: ' + (e.type || e.message))
+      }
+    });
+
+    if (asHost) {
+      showGame();
+      game = new MultiGame({
+        mode, withAi: false, isHost: true, myIndex: 0,
+        onNet: (payload) => {
+          if (payload.type === 'STATE') WwNet.broadcastState(payload);
+          else WwNet.send(payload);
+        }
+      });
+      game.start();
+    }
+  }
+
+  function beginNetGame(mode, isHost) {
+    /* client started from WELCOME */
+  }
+
+  // ---- Hangul (ww_mvp2와 동일 pending jong 로직) ----
+  function createHangul(inputBufferRef) {
+    const CHO = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+    const JUNG = 'ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ';
+    const JONG = ' ㄱㄲㄳㄴㄵㄶㄷㄹㄺㄻㄼㄽㄾㄿㅀㅁㅂㅄㅅㅆㅇㅈㅊㅋㅌㅍㅎ';
+    const JUNG_COMB = { 'ㅗㅏ': 'ㅘ', 'ㅗㅐ': 'ㅙ', 'ㅗㅣ': 'ㅚ', 'ㅜㅓ': 'ㅝ', 'ㅜㅔ': 'ㅞ', 'ㅜㅣ': 'ㅟ', 'ㅡㅣ': 'ㅢ' };
+    const JONG_COMB = { 'ㄱㅅ': 'ㄳ', 'ㄴㅈ': 'ㄵ', 'ㄴㅎ': 'ㄶ', 'ㄹㄱ': 'ㄺ', 'ㄹㅁ': 'ㄻ', 'ㄹㅂ': 'ㄼ', 'ㄹㅅ': 'ㄽ', 'ㄹㅌ': 'ㄾ', 'ㄹㅍ': 'ㄿ', 'ㄹㅎ': 'ㅀ', 'ㅂㅅ': 'ㅄ' };
+    const JONG_SPLIT = {};
+    Object.keys(JONG_COMB).forEach(k => { JONG_SPLIT[JONG_COMB[k]] = k; });
+    let cho = -1, jung = -1, jong = -1, pendingJong = null;
+
+    function compose() {
+      if (cho < 0) return '';
+      if (jung < 0) return CHO[cho];
+      let ji = 0;
+      if (jong >= 0) ji = jong + 1;
+      else if (pendingJong) { const pi = JONG.indexOf(pendingJong); if (pi > 0) ji = pi; }
+      return String.fromCharCode(0xAC00 + (cho * 21 + jung) * 28 + ji);
+    }
+    function resetCompose() { cho = jung = jong = -1; pendingJong = null; }
+    function confirmPendingJong() {
+      if (!pendingJong) return;
+      const pi = JONG.indexOf(pendingJong);
+      if (pi > 0) jong = pi - 1;
+      pendingJong = null;
+    }
+    function splitPendingToNextCho(jamo) {
+      const pj = pendingJong; pendingJong = null; jong = -1;
+      const cur = compose();
+      if (cur) { inputBufferRef.value += cur; resetCompose(); }
+      cho = CHO.indexOf(pj);
+      if (jamo && JUNG.includes(jamo)) jung = JUNG.indexOf(jamo);
+    }
+    function commitCompose() {
+      const cur = compose();
+      if (cur) { inputBufferRef.value += cur; resetCompose(); return true; }
+      return false;
+    }
+    function commitSpace() {
+      if (pendingJong) { splitPendingToNextCho(null); return; }
+      commitCompose();
+    }
+    function inputJamo(jamo) {
+      if (CHO.includes(jamo)) {
+        if (pendingJong) confirmPendingJong();
+        if (cho < 0) { cho = CHO.indexOf(jamo); return; }
+        if (jung < 0) { commitCompose(); cho = CHO.indexOf(jamo); return; }
+        if (jong < 0) {
+          const ji = JONG.indexOf(jamo);
+          if (ji > 0) { pendingJong = jamo; return; }
+          commitCompose(); cho = CHO.indexOf(jamo); return;
+        }
+        const curJong = JONG[jong + 1];
+        if (jamo === curJong) { commitCompose(); cho = CHO.indexOf(jamo); return; }
+        const comb = JONG_COMB[curJong + jamo];
+        if (comb) { jong = JONG.indexOf(comb) - 1; return; }
+        commitCompose(); cho = CHO.indexOf(jamo); return;
+      }
+      if (JUNG.includes(jamo)) {
+        if (cho < 0) return;
+        if (jung < 0) { jung = JUNG.indexOf(jamo); return; }
+        if (pendingJong) { splitPendingToNextCho(jamo); return; }
+        if (jong >= 0) {
+          const curJong = JONG[jong + 1];
+          const split = JONG_SPLIT[curJong];
+          if (split) {
+            jong = JONG.indexOf(split[0]) - 1;
+            commitCompose();
+            cho = CHO.indexOf(split.slice(1));
+            jung = JUNG.indexOf(jamo);
+            return;
+          }
+          jong = -1; commitCompose();
+          cho = CHO.indexOf(curJong); jung = JUNG.indexOf(jamo); return;
+        }
+        const comb = JUNG_COMB[JUNG[jung] + jamo];
+        if (comb) { jung = JUNG.indexOf(comb); return; }
+        commitCompose(); cho = CHO.indexOf('ㅇ'); jung = JUNG.indexOf(jamo);
+      }
+    }
+    function backspace() {
+      if (pendingJong) { pendingJong = null; return; }
+      if (cho >= 0 || jung >= 0 || jong >= 0) { resetCompose(); return; }
+      if (inputBufferRef.value.length) inputBufferRef.value = inputBufferRef.value.slice(0, -1);
+    }
+    function getDisplayText() {
+      const cur = compose();
+      return (inputBufferRef.value + cur) || '\u00A0';
+    }
+    function flushAndGet() { commitCompose(); return inputBufferRef.value; }
+    return { inputJamo, backspace, commitSpace, getDisplayText, flushAndGet, resetCompose };
+  }
+
+  // ---- AI FSM (협동) ----
+  const AI = {
+    IDLE: 'IDLE', SCAN: 'SCAN', AIM: 'AIM', FIRE: 'FIRE'
+  };
+
+  class MultiGame {
+    constructor(opts) {
+      this.mode = opts.mode;
+      this.withAi = opts.withAi;
+      this.isHost = opts.isHost;
+      this.myIndex = opts.myIndex;
+      this.onNet = opts.onNet;
+      this.canvas = document.getElementById('fieldCanvas');
+      this.ctx = this.canvas.getContext('2d');
+      this.bf = document.getElementById('battlefield');
+      this.bufferText = document.getElementById('bufferText');
+      this.inputBuffer = { value: '' };
+      this.hangul = createHangul(this.inputBuffer);
+      this.running = false;
+      this.WORD_FONT = 'bold 22px monospace';
+      this.PARTICLE_FONT = 'bold 16px monospace';
+      this.words = [];
+      this.missiles = [];
+      this.particles = [];
+      this.spawnTimer = 0;
+      this.wordId = 0;
+      this.players = [
+        { label: '나', score: 0, color: '#38bdf8', y: 0 },
+        { label: '상대', score: 0, color: '#f87171', y: 0 }
+      ];
+      this.bossHp = 100;
+      this.combo = 0;
+      this.comboTimer = 0;
+      this.aiState = AI.IDLE;
+      this.aiTimer = 0;
+      this.aiTarget = null;
+      this.winTarget = 8;
+      this.buildKeyboard();
+      this.bindInput();
+      window.addEventListener('resize', () => this.resize());
+    }
+
+    resize() {
+      this.canvas.width = this.bf.clientWidth;
+      this.canvas.height = this.bf.clientHeight;
+      const w = this.canvas.width;
+      const px = Math.round(Math.max(18, Math.min(26, w * 0.058)));
+      this.WORD_FONT = `bold ${px}px monospace`;
+      this.players[0].y = this.canvas.height - 28;
+      this.players[1].y = 28;
+    }
+
+    buildKeyboard() {
+      KB_LAYOUT.forEach((row, ri) => {
+        const rowEl = document.querySelector(`.kbRow[data-row="${ri + 1}"]`);
+        rowEl.innerHTML = '';
+        row.forEach(def => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'kbKey' + (def.wide ? ' ' + def.wide : '') + (def.mod ? ' mod' : '') + (def.enter ? ' enter' : '');
+          btn.dataset.code = def.code;
+          btn.innerHTML = def.mod ? `<span class="en">${def.en}</span>` : `<span class="en">${def.en}</span><span class="ko">${def.ko}</span>`;
+          rowEl.appendChild(btn);
+        });
+      });
+      document.querySelectorAll('.kbKey').forEach(btn => {
+        const handler = (e) => {
+          e.preventDefault();
+          this.handleKey(btn.dataset.code, false);
+        };
+        btn.addEventListener('touchstart', handler, { passive: false });
+        btn.addEventListener('mousedown', handler);
+      });
+    }
+
+    bindInput() {
+      document.addEventListener('keydown', (e) => {
+        if (!this.running) return;
+        if (e.repeat) return;
+        const code = e.code === 'Space' ? 'Space' : e.code === 'Enter' ? 'Enter'
+          : e.code === 'Backspace' ? 'Backspace' : e.code === 'Escape' ? 'Escape'
+            : e.key.length === 1 ? e.key : null;
+        if (!code) return;
+        if (code === 'Enter' || code === 'Backspace' || code === 'Escape' || code === 'Space'
+          || KEY_TO_JAMO[e.key] || KEY_TO_JAMO[e.key.toLowerCase()]) {
+          e.preventDefault();
+          this.handleKey(code, e.shiftKey);
+        }
+      });
+      document.getElementById('backBtn').addEventListener('click', showLobby);
+    }
+
+    handleKey(code, shift) {
+      if (code === 'Enter') { this.fireLocal(); return; }
+      if (code === 'Backspace') { this.hangul.backspace(); this.bufferText.textContent = this.hangul.getDisplayText(); return; }
+      if (code === 'Escape') { this.inputBuffer.value = ''; this.hangul.resetCompose(); this.bufferText.textContent = '\u00A0'; return; }
+      if (code === 'Space') { this.hangul.commitSpace(); this.bufferText.textContent = this.hangul.getDisplayText(); return; }
+      const lookup = shift ? code.toUpperCase() : code.toLowerCase();
+      const jamo = KEY_TO_JAMO[lookup];
+      if (jamo) { this.hangul.inputJamo(jamo); this.bufferText.textContent = this.hangul.getDisplayText(); }
+    }
+
+    start() {
+      this.resize();
+      this.running = true;
+      this.players[0].label = this.myIndex === 0 ? '나 (하)' : '나 (하)';
+      this.players[1].label = this.mode === 'versus' ? '상대 (상)' : (this.withAi ? 'AI 동료 (상)' : '동료 (상)');
+      document.getElementById('p1Label').textContent = this.players[0].label;
+      document.getElementById('p2Label').textContent = this.players[1].label;
+      document.getElementById('centerHud').textContent = this.mode === 'versus'
+        ? '중앙 단어 선점 · 8점 선취' : '협동 · 합격기 · 공유 보스 HP';
+      this.loop();
+    }
+
+    stop() { this.running = false; }
+
+    fireLocal() {
+      const text = this.hangul.flushAndGet();
+      this.bufferText.textContent = '\u00A0';
+      this.inputBuffer.value = '';
+      if (!text) return;
+      if (this.isHost) this.hostFire(this.myIndex, text);
+      else if (this.onNet) this.onNet({ type: 'FIRE', playerIdx: this.myIndex, word: text });
+    }
+
+    hostFire(playerIdx, text) {
+      const targets = this.words.filter(w => w.text === text && !w.hit);
+      if (!targets.length) return;
+      const w = targets.sort((a, b) => b.y - a.y)[0];
+      const fromY = playerIdx === 0 ? this.players[0].y : this.players[1].y;
+      const fromX = this.canvas.width / 2 + (playerIdx === 0 ? -20 : 20);
+      this.missiles.push({
+        x: fromX, y: fromY, oldX: fromX, oldY: fromY,
+        vx: 0, vy: playerIdx === 0 ? -MISSILE_SPEED : MISSILE_SPEED,
+        text, owner: playerIdx, targetId: w.id
+      });
+      this.resolveHitSoon(playerIdx, w, fromX, fromY);
+    }
+
+    resolveHitSoon(playerIdx, w, hx, hy) {
+      w.hit = true;
+      const col = playerIdx === 0 ? '#38bdf8' : '#f87171';
+      this.spawnExplode(w.x, w.y, col, w.text);
+      if (this.onNet) WwNet.broadcastExplode(w.x, w.y, col, w.text);
+
+      if (this.mode === 'versus') {
+        this.players[playerIdx].score += 1;
+        if (this.players[playerIdx].score >= this.winTarget) {
+          document.getElementById('centerHud').textContent = (playerIdx === this.myIndex ? '승리!' : '패배...');
+        }
+      } else {
+        this.comboTimer = 180;
+        this.combo += 1;
+        const dmg = 5 + Math.min(this.combo, 5) * 2;
+        this.bossHp = Math.max(0, this.bossHp - dmg);
+      }
+      this.syncHud();
+      this.broadcastIfHost();
+    }
+
+    spawnExplode(x, y, color, text) {
+      const totalW = Pretext.getTextWidth(text, this.PARTICLE_FONT);
+      let offset = 0;
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        const cw = Pretext.getTextWidth(ch, this.PARTICLE_FONT);
+        const cx = x + offset - totalW / 2;
+        offset += cw;
+        for (let p = 0; p < 4; p++) {
+          const ang = Math.random() * Math.PI * 2;
+          const spd = 3 + Math.random() * 8;
+          this.particles.push({
+            char: ch, x: cx, y, color,
+            vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd - 2,
+            angle: Math.random() * Math.PI, vAngle: 0.2, alpha: 1
+          });
+        }
+      }
+    }
+
+    spawnWord() {
+      const text = WORD_POOL[Math.floor(Math.random() * WORD_POOL.length)];
+      const half = Pretext.getTextWidth(text, this.WORD_FONT) / 2;
+      const x = half + 20 + Math.random() * (this.canvas.width - half * 2 - 40);
+      this.words.push({
+        id: this.wordId++, text, x,
+        y: this.canvas.height * 0.42 + (Math.random() - 0.5) * 40,
+        speed: 0.15 + Math.random() * 0.2
+      });
+    }
+
+    updateAi() {
+      if (!this.withAi || !this.isHost) return;
+      this.aiTimer++;
+      if (this.aiState === AI.IDLE && this.aiTimer > 90) {
+        this.aiState = AI.SCAN;
+        this.aiTimer = 0;
+      }
+      if (this.aiState === AI.SCAN) {
+        const live = this.words.filter(w => !w.hit);
+        if (live.length) {
+          this.aiTarget = live.sort((a, b) => b.y - a.y)[0];
+          this.aiState = AI.AIM;
+          this.aiTimer = 0;
+        } else this.aiState = AI.IDLE;
+      }
+      if (this.aiState === AI.AIM && this.aiTimer > 45) {
+        this.aiState = AI.FIRE;
+        this.aiTimer = 0;
+      }
+      if (this.aiState === AI.FIRE && this.aiTarget && !this.aiTarget.hit) {
+        this.hostFire(1, this.aiTarget.text);
+        this.aiTarget = null;
+        this.aiState = AI.IDLE;
+        this.aiTimer = 0;
+      }
+    }
+
+    update() {
+      if (!this.isHost && useNet) return;
+      this.spawnTimer++;
+      if (this.spawnTimer > 80) { this.spawnWord(); this.spawnTimer = 0; }
+
+      this.words.forEach(w => { if (!w.hit) w.y += w.speed; });
+      this.words = this.words.filter(w => !w.hit && w.y > 20 && w.y < this.canvas.height - 20);
+
+      this.missiles.forEach(m => {
+        m.oldX = m.x; m.oldY = m.y;
+        const t = this.words.find(w => w.id === m.targetId && !w.hit);
+        if (t) {
+          const dx = t.x - m.x, dy = t.y - m.y;
+          const d = Math.sqrt(dx * dx + dy * dy) || 1;
+          m.vx = (dx / d) * MISSILE_SPEED;
+          m.vy = (dy / d) * MISSILE_SPEED;
+        }
+        m.x += m.vx; m.y += m.vy;
+      });
+      this.missiles = this.missiles.filter(m => m.y > 0 && m.y < this.canvas.height);
+
+      for (let i = this.particles.length - 1; i >= 0; i--) {
+        const p = this.particles[i];
+        p.x += p.vx; p.y += p.vy; p.vy += 0.12; p.alpha -= 0.04;
+        if (p.alpha <= 0) this.particles.splice(i, 1);
+      }
+
+      if (this.mode === 'coop' && this.comboTimer > 0) {
+        this.comboTimer--;
+        if (this.comboTimer <= 0) this.combo = 0;
+      }
+
+      this.updateAi();
+      this.broadcastIfHost();
+    }
+
+    broadcastIfHost() {
+      if (!this.isHost || !this.onNet) return;
+      this.onNet({
+        type: 'STATE',
+        words: this.words,
+        players: this.players.map(p => ({ score: p.score, label: p.label })),
+        bossHp: this.bossHp,
+        combo: this.combo
+      });
+    }
+
+    applyRemoteState(data) {
+      if (data.words) this.words = data.words;
+      if (data.players) {
+        data.players.forEach((p, i) => { if (this.players[i]) this.players[i].score = p.score; });
+      }
+      if (data.bossHp !== undefined) this.bossHp = data.bossHp;
+      if (data.combo !== undefined) this.combo = data.combo;
+      this.syncHud();
+    }
+
+    syncHud() {
+      document.getElementById('p1Score').textContent = this.mode === 'coop'
+        ? `보스 ${this.bossHp} · 콤보 ${this.combo}` : String(this.players[0].score);
+      document.getElementById('p2Score').textContent = this.mode === 'versus'
+        ? String(this.players[1].score) : (this.withAi ? 'AI ON' : String(this.players[1].score));
+    }
+
+    draw() {
+      const ctx = this.ctx;
+      ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      ctx.strokeStyle = '#333';
+      ctx.setLineDash([6, 8]);
+      ctx.beginPath();
+      ctx.moveTo(0, this.canvas.height / 2);
+      ctx.lineTo(this.canvas.width, this.canvas.height / 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.font = this.WORD_FONT;
+      ctx.textAlign = 'center';
+      this.words.forEach(w => {
+        ctx.fillStyle = '#f1c40f';
+        ctx.fillText(w.text, w.x, w.y);
+      });
+
+      ctx.font = 'bold 14px monospace';
+      this.missiles.forEach(m => {
+        ctx.fillStyle = m.owner === 0 ? '#38bdf8' : '#f87171';
+        ctx.fillText(m.text, m.x, m.y);
+      });
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillRect(this.canvas.width / 2 - 20, this.players[0].y - 8, 40, 12);
+      ctx.fillStyle = '#f87171';
+      ctx.fillRect(this.canvas.width / 2 - 20, this.players[1].y - 4, 40, 12);
+
+      ctx.font = this.PARTICLE_FONT;
+      this.particles.forEach(p => {
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color;
+        ctx.fillText(p.char, p.x, p.y);
+      });
+      ctx.globalAlpha = 1;
+    }
+
+    loop() {
+      if (!this.running) return;
+      this.update();
+      this.draw();
+      requestAnimationFrame(() => this.loop());
+    }
+  }
+
+  document.getElementById('btnSolo').addEventListener('click', () => {
+    window.location.href = './ww_mvp2.html';
+  });
+  document.getElementById('btnVersusHost').addEventListener('click', () => startNet('versus', true));
+  document.getElementById('btnVersusJoin').addEventListener('click', () => startNet('versus', false));
+  document.getElementById('btnCoopSolo').addEventListener('click', () => startLocal('coop', true));
+  document.getElementById('btnCoopHost').addEventListener('click', () => startNet('coop', true));
+  document.getElementById('btnCoopJoin').addEventListener('click', () => startNet('coop', false));
+})();
