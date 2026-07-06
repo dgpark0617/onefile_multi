@@ -66,6 +66,12 @@
   #overlay h2 { color: #0ff; text-shadow: 0 0 16px #0ff; margin-bottom: 8px; }
   #backBtn { position: absolute; top: 8px; right: 8px; z-index: 10; padding: 6px 10px; font-size: 11px; }
   @media (pointer: coarse) { #touchPad { display: block; } #hud .hint-keys { display: none; } }
+
+  .invite-share-box { text-align: center; margin: 10px 0; }
+  .invite-share-box canvas { border-radius: 8px; background: #fff; padding: 6px; max-width: min(176px, 80vw); height: auto; }
+  .invite-code-text { font-size: 0.75rem; opacity: 0.85; margin: 6px 0; word-break: break-all; }
+  #inviteLink { word-break: break-all; }
+
 </style>
 </head>
 <body>
@@ -92,7 +98,11 @@
     <div class="btn-row" style="margin-top:8px"><button class="btn-red" id="btnJoin">참가</button></div>
   </div>
   <div id="waitingBox" class="hidden">
-    <div id="waitingTitle">대기실</div>
+    <div id="waitingTitle">대기실</div>      <div class="invite-share-box">
+        <canvas id="inviteQr" width="176" height="176" aria-label="초대 QR 코드"></canvas>
+        <p id="inviteCodeText" class="invite-code-text"></p>
+      </div>
+
     <a id="inviteLink" href="#" style="color:#7ec8e3;font-size:0.78rem"></a>
     <ul id="rosterList"></ul>
     <div class="btn-row">
@@ -130,6 +140,87 @@
 </div>
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+<script>
+/**
+ * 멀티 게임 대기실 — 초대 URL · QR · 방 코드 표시
+ * iframe(/play/slug) 및 단독 HTML(/games/slug) 모두 지원
+ */
+(function (global) {
+  'use strict';
+
+  function getInviteUrl(hostPeerId) {
+    if (!hostPeerId) return global.location.href;
+    try {
+      if (global.self !== global.top) {
+        const parentUrl = new URL(global.parent.location.href);
+        const playMatch = parentUrl.pathname.match(/\/play\/([^/]+)/);
+        if (playMatch) {
+          const u = new URL(parentUrl.origin + '/play/' + playMatch[1]);
+          u.searchParams.set('join', hostPeerId);
+          return u.toString();
+        }
+      }
+    } catch (_) {
+      /* cross-origin parent */
+    }
+    const gameMatch = global.location.pathname.match(/\/games\/([^/]+)\//);
+    if (gameMatch) {
+      const u = new URL(global.location.origin + '/play/' + gameMatch[1]);
+      u.searchParams.set('join', hostPeerId);
+      return u.toString();
+    }
+    const u = new URL(global.location.href);
+    u.search = '';
+    u.searchParams.set('join', hostPeerId);
+    return u.toString();
+  }
+
+  function drawQr(canvas, url) {
+    if (!canvas || !global.QRCode) return;
+    canvas.style.display = '';
+    global.QRCode.toCanvas(
+      canvas,
+      url,
+      { width: 176, margin: 1, color: { dark: '#0f172a', light: '#ffffff' } },
+      function (err) {
+        if (err) canvas.style.display = 'none';
+      }
+    );
+  }
+
+  function setLinkEl(el, url) {
+    if (!el) return;
+    el.textContent = url;
+    if (el.tagName === 'A') {
+      el.href = url;
+      el.target = '_blank';
+      el.rel = 'noopener';
+    }
+  }
+
+  function setupHost(hostPeerId, els) {
+    const url = getInviteUrl(hostPeerId);
+    if (els && els.inviteCodeEl) {
+      els.inviteCodeEl.textContent = '방 코드: ' + hostPeerId;
+    }
+    setLinkEl(els && els.inviteLinkEl, url);
+    if (els && els.hintEl) {
+      els.hintEl.textContent = '링크를 열거나 QR을 스캔하면 자동 참가';
+    }
+    drawQr(els && els.qrCanvas, url);
+    return url;
+  }
+
+  global.InviteShare = {
+    getInviteUrl: getInviteUrl,
+    setupHost: setupHost,
+    drawQr: drawQr,
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+
 <script>
 (function () {
   'use strict';
@@ -873,10 +964,12 @@
     document.getElementById('btnCopyLink').classList.toggle('hidden', !asHost);
     const link = document.getElementById('inviteLink');
     if (asHost) {
-      currentInviteUrl = USE_ROOM_CODE ? hostId : (() => {
-        const u = new URL(location.href); u.search = ''; u.searchParams.set('join', hostId); return u.toString();
-      })();
-      link.textContent = USE_ROOM_CODE ? '코드: ' + hostId : currentInviteUrl;
+      currentInviteUrl = InviteShare.setupHost(hostId, {
+        inviteLinkEl: link,
+        inviteCodeEl: document.getElementById('inviteCodeText'),
+        qrCanvas: document.getElementById('inviteQr')
+      });
+      document.getElementById('btnCopyLink').textContent = '초대 링크 복사';
     }
     updateRoster({ roster: Net.buildRoster(), playerCount: Net.isHost ? 1 : 0 });
   }

@@ -6,9 +6,10 @@
     "node": ">=20"
   },
   "scripts": {
+    "patch-invite": "node scripts/patch-invite-qr.mjs",
     "sync-games": "node scripts/sync-games.mjs",
-    "predev": "npm run sync-games",
-    "prebuild": "npm run sync-games",
+    "predev": "npm run patch-invite && npm run sync-games",
+    "prebuild": "npm run patch-invite && npm run sync-games",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

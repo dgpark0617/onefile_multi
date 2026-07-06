@@ -76,27 +76,27 @@
   {
     "slug": "worms",
     "title": "지렁이 게임",
-    "subtitle": "멀티 스네이크",
+    "subtitle": "멀티 스네이크 FFA · P2P 최대 4인",
     "category": "arcade",
-    "tags": ["아케이드", "멀티"],
+    "tags": ["아케이드", "멀티", "PeerJS"],
     "source": "onefile_multi_worms/onefile_multi_worms.html",
     "downloadName": "worms.html"
   },
   {
     "slug": "flight",
     "title": "스카이 파이터",
-    "subtitle": "비행 슈팅",
+    "subtitle": "3D 비행 슈팅 · 뱅크 선회",
     "category": "action",
-    "tags": ["슈팅", "멀티"],
+    "tags": ["슈팅", "3D"],
     "source": "onefile_multi_flight/onefile_multi_flight.html",
     "downloadName": "sky_fighter.html"
   },
   {
     "slug": "minecraft",
     "title": "포트나이트 타워",
-    "subtitle": "타워 디펜스 스타일",
+    "subtitle": "FPS + 블록 쌓기 타워 러시",
     "category": "action",
-    "tags": ["타워", "멀티"],
+    "tags": ["타워", "FPS"],
     "source": "onefile_multi_minecraft/onefile_multi_minecraft.html",
     "downloadName": "fortnite_tower.html"
   },
@@ -110,13 +110,14 @@
     "downloadName": "flood.html"
   },
   {
-    "slug": "neon-shooter",
-    "title": "Neon Ruin",
-    "subtitle": "실시간 P2P 슈터",
+    "slug": "odyssey",
+    "title": "오디세이",
+    "subtitle": "시드 랜덤맵 · 네온 FPS · P2P 2~4인",
     "category": "action",
-    "tags": ["슈팅", "네온"],
+    "tags": ["FPS", "네온", "멀티", "PeerJS"],
     "source": "onefile_multi_neon_shooter/onefile_multi_neon_shooter.html",
-    "downloadName": "neon_ruin.html"
+    "downloadName": "odyssey.html",
+    "featured": true
   },
   {
     "slug": "racing-fail",

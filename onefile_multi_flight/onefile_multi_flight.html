@@ -2,145 +2,167 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>스카이 파이터</title>
   <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{overflow:hidden;background:#0a1628;font-family:'Segoe UI',sans-serif;color:#fff}
-    canvas{display:block;width:100vw;height:100vh}
-    #hud{position:fixed;top:14px;left:14px;background:rgba(0,20,40,.8);padding:14px 18px;border-radius:12px;border:1px solid #38bdf8;line-height:1.9;font-size:.88rem;z-index:5}
-    #hud span{color:#38bdf8;font-weight:bold}
-    #hud .warn{color:#f87171}
-    #radar{position:fixed;top:14px;right:14px;width:120px;height:120px;background:rgba(0,20,40,.8);border:2px solid #38bdf8;border-radius:50%;z-index:5}
-    #crosshair{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;pointer-events:none;z-index:5}
-    #crosshair::before{content:'';position:absolute;inset:0;border:2px solid rgba(56,189,248,.6);border-radius:50%}
-    #crosshair::after{content:'';position:absolute;top:50%;left:50%;width:8px;height:8px;background:#38bdf8;border-radius:50%;transform:translate(-50%,-50%)}
-    #msg{position:fixed;top:35%;left:50%;transform:translate(-50%,-50%);font-size:1.5rem;color:#fbbf24;text-shadow:0 0 12px #000;opacity:0;transition:opacity .3s;z-index:6;pointer-events:none}
-    #msg.show{opacity:1}
-    #screen{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;flex-direction:column;background:rgba(0,10,30,.9)}
-    #screen.hide{display:none}
-    h1{font-size:2rem;color:#38bdf8;margin-bottom:8px;text-shadow:0 0 20px rgba(56,189,248,.4)}
-    .desc{color:#94a3b8;text-align:center;line-height:2;margin-bottom:22px;max-width:480px}
-    .btn{padding:14px 40px;font-size:1.1rem;background:#38bdf8;color:#0a1628;border:none;border-radius:10px;font-weight:bold;cursor:pointer}
-    .btn:hover{background:#7dd3fc}
-    #ctrl{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);color:#64748b;font-size:.8rem;z-index:5}
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      overflow: hidden;
+      background: #0a1628;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #fff;
+      touch-action: none;
+    }
+    canvas { display: block; width: 100vw; height: 100dvh; }
+    #hud {
+      position: fixed; top: max(10px, env(safe-area-inset-top)); left: 10px;
+      background: rgba(0, 20, 40, 0.82); padding: 10px 14px; border-radius: 10px;
+      border: 1px solid #38bdf8; line-height: 1.75; font-size: clamp(0.72rem, 2.8vw, 0.86rem); z-index: 5;
+    }
+    #hud span { color: #38bdf8; font-weight: bold; }
+    #crosshair {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 36px; height: 36px; pointer-events: none; z-index: 5;
+    }
+    #crosshair::before {
+      content: ''; position: absolute; inset: 0;
+      border: 2px solid rgba(56, 189, 248, 0.55); border-radius: 50%;
+    }
+    #msg {
+      position: fixed; top: 32%; left: 50%; transform: translate(-50%, -50%);
+      font-size: clamp(1rem, 4vw, 1.4rem); color: #fbbf24; text-shadow: 0 0 12px #000;
+      opacity: 0; transition: opacity 0.3s; z-index: 6; pointer-events: none;
+    }
+    #msg.show { opacity: 1; }
+    #screen {
+      position: fixed; inset: 0; z-index: 20;
+      display: flex; align-items: center; justify-content: center; flex-direction: column;
+      background: rgba(0, 10, 30, 0.92); padding: 20px;
+    }
+    #screen.hide { display: none; }
+    h1 { font-size: clamp(1.4rem, 5vw, 2rem); color: #38bdf8; margin-bottom: 8px; text-align: center; }
+    .desc {
+      color: #94a3b8; text-align: center; line-height: 1.85; margin-bottom: 20px;
+      max-width: 420px; font-size: clamp(0.82rem, 3vw, 0.95rem);
+    }
+    .btn {
+      padding: 12px 36px; font-size: 1rem; background: #38bdf8; color: #0a1628;
+      border: none; border-radius: 10px; font-weight: bold; cursor: pointer; touch-action: manipulation;
+    }
+    #ctrl {
+      position: fixed; bottom: max(10px, env(safe-area-inset-bottom)); left: 50%;
+      transform: translateX(-50%); color: #64748b; font-size: 0.75rem; z-index: 5; text-align: center;
+    }
+    #touchCtrl {
+      position: fixed; inset: 0; pointer-events: none; z-index: 4; display: none;
+    }
+    #touchCtrl.show { display: block; }
+    .tbtn {
+      position: absolute; pointer-events: auto; border-radius: 16px;
+      border: 2px solid rgba(56, 189, 248, 0.65); background: rgba(56, 189, 248, 0.12);
+      color: #7dd3fc; font-size: 1.4rem; display: flex; align-items: center; justify-content: center;
+      user-select: none; touch-action: none;
+    }
+    .tbtn.active { background: rgba(56, 189, 248, 0.35); }
+    #tLeft { left: 14px; bottom: max(70px, calc(env(safe-area-inset-bottom) + 50px)); width: 64px; height: 64px; }
+    #tRight { left: 88px; bottom: max(70px, calc(env(safe-area-inset-bottom) + 50px)); width: 64px; height: 64px; }
+    #tUp { right: 88px; bottom: max(70px, calc(env(safe-area-inset-bottom) + 50px)); width: 64px; height: 64px; }
+    #tDown { right: 14px; bottom: max(70px, calc(env(safe-area-inset-bottom) + 50px)); width: 64px; height: 64px; }
+    #tFire {
+      right: 20px; bottom: max(150px, calc(env(safe-area-inset-bottom) + 130px));
+      width: 72px; height: 72px; font-size: 0.8rem; font-weight: bold;
+    }
   </style>
 </head>
 <body>
   <canvas id="c"></canvas>
   <div id="hud">
-    <div>✈️ 고도: <span id="alt">0</span>m</div>
-    <div>🚀 속도: <span id="spd">0</span>km/h</div>
-    <div>🗺️ 비행: <span id="dist">0</span>km</div>
-    <div>❤️ HP: <span id="hp">100</span></div>
-    <div>💥 처치: <span id="kills">0</span></div>
-    <div>🛡️ 아군: <span id="allies">3</span></div>
+    <div>✈️ 고도 <span id="alt">0</span>m</div>
+    <div>🚀 속도 <span id="spd">0</span></div>
+    <div>❤️ HP <span id="hp">100</span></div>
+    <div>💥 격추 <span id="kills">0</span></div>
   </div>
-  <canvas id="radar" width="120" height="120"></canvas>
   <div id="crosshair"></div>
   <div id="msg"></div>
-  <div id="ctrl">← → 방향 · ↑ ↓ 상하 · 스페이스 총 발사</div>
+  <div id="ctrl">← → 뱅크(선회) · ↑ ↓ 피치 · 스페이스 발사</div>
+
+  <div id="touchCtrl">
+    <button type="button" class="tbtn" id="tLeft" aria-label="왼쪽 뱅크">◀</button>
+    <button type="button" class="tbtn" id="tRight" aria-label="오른쪽 뱅크">▶</button>
+    <button type="button" class="tbtn" id="tUp" aria-label="상승">▲</button>
+    <button type="button" class="tbtn" id="tDown" aria-label="하강">▼</button>
+    <button type="button" class="tbtn" id="tFire" aria-label="발사">FIRE</button>
+  </div>
 
   <div id="screen">
     <h1>✈️ 스카이 파이터</h1>
     <p class="desc">
-      전투기를 조종해 하늘을 여행하세요!<br>
-      구름과 섬을 지나며 적 비행기를 격추!<br>
-      아군 전투기가 함께 싸워줍니다.<br><br>
-      <b>← →</b> 좌우 회전 · <b>↑ ↓</b> 상승/하강<br>
+      전방으로 적기가 나타납니다.<br>
+      <b>← →</b> 기체를 기울여(뱅크) 곡선 비행 · <b>↑ ↓</b> 기수 상하<br>
       <b>스페이스</b> 미사일 발사
     </p>
-    <button class="btn" id="go">이륙!</button>
+    <button type="button" class="btn" id="go">이륙!</button>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script>
     const canvas = document.getElementById('c');
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    renderer.setSize(innerWidth, innerHeight);
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.5, 800);
+    const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.5, 600);
     const clock = new THREE.Clock();
 
-    let running = false, hp = 100, kills = 0, dist = 0;
-    let player, allies = [], enemies = [], bullets = [], clouds = [], islands = [];
+    let running = false, hp = 100, kills = 0;
+    let player, enemies = [], bullets = [], clouds = [], islands = [];
     const keys = {};
+    const touch = { left: false, right: false, up: false, down: false, fire: false };
+
+    function resize() {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    }
+    resize();
+    addEventListener('resize', resize);
 
     function makeSky() {
-      const grad = new THREE.Color(0x4a90d9);
-      scene.background = grad;
-      scene.fog = new THREE.Fog(0x8ec8f0, 80, 350);
+      scene.background = new THREE.Color(0x5ba8e8);
+      scene.fog = new THREE.Fog(0x8ec8f0, 60, 280);
     }
 
     function makeOcean() {
-      const geo = new THREE.PlaneGeometry(2000, 2000, 40, 40);
-      const mat = new THREE.MeshLambertMaterial({ color: 0x1a6b8a });
-      const sea = new THREE.Mesh(geo, mat);
+      const sea = new THREE.Mesh(
+        new THREE.PlaneGeometry(1600, 1600, 32, 32),
+        new THREE.MeshLambertMaterial({ color: 0x1a6b8a })
+      );
       sea.rotation.x = -Math.PI / 2;
       sea.position.y = -0.5;
-      sea.receiveShadow = true;
       scene.add(sea);
-      const geo2 = new THREE.PlaneGeometry(2000, 2000);
-      const mat2 = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.15 });
-      const shimmer = new THREE.Mesh(geo2, mat2);
+      const shimmer = new THREE.Mesh(
+        new THREE.PlaneGeometry(1600, 1600),
+        new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.12 })
+      );
       shimmer.rotation.x = -Math.PI / 2;
       shimmer.position.y = 0;
       scene.add(shimmer);
     }
 
     function makeLights() {
-      scene.add(new THREE.AmbientLight(0xffffff, 0.65));
-      const sun = new THREE.DirectionalLight(0xfff5e0, 1);
-      sun.position.set(100, 150, 50);
-      sun.castShadow = true;
+      scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+      const sun = new THREE.DirectionalLight(0xfff5e0, 0.95);
+      sun.position.set(80, 120, 40);
       scene.add(sun);
-    }
-
-    function makeJet(color, scale = 1) {
-      const g = new THREE.Group();
-      const body = new THREE.Mesh(
-        new THREE.ConeGeometry(0.4 * scale, 3 * scale, 8),
-        new THREE.MeshLambertMaterial({ color })
-      );
-      body.rotation.x = Math.PI / 2;
-      g.add(body);
-      const wing = new THREE.Mesh(
-        new THREE.BoxGeometry(4 * scale, 0.08, 0.8 * scale),
-        new THREE.MeshLambertMaterial({ color: color === 0x334155 ? 0x475569 : color })
-      );
-      wing.position.z = 0.3 * scale;
-      g.add(wing);
-      const tail = new THREE.Mesh(
-        new THREE.BoxGeometry(0.08, 0.8 * scale, 0.5 * scale),
-        new THREE.MeshLambertMaterial({ color })
-      );
-      tail.position.set(0, 0.5 * scale, 1.2 * scale);
-      g.add(tail);
-      const cockpit = new THREE.Mesh(
-        new THREE.SphereGeometry(0.25 * scale, 8, 6),
-        new THREE.MeshLambertMaterial({ color: 0x67e8f9, transparent: true, opacity: 0.7 })
-      );
-      cockpit.position.set(0, 0.15 * scale, -0.5 * scale);
-      g.add(cockpit);
-      if (color === 0x1e40af) {
-        const mark = new THREE.Mesh(
-          new THREE.BoxGeometry(0.6 * scale, 0.02, 0.6 * scale),
-          new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
-        );
-        mark.position.set(0, 0.2 * scale, 0);
-        g.add(mark);
-      }
-      return g;
     }
 
     function makeCloud(x, y, z, s) {
       const g = new THREE.Group();
       const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 });
-      [[0,0,0],[0.8,0.2,0],[-0.7,0.1,0.3],[0.3,0.3,-0.5]].forEach(([a,b,c]) => {
-        const p = new THREE.Mesh(new THREE.SphereGeometry(s * (0.6 + Math.random() * 0.4), 8, 6), mat);
+      [[0, 0, 0], [0.8, 0.2, 0], [-0.7, 0.1, 0.3], [0.3, 0.3, -0.5]].forEach(([a, b, c]) => {
+        const p = new THREE.Mesh(
+          new THREE.SphereGeometry(s * (0.6 + Math.random() * 0.4), 8, 6),
+          mat
+        );
         p.position.set(a * s, b * s, c * s);
         g.add(p);
       });
@@ -152,26 +174,35 @@
     function makeIsland(x, z) {
       const g = new THREE.Group();
       const h = 3 + Math.random() * 8;
-      const geo = new THREE.CylinderGeometry(4 + Math.random() * 6, 6 + Math.random() * 4, h, 8);
-      const sand = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: 0xc2a878 }));
+      const sand = new THREE.Mesh(
+        new THREE.CylinderGeometry(4 + Math.random() * 6, 6 + Math.random() * 4, h, 8),
+        new THREE.MeshLambertMaterial({ color: 0xc2a878 })
+      );
       sand.position.y = h / 2;
       g.add(sand);
-      const tree = Math.random();
-      if (tree > 0.4) {
-        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.3, 1.5, 6), new THREE.MeshLambertMaterial({ color: 0x5c3d1e }));
+      if (Math.random() > 0.4) {
+        const trunk = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.2, 0.3, 1.5, 6),
+          new THREE.MeshLambertMaterial({ color: 0x5c3d1e })
+        );
         trunk.position.y = h + 0.75;
         g.add(trunk);
-        const leaf = new THREE.Mesh(new THREE.SphereGeometry(1.2, 6, 5), new THREE.MeshLambertMaterial({ color: 0x228b22 }));
+        const leaf = new THREE.Mesh(
+          new THREE.SphereGeometry(1.2, 6, 5),
+          new THREE.MeshLambertMaterial({ color: 0x228b22 })
+        );
         leaf.position.y = h + 2;
         g.add(leaf);
       }
       g.position.set(x, 0, z);
       scene.add(g);
-      return { mesh: g, x, z, r: 10 };
+      return g;
     }
 
     function initWorld() {
-      makeSky(); makeOcean(); makeLights();
+      makeSky();
+      makeOcean();
+      makeLights();
       for (let i = 0; i < 60; i++) {
         clouds.push(makeCloud(
           (Math.random() - 0.5) * 400,
@@ -185,202 +216,198 @@
       }
     }
 
+    function makeJet(color, scale = 1) {
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(
+        new THREE.ConeGeometry(0.4 * scale, 3 * scale, 8),
+        new THREE.MeshLambertMaterial({ color })
+      );
+      body.rotation.x = Math.PI / 2;
+      g.add(body);
+      const wing = new THREE.Mesh(
+        new THREE.BoxGeometry(4 * scale, 0.08, 0.8 * scale),
+        new THREE.MeshLambertMaterial({ color })
+      );
+      wing.position.z = 0.3 * scale;
+      g.add(wing);
+      const tail = new THREE.Mesh(
+        new THREE.BoxGeometry(0.08, 0.8 * scale, 0.5 * scale),
+        new THREE.MeshLambertMaterial({ color })
+      );
+      tail.position.set(0, 0.5 * scale, 1.2 * scale);
+      g.add(tail);
+      return g;
+    }
+
     function createPlayer() {
       player = {
         mesh: makeJet(0x1e40af, 1.2),
-        x: 0, y: 50, z: 0,
-        vx: 0, vy: 0, vz: 0,
-        rotY: 0, rotX: 0,
-        speed: 40,
+        x: 0, y: 45, z: 0,
+        rotY: 0, rotX: 0, roll: 0,
+        speed: 42,
         shootCd: 0
       };
-      player.mesh.position.set(0, 50, 0);
+      player.mesh.position.set(0, 45, 0);
       scene.add(player.mesh);
     }
 
-    function spawnAllies() {
-      allies.forEach(a => scene.remove(a.mesh));
-      allies = [];
-      for (let i = 0; i < 3; i++) {
-        const a = {
-          mesh: makeJet(0x2563eb, 1),
-          x: (i - 1) * 15,
-          y: 52 + i,
-          z: -20 - i * 5,
-          rotY: 0, rotX: 0,
-          speed: 38,
-          shootCd: Math.random() * 2,
-          offset: i
-        };
-        a.mesh.position.set(a.x, a.y, a.z);
-        scene.add(a.mesh);
-        allies.push(a);
-      }
+    function playerForward() {
+      const v = new THREE.Vector3(0, 0, -1);
+      v.applyEuler(new THREE.Euler(player.rotX, player.rotY, 0, 'YXZ'));
+      return v;
+    }
+
+    function playerRight() {
+      const v = new THREE.Vector3(1, 0, 0);
+      v.applyEuler(new THREE.Euler(0, player.rotY, 0, 'YXZ'));
+      return v;
     }
 
     function spawnEnemy() {
-      const angle = Math.random() * Math.PI * 2;
-      const d = 80 + Math.random() * 60;
+      const fwd = playerForward();
+      const right = playerRight();
+      const dist = 95 + Math.random() * 45;
+      const lateral = (Math.random() - 0.5) * 55;
+      const vertical = (Math.random() - 0.5) * 18;
       const e = {
         mesh: makeJet(0x991b1b, 1),
-        x: player.x + Math.cos(angle) * d,
-        y: player.y + (Math.random() - 0.5) * 30,
-        z: player.z + Math.sin(angle) * d,
-        hp: 30,
-        speed: 25 + Math.random() * 15,
-        shootCd: 1 + Math.random()
+        x: player.x + fwd.x * dist + right.x * lateral,
+        y: Math.max(12, Math.min(130, player.y + vertical)),
+        z: player.z + fwd.z * dist + right.z * lateral,
+        rotY: 0, rotX: 0, roll: 0,
+        hp: 28,
+        speed: 28 + Math.random() * 10,
+        shootCd: 0.8 + Math.random() * 0.6
       };
-      e.y = Math.max(15, Math.min(120, e.y));
       e.mesh.position.set(e.x, e.y, e.z);
       scene.add(e.mesh);
       enemies.push(e);
     }
 
-    function fireBullet(from, isPlayer) {
+    function orientMesh(mesh, rotX, rotY, roll) {
+      mesh.rotation.order = 'YXZ';
+      mesh.rotation.y = rotY;
+      mesh.rotation.x = rotX;
+      mesh.rotation.z = roll;
+    }
+
+    function fireBullet(from, friendly) {
       const dir = new THREE.Vector3(0, 0, -1);
       dir.applyEuler(new THREE.Euler(from.rotX || 0, from.rotY || 0, 0, 'YXZ'));
+      const spd = friendly ? 115 : 75;
       const b = {
         x: from.x, y: from.y, z: from.z,
-        dx: dir.x * (isPlayer ? 120 : 80),
-        dy: dir.y * (isPlayer ? 120 : 80),
-        dz: dir.z * (isPlayer ? 120 : 80),
-        life: 3,
-        friendly: isPlayer || from.offset !== undefined,
+        dx: dir.x * spd, dy: dir.y * spd, dz: dir.z * spd,
+        life: 2.5, friendly,
         mesh: new THREE.Mesh(
-          new THREE.SphereGeometry(0.15, 4, 4),
-          new THREE.MeshBasicMaterial({ color: isPlayer ? 0xfbbf24 : 0x60a5fa })
+          new THREE.SphereGeometry(0.14, 4, 4),
+          new THREE.MeshBasicMaterial({ color: friendly ? 0xfbbf24 : 0xf87171 })
         )
       };
       b.mesh.position.set(b.x, b.y, b.z);
       scene.add(b.mesh);
       bullets.push(b);
-      beep(isPlayer ? 500 : 300, 0.06);
-    }
-
-    function beep(f, d) {
-      try {
-        const c = new AudioContext(), o = c.createOscillator(), g = c.createGain();
-        o.connect(g); g.connect(c.destination);
-        o.frequency.value = f; g.gain.value = 0.08;
-        o.start(); o.stop(c.currentTime + d);
-      } catch (e) {}
     }
 
     function popup(t) {
       const el = document.getElementById('msg');
-      el.textContent = t; el.classList.add('show');
-      setTimeout(() => el.classList.remove('show'), 900);
+      el.textContent = t;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 800);
+    }
+
+    function inputPitch() {
+      if (keys.ArrowUp || touch.up) return -1;
+      if (keys.ArrowDown || touch.down) return 1;
+      return 0;
+    }
+    function inputHoriz() {
+      if (keys.ArrowLeft || touch.left) return 1;
+      if (keys.ArrowRight || touch.right) return -1;
+      return 0;
+    }
+    function inputFire() {
+      return keys.Space || touch.fire;
     }
 
     function updatePlayer(dt) {
-      const turn = 1.8 * dt;
-      const pitch = 1.2 * dt;
+      const pitchIn = inputPitch();
+      const horizIn = inputHoriz();
+      const pitchRate = 1.05;
+      const rollRate = 1.85;
+      const turnRate = 1.55;
+      const maxPitch = 0.52;
+      const maxBank = 0.78;
 
-      if (keys.ArrowLeft) player.rotY += turn;
-      if (keys.ArrowRight) player.rotY -= turn;
-      if (keys.ArrowUp) player.rotX = Math.max(-0.6, player.rotX - pitch);
-      if (keys.ArrowDown) player.rotX = Math.min(0.5, player.rotX + pitch);
-      else if (!keys.ArrowUp && !keys.ArrowDown) player.rotX *= 0.95;
+      if (pitchIn) player.rotX = Math.max(-maxPitch, Math.min(maxPitch, player.rotX + pitchIn * pitchRate * dt));
+      else player.rotX *= 0.96;
 
-      const fwd = new THREE.Vector3(0, 0, -1);
-      fwd.applyEuler(new THREE.Euler(player.rotX, player.rotY, 0, 'YXZ'));
+      if (horizIn) {
+        player.roll = Math.max(-maxBank, Math.min(maxBank, player.roll + horizIn * rollRate * dt));
+        player.rotY += horizIn * turnRate * dt;
+      } else {
+        player.roll *= 0.93;
+      }
 
-      player.vx = fwd.x * player.speed;
-      player.vy = fwd.y * player.speed;
-      player.vz = fwd.z * player.speed;
-
-      player.x += player.vx * dt;
-      player.y += player.vy * dt;
-      player.z += player.vz * dt;
-      player.y = Math.max(8, Math.min(150, player.y));
+      const fwd = playerForward();
+      player.x += fwd.x * player.speed * dt;
+      player.y += fwd.y * player.speed * dt;
+      player.z += fwd.z * player.speed * dt;
+      player.y = Math.max(10, Math.min(140, player.y));
 
       player.mesh.position.set(player.x, player.y, player.z);
-      player.mesh.rotation.order = 'YXZ';
-      player.mesh.rotation.y = player.rotY;
-      player.mesh.rotation.x = player.rotX;
-
-      dist += player.speed * dt * 0.01;
+      orientMesh(player.mesh, player.rotX, player.rotY, player.roll);
 
       player.shootCd -= dt;
-      if (keys.Space && player.shootCd <= 0) {
-        player.shootCd = 0.15;
+      if (inputFire() && player.shootCd <= 0) {
+        player.shootCd = 0.14;
         fireBullet(player, true);
       }
 
+      const camBack = 13;
+      const camUp = 3.5;
       camera.position.set(
-        player.x - fwd.x * 12 + Math.sin(player.rotY) * 4,
-        player.y - fwd.y * 12 + 4,
-        player.z - fwd.z * 12 + Math.cos(player.rotY) * 4
+        player.x - fwd.x * camBack + playerRight().x * player.roll * 4,
+        player.y - fwd.y * camBack + camUp,
+        player.z - fwd.z * camBack + playerRight().z * player.roll * 4
       );
-      camera.lookAt(player.x + fwd.x * 20, player.y + fwd.y * 20, player.z + fwd.z * 20);
+      camera.lookAt(
+        player.x + fwd.x * 25,
+        player.y + fwd.y * 25,
+        player.z + fwd.z * 25
+      );
     }
 
-    function updateAllies(dt) {
-      allies.forEach((a, i) => {
-        let target = null, minD = 999;
-        enemies.forEach(e => {
-          const d = Math.hypot(e.x - a.x, e.z - a.z);
-          if (d < minD) { minD = d; target = e; }
-        });
-
-        const tx = player.x + (i - 1) * 18 + Math.sin(clock.elapsedTime + i) * 3;
-        const ty = player.y + 5 + i * 2;
-        const tz = player.z - 25 - i * 8;
-
-        if (target && minD < 60) {
-          const dx = target.x - a.x, dy = target.y - a.y, dz = target.z - a.z;
-          const d = Math.hypot(dx, dy, dz) || 1;
-          a.rotY = Math.atan2(dx, dz);
-          a.rotX = -Math.atan2(dy, Math.hypot(dx, dz)) * 0.5;
-          a.x += (dx / d) * a.speed * dt;
-          a.y += (dy / d) * a.speed * dt;
-          a.z += (dz / d) * a.speed * dt;
-          a.shootCd -= dt;
-          if (a.shootCd <= 0) { a.shootCd = 0.4; fireBullet(a, false); }
-        } else {
-          const dx = tx - a.x, dy = ty - a.y, dz = tz - a.z;
-          const d = Math.hypot(dx, dy, dz) || 1;
-          a.rotY = Math.atan2(dx, dz);
-          a.rotX = -Math.atan2(dy, Math.hypot(dx, dz)) * 0.3;
-          a.x += (dx / d) * a.speed * 0.8 * dt;
-          a.y += (dy / d) * a.speed * 0.8 * dt;
-          a.z += (dz / d) * a.speed * 0.8 * dt;
-        }
-
-        a.mesh.position.set(a.x, a.y, a.z);
-        a.mesh.rotation.order = 'YXZ';
-        a.mesh.rotation.y = a.rotY;
-        a.mesh.rotation.x = a.rotX;
-      });
+    function steerToward(actor, tx, ty, tz, dt, turnMul = 1) {
+      const dx = tx - actor.x, dy = ty - actor.y, dz = tz - actor.z;
+      const horiz = Math.hypot(dx, dz) || 0.001;
+      const targetYaw = Math.atan2(dx, dz);
+      const targetPitch = -Math.atan2(dy, horiz);
+      let yawDiff = targetYaw - actor.rotY;
+      while (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
+      while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
+      actor.rotY += Math.sign(yawDiff) * Math.min(Math.abs(yawDiff), 1.4 * turnMul * dt);
+      actor.rotX += (targetPitch - actor.rotX) * Math.min(1, 2.2 * dt);
+      const bankTarget = Math.max(-0.55, Math.min(0.55, yawDiff * 1.8));
+      actor.roll += (bankTarget - actor.roll) * Math.min(1, 3 * dt);
     }
 
     function updateEnemies(dt) {
       for (let i = enemies.length - 1; i >= 0; i--) {
         const e = enemies[i];
-        const dx = player.x - e.x, dy = player.y - e.y, dz = player.z - e.z;
-        const d = Math.hypot(dx, dy, dz) || 1;
-        e.rotY = Math.atan2(dx, dz);
-        e.rotX = -Math.atan2(dy, Math.hypot(dx, dz)) * 0.4;
-        e.x += (dx / d) * e.speed * dt;
-        e.y += (dy / d) * e.speed * dt;
-        e.z += (dz / d) * e.speed * dt;
+        steerToward(e, player.x, player.y, player.z, dt, 0.85);
+        const fwd = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(e.rotX, e.rotY, 0, 'YXZ'));
+        e.x += fwd.x * e.speed * dt;
+        e.y += fwd.y * e.speed * dt;
+        e.z += fwd.z * e.speed * dt;
         e.mesh.position.set(e.x, e.y, e.z);
-        e.mesh.rotation.order = 'YXZ';
-        e.mesh.rotation.y = e.rotY;
-        e.mesh.rotation.x = e.rotX;
+        orientMesh(e.mesh, e.rotX, e.rotY, e.roll);
 
         e.shootCd -= dt;
-        if (e.shootCd <= 0 && d < 80) {
-          e.shootCd = 1.2;
-          const b = {
-            x: e.x, y: e.y, z: e.z,
-            dx: (dx / d) * 70, dy: (dy / d) * 70, dz: (dz / d) * 70,
-            life: 3, friendly: false,
-            mesh: new THREE.Mesh(new THREE.SphereGeometry(0.15, 4, 4), new THREE.MeshBasicMaterial({ color: 0xf87171 }))
-          };
-          b.mesh.position.set(b.x, b.y, b.z);
-          scene.add(b.mesh);
-          bullets.push(b);
+        const d = Math.hypot(player.x - e.x, player.y - e.y, player.z - e.z);
+        if (e.shootCd <= 0 && d < 90) {
+          e.shootCd = 1.1 + Math.random() * 0.5;
+          fireBullet(e, false);
         }
 
         if (e.hp <= 0) {
@@ -395,29 +422,31 @@
     function updateBullets(dt) {
       for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
-        b.x += b.dx * dt; b.y += b.dy * dt; b.z += b.dz * dt;
+        b.x += b.dx * dt;
+        b.y += b.dy * dt;
+        b.z += b.dz * dt;
         b.mesh.position.set(b.x, b.y, b.z);
         b.life -= dt;
 
         if (b.friendly) {
-          enemies.forEach(e => {
-            if (e.hp <= 0) return;
-            if (Math.hypot(b.x - e.x, b.y - e.y, b.z - e.z) < 3) {
-              e.hp -= 30; b.life = 0;
+          for (const e of enemies) {
+            if (Math.hypot(b.x - e.x, b.y - e.y, b.z - e.z) < 2.8) {
+              e.hp -= 30;
+              b.life = 0;
+              break;
             }
-          });
-        } else {
-          if (Math.hypot(b.x - player.x, b.y - player.y, b.z - player.z) < 3) {
-            hp -= 10; b.life = 0;
-            document.getElementById('hp').textContent = hp;
-            if (hp <= 0) gameOver();
           }
-          allies.forEach(a => {
-            if (Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z) < 3) b.life = 0;
-          });
+        } else if (Math.hypot(b.x - player.x, b.y - player.y, b.z - player.z) < 2.8) {
+          hp -= 12;
+          b.life = 0;
+          document.getElementById('hp').textContent = hp;
+          if (hp <= 0) gameOver();
         }
 
-        if (b.life <= 0) { scene.remove(b.mesh); bullets.splice(i, 1); }
+        if (b.life <= 0) {
+          scene.remove(b.mesh);
+          bullets.splice(i, 1);
+        }
       }
     }
 
@@ -428,39 +457,10 @@
       });
     }
 
-    function drawRadar() {
-      const rc = document.getElementById('radar');
-      const ctx = rc.getContext('2d');
-      const w = rc.width, cx = w / 2;
-      ctx.fillStyle = 'rgba(0,30,60,.9)';
-      ctx.beginPath(); ctx.arc(cx, cx, cx - 2, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(cx, 4); ctx.lineTo(cx, w - 4); ctx.moveTo(4, cx); ctx.lineTo(w - 4, cx); ctx.stroke();
-      ctx.fillStyle = '#38bdf8';
-      ctx.beginPath(); ctx.arc(cx, cx, 3, 0, Math.PI * 2); ctx.fill();
-      enemies.forEach(e => {
-        const rx = (e.x - player.x) * 0.4 + cx;
-        const ry = (e.z - player.z) * 0.4 + cx;
-        if (rx > 2 && rx < w - 2 && ry > 2 && ry < w - 2) {
-          ctx.fillStyle = '#f87171';
-          ctx.beginPath(); ctx.arc(rx, ry, 4, 0, Math.PI * 2); ctx.fill();
-        }
-      });
-      allies.forEach(a => {
-        const rx = (a.x - player.x) * 0.3 + cx;
-        const ry = (a.z - player.z) * 0.3 + cx;
-        ctx.fillStyle = '#60a5fa';
-        ctx.beginPath(); ctx.arc(rx, ry, 3, 0, Math.PI * 2); ctx.fill();
-      });
-    }
-
     function updateHUD() {
       document.getElementById('alt').textContent = Math.round(player.y * 10);
-      document.getElementById('spd').textContent = Math.round(player.speed * 3.6);
-      document.getElementById('dist').textContent = dist.toFixed(1);
+      document.getElementById('spd').textContent = Math.round(player.speed);
       document.getElementById('kills').textContent = kills;
-      document.getElementById('allies').textContent = allies.length;
-      drawRadar();
     }
 
     let spawnT = 0;
@@ -470,7 +470,6 @@
       const dt = Math.min(clock.getDelta(), 0.05);
 
       updatePlayer(dt);
-      updateAllies(dt);
       updateEnemies(dt);
       updateBullets(dt);
       updateClouds(dt);
@@ -478,9 +477,9 @@
 
       spawnT -= dt;
       if (spawnT <= 0) {
-        spawnT = Math.max(1.5, 4 - kills * 0.1);
+        spawnT = Math.max(1.4, 3.2 - kills * 0.08);
         spawnEnemy();
-        if (kills > 3) spawnEnemy();
+        if (enemies.length < 2 && kills > 2) spawnEnemy();
       }
 
       renderer.render(scene, camera);
@@ -490,24 +489,39 @@
       running = false;
       document.getElementById('screen').classList.remove('hide');
       document.querySelector('h1').textContent = '💥 추락!';
-      document.querySelector('.desc').innerHTML =
-        `${dist.toFixed(1)}km 비행 · ${kills}기 격추<br>아군 전투기와 함께 다시 도전!`;
+      document.querySelector('.desc').innerHTML = `격추 ${kills}기 · 다시 도전!`;
       document.getElementById('go').textContent = '재출격';
     }
 
     function start() {
-      enemies.forEach(e => scene.remove(e.mesh)); enemies = [];
-      bullets.forEach(b => scene.remove(b.mesh)); bullets = [];
-      hp = 100; kills = 0; dist = 0; spawnT = 2;
-      player.x = 0; player.y = 50; player.z = 0;
-      player.rotX = 0; player.rotY = 0;
+      enemies.forEach(e => scene.remove(e.mesh));
+      enemies = [];
+      bullets.forEach(b => scene.remove(b.mesh));
+      bullets = [];
+      hp = 100;
+      kills = 0;
+      spawnT = 1.2;
+      player.x = 0;
+      player.y = 45;
+      player.z = 0;
+      player.rotX = 0;
+      player.rotY = 0;
+      player.roll = 0;
       document.getElementById('hp').textContent = 100;
-      spawnAllies();
       document.getElementById('screen').classList.add('hide');
       document.querySelector('h1').textContent = '✈️ 스카이 파이터';
       running = true;
       clock.start();
       loop();
+    }
+
+    function bindTouchBtn(el, key) {
+      const on = e => { e.preventDefault(); touch[key] = true; el.classList.add('active'); };
+      const off = () => { touch[key] = false; el.classList.remove('active'); };
+      el.addEventListener('pointerdown', on);
+      el.addEventListener('pointerup', off);
+      el.addEventListener('pointerleave', off);
+      el.addEventListener('pointercancel', off);
     }
 
     initWorld();
@@ -520,11 +534,16 @@
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
     });
     document.addEventListener('keyup', e => { keys[e.code] = false; });
-    addEventListener('resize', () => {
-      camera.aspect = innerWidth / innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(innerWidth, innerHeight);
-    });
+
+    if ('ontouchstart' in window) {
+      document.getElementById('touchCtrl').classList.add('show');
+      document.getElementById('ctrl').textContent = '터치 버튼으로 조종 · FIRE 발사';
+      bindTouchBtn(document.getElementById('tLeft'), 'left');
+      bindTouchBtn(document.getElementById('tRight'), 'right');
+      bindTouchBtn(document.getElementById('tUp'), 'up');
+      bindTouchBtn(document.getElementById('tDown'), 'down');
+      bindTouchBtn(document.getElementById('tFire'), 'fire');
+    }
   </script>
 </body>
 </html>

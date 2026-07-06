@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Neon Ruin — 실시간 P2P 슈터</title>
+<title>오디세이 — 시드 FPS · P2P</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; background: #030308; color: #eee; font-family: system-ui, sans-serif; overflow: hidden; }
@@ -53,6 +53,15 @@
   .dot { width: 8px; height: 8px; border-radius: 50%; }
   #canvasWrap { flex: 1; position: relative; min-height: 0; }
   #gameCanvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+  #crosshair {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 18px; height: 18px; pointer-events: none; z-index: 5;
+  }
+  #crosshair::before, #crosshair::after {
+    content: ''; position: absolute; background: rgba(0, 255, 255, 0.55);
+  }
+  #crosshair::before { width: 2px; height: 18px; left: 8px; }
+  #crosshair::after { width: 18px; height: 2px; top: 8px; }
   #backBtn { position: absolute; top: 8px; right: 8px; z-index: 10; padding: 6px 10px; font-size: 11px; }
   #overlay {
     position: absolute; inset: 0; display: none; flex-direction: column; align-items: center;
@@ -60,17 +69,23 @@
   }
   #overlay.show { display: flex; }
   #overlay h2 { color: #0ff; text-shadow: 0 0 12px #0ff; margin-bottom: 8px; }
+
+  .invite-share-box { text-align: center; margin: 10px 0; }
+  .invite-share-box canvas { border-radius: 8px; background: #fff; padding: 6px; max-width: min(176px, 80vw); height: auto; }
+  .invite-code-text { font-size: 0.75rem; opacity: 0.85; margin: 6px 0; word-break: break-all; }
+  #inviteLink { word-break: break-all; }
+
 </style>
 </head>
 <body>
 
 <div id="lobby">
-  <h1>Neon Ruin</h1>
-  <p style="text-align:center">탑뷰 실시간 · 원거리 사격 · Bullet Echo / DoomRL lite</p>
+  <h1>오디세이</h1>
+  <p style="text-align:center">시드 랜덤 맵 · 네온 레이캐스트 FPS · 2~4인 P2P</p>
   <div class="hint" id="hintWeb">
-    <strong>네온 도형</strong> (이모지 없음 — 가볍게 렌더)<br>
+    <strong>가벼운 2.5D FPS</strong> — 맵은 시드로 즉석 생성<br>
     <kbd>WASD</kbd> 이동 · <strong>마우스</strong> 조준 · <kbd>클릭</kbd>/<kbd>Space</kbd> 사격<br>
-    시야 밖은 어둠 · 협동 2~4인 P2P
+    협동 2~4인 · 같은 시드 = 같은 맵
   </div>
   <div class="hint hidden" id="hintFile">로컬: 방 코드 공유</div>
 
@@ -87,7 +102,11 @@
     <div style="margin-top:8px"><button class="btn-red" id="btnJoin">참가</button></div>
   </div>
   <div id="waitingBox" class="hidden">
-    <div id="waitingTitle">대기실</div>
+    <div id="waitingTitle">대기실</div>      <div class="invite-share-box">
+        <canvas id="inviteQr" width="176" height="176" aria-label="초대 QR 코드"></canvas>
+        <p id="inviteCodeText" class="invite-code-text"></p>
+      </div>
+
     <a id="inviteLink" href="#" style="color:#7ec8e3;font-size:0.78rem"></a>
     <ul id="rosterList"></ul>
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
@@ -107,10 +126,12 @@
     <span class="hp">HP <span id="hpVal">100</span></span>
     <span class="wave">Wave <span id="waveVal">1</span></span>
     <span class="score">Kills <span id="killVal">0</span></span>
+    <span style="color:#64748b">Seed <span id="seedVal">0</span></span>
     <div id="teamBars" style="display:flex;flex-wrap:wrap;gap:6px"></div>
   </div>
   <div id="canvasWrap">
     <canvas id="gameCanvas"></canvas>
+    <div id="crosshair" aria-hidden="true"></div>
     <button type="button" id="backBtn" class="btn-ghost">← 로비</button>
     <div id="overlay">
       <h2 id="overlayTitle">GAME OVER</h2>
@@ -122,6 +143,87 @@
 </div>
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+<script>
+/**
+ * 멀티 게임 대기실 — 초대 URL · QR · 방 코드 표시
+ * iframe(/play/slug) 및 단독 HTML(/games/slug) 모두 지원
+ */
+(function (global) {
+  'use strict';
+
+  function getInviteUrl(hostPeerId) {
+    if (!hostPeerId) return global.location.href;
+    try {
+      if (global.self !== global.top) {
+        const parentUrl = new URL(global.parent.location.href);
+        const playMatch = parentUrl.pathname.match(/\/play\/([^/]+)/);
+        if (playMatch) {
+          const u = new URL(parentUrl.origin + '/play/' + playMatch[1]);
+          u.searchParams.set('join', hostPeerId);
+          return u.toString();
+        }
+      }
+    } catch (_) {
+      /* cross-origin parent */
+    }
+    const gameMatch = global.location.pathname.match(/\/games\/([^/]+)\//);
+    if (gameMatch) {
+      const u = new URL(global.location.origin + '/play/' + gameMatch[1]);
+      u.searchParams.set('join', hostPeerId);
+      return u.toString();
+    }
+    const u = new URL(global.location.href);
+    u.search = '';
+    u.searchParams.set('join', hostPeerId);
+    return u.toString();
+  }
+
+  function drawQr(canvas, url) {
+    if (!canvas || !global.QRCode) return;
+    canvas.style.display = '';
+    global.QRCode.toCanvas(
+      canvas,
+      url,
+      { width: 176, margin: 1, color: { dark: '#0f172a', light: '#ffffff' } },
+      function (err) {
+        if (err) canvas.style.display = 'none';
+      }
+    );
+  }
+
+  function setLinkEl(el, url) {
+    if (!el) return;
+    el.textContent = url;
+    if (el.tagName === 'A') {
+      el.href = url;
+      el.target = '_blank';
+      el.rel = 'noopener';
+    }
+  }
+
+  function setupHost(hostPeerId, els) {
+    const url = getInviteUrl(hostPeerId);
+    if (els && els.inviteCodeEl) {
+      els.inviteCodeEl.textContent = '방 코드: ' + hostPeerId;
+    }
+    setLinkEl(els && els.inviteLinkEl, url);
+    if (els && els.hintEl) {
+      els.hintEl.textContent = '링크를 열거나 QR을 스캔하면 자동 참가';
+    }
+    drawQr(els && els.qrCanvas, url);
+    return url;
+  }
+
+  global.InviteShare = {
+    getInviteUrl: getInviteUrl,
+    setupHost: setupHost,
+    drawQr: drawQr,
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+
 <script>
 (function () {
   'use strict';
@@ -135,7 +237,9 @@
   const MAP_W = 960;
   const MAP_H = 960;
   const TILE = 48;
-  const VISION = 200;
+  const FOV = Math.PI / 2.1;
+  const MAX_DEPTH = 560;
+  const WALL_H_SCALE = 1.25;
   const PLAYER_R = 14;
   const BULLET_SPEED = 520;
   const FIRE_CD = 0.22;
@@ -235,7 +339,7 @@
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
   let W = 0, H = 0, game = null, currentInviteUrl = '';
-  let mouse = { x: 0, y: 0, down: false, worldValid: false };
+  let mouse = { sx: 1, sy: 0, down: false, valid: false };
   const keys = { w: false, a: false, s: false, d: false, space: false };
 
   function mulberry32(a) {
@@ -259,13 +363,54 @@
         g[y][x] = border ? 1 : 0;
       }
     }
-    const pillars = 8 + Math.floor(rnd() * 6);
+    const pillars = 6 + Math.floor(rnd() * 5);
     for (let i = 0; i < pillars; i++) {
       const px = 2 + Math.floor(rnd() * (cols - 4));
       const py = 2 + Math.floor(rnd() * (rows - 4));
       for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) g[py + dy][px + dx] = 1;
     }
+    const walls = 5 + Math.floor(rnd() * 6);
+    for (let i = 0; i < walls; i++) {
+      if (rnd() > 0.5) {
+        const y = 2 + Math.floor(rnd() * (rows - 3));
+        const x0 = 2 + Math.floor(rnd() * (cols - 8));
+        const len = 3 + Math.floor(rnd() * 7);
+        for (let x = x0; x < x0 + len && x < cols - 1; x++) g[y][x] = 1;
+      } else {
+        const x = 2 + Math.floor(rnd() * (cols - 3));
+        const y0 = 2 + Math.floor(rnd() * (rows - 8));
+        const len = 3 + Math.floor(rnd() * 7);
+        for (let y = y0; y < y0 + len && y < rows - 1; y++) g[y][x] = 1;
+      }
+    }
     return g;
+  }
+
+  function castRay(map, ox, oy, angle) {
+    const cos = Math.cos(angle), sin = Math.sin(angle);
+    for (let step = 4; step < MAX_DEPTH; step += 4) {
+      const x = ox + cos * step;
+      const y = oy + sin * step;
+      if (wallAt(map, x, y)) return { dist: step };
+    }
+    return { dist: MAX_DEPTH };
+  }
+
+  function projectSprite(wx, wy, px, py, pa) {
+    const dx = wx - px, dy = wy - py;
+    const cos = Math.cos(-pa), sin = Math.sin(-pa);
+    const tx = dx * cos - dy * sin;
+    const ty = dx * sin + dy * cos;
+    if (ty < 10) return null;
+    const screenX = W / 2 + (tx / ty) * (W / (2 * Math.tan(FOV / 2)));
+    const dist = Math.hypot(dx, dy);
+    return { screenX, dist };
+  }
+
+  function zAt(zbuf, rayCount, screenX) {
+    const i = Math.floor((screenX / W) * rayCount);
+    if (i < 0 || i >= rayCount) return 0;
+    return zbuf[i];
   }
 
   function wallAt(map, x, y) {
@@ -532,15 +677,15 @@
     collectInput() {
       const me = this.me();
       if (!me || !me.alive) return;
-      let mx = 0, my = 0;
-      if (mouse.worldValid) {
-        mx = mouse.x - me.rx;
-        my = mouse.y - me.ry;
+      if (mouse.valid) {
+        me.aim = Math.atan2(mouse.sy, mouse.sx);
       } else {
-        if (keys.d) mx += 1;
-        if (keys.a) mx -= 1;
-        if (keys.s) my += 1;
-        if (keys.w) my -= 1;
+        let ax = 0, ay = 0;
+        if (keys.d) ax += 1;
+        if (keys.a) ax -= 1;
+        if (keys.s) ay += 1;
+        if (keys.w) ay -= 1;
+        if (ax !== 0 || ay !== 0) me.aim = Math.atan2(ay, ax);
       }
       let moveX = 0, moveY = 0;
       if (keys.w) moveY -= 1;
@@ -548,7 +693,7 @@
       if (keys.a) moveX -= 1;
       if (keys.d) moveX += 1;
       const shoot = mouse.down || keys.space;
-      me.input = { mx, my, moveX, moveY, shoot };
+      me.input = { mx: Math.cos(me.aim), my: Math.sin(me.aim), moveX, moveY, shoot };
       if (this.isHost) Object.assign(me.input, me.input);
       else if (!this.solo) Net.sendToHost({ type: 'INPUT', input: me.input });
     }
@@ -558,78 +703,91 @@
       if (!me) return;
       this.updateRenderPoses(performance.now());
 
-      const camX = me.rx - W / 2;
-      const camY = me.ry - H / 2;
-      const wx = x => x - camX;
-      const wy = y => y - camY;
-
-      ctx.fillStyle = COL.bg;
+      const px = me.rx, py = me.ry, pa = me.raim;
+      const grad = ctx.createLinearGradient(0, 0, 0, H);
+      grad.addColorStop(0, '#050510');
+      grad.addColorStop(0.45, '#030308');
+      grad.addColorStop(0.55, '#080612');
+      grad.addColorStop(1, '#0f0818');
+      ctx.fillStyle = grad;
       ctx.fillRect(0, 0, W, H);
 
-      const cols = this.map[0].length, rows = this.map.length;
-      ctx.strokeStyle = COL.wallEdge;
-      ctx.lineWidth = 1;
-      for (let y = 0; y < rows; y++) {
-        for (let x = 0; x < cols; x++) {
-          if (!this.map[y][x]) continue;
-          const px = wx(x * TILE), py = wy(y * TILE);
-          if (px + TILE < 0 || py + TILE < 0 || px > W || py > H) continue;
-          ctx.fillStyle = COL.wall;
-          ctx.fillRect(px, py, TILE, TILE);
-          ctx.strokeRect(px + 0.5, py + 0.5, TILE - 1, TILE - 1);
-        }
+      const rayCount = Math.max(80, Math.ceil(W / 3));
+      const stripW = W / rayCount;
+      const zbuf = new Float32Array(rayCount);
+
+      for (let i = 0; i < rayCount; i++) {
+        const rel = (i / rayCount - 0.5) * FOV;
+        const ang = pa + rel;
+        const hit = castRay(this.map, px, py, ang);
+        const dist = hit.dist * Math.cos(rel);
+        zbuf[i] = dist;
+        if (hit.dist >= MAX_DEPTH) continue;
+        const lineH = Math.min(H * 0.95, (TILE / Math.max(dist, 1)) * H * WALL_H_SCALE);
+        const y0 = (H - lineH) / 2;
+        const bright = Math.max(0.12, 1 - dist / MAX_DEPTH);
+        const x0 = i * stripW;
+        ctx.fillStyle = `rgba(0,255,255,${bright * 0.07})`;
+        ctx.fillRect(x0, y0, stripW + 1, lineH);
+        ctx.strokeStyle = `rgba(0,255,255,${bright * 0.9})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x0, y0 + lineH);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x0 + stripW, y0);
+        ctx.lineTo(x0 + stripW, y0 + lineH);
+        ctx.stroke();
+        ctx.strokeStyle = `rgba(255,0,255,${bright * 0.35})`;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0 + lineH);
+        ctx.lineTo(x0 + stripW, y0 + lineH);
+        ctx.stroke();
       }
 
-      this.bullets.forEach(b => {
-        const sx = wx(b.x), sy = wy(b.y);
-        if (sx < -20 || sy < -20 || sx > W + 20 || sy > H + 20) return;
-        ctx.fillStyle = b.owner >= 0 ? COL.bulletP : COL.bulletE;
-        ctx.beginPath();
-        ctx.arc(sx, sy, 4, 0, Math.PI * 2);
-        ctx.fill();
-      });
-
-      this.enemies.forEach(e => {
-        const sx = wx(e.x), sy = wy(e.y);
-        if (sx < -40 || sy < -40 || sx > W + 40 || sy > H + 40) return;
-        ctx.fillStyle = COL.enemyCore;
-        ctx.beginPath();
-        ctx.arc(sx, sy, e.r, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = COL.enemy;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      });
-
+      const sprites = [];
+      this.enemies.forEach(e => sprites.push({ kind: 'e', x: e.x, y: e.y, r: e.r }));
       this.players.forEach(p => {
-        if (!p.alive) return;
-        const sx = wx(p.rx), sy = wy(p.ry);
-        const c = COL.player[p.idx % COL.player.length];
-        ctx.fillStyle = 'rgba(0,0,0,0.4)';
-        ctx.beginPath();
-        ctx.arc(sx, sy, PLAYER_R + 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = c;
-        ctx.beginPath();
-        ctx.arc(sx, sy, PLAYER_R, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(sx, sy);
-        ctx.lineTo(sx + Math.cos(p.raim) * 22, sy + Math.sin(p.raim) * 22);
-        ctx.stroke();
+        if (!p.alive || p.idx === this.myIndex) return;
+        sprites.push({ kind: 'p', x: p.rx, y: p.ry, idx: p.idx, r: PLAYER_R });
       });
+      this.bullets.forEach(b => sprites.push({ kind: 'b', x: b.x, y: b.y, owner: b.owner, r: 4 }));
+      sprites.sort((a, b) => dist(b.x, b.y, px, py) - dist(a.x, a.y, px, py));
 
-      const grd = ctx.createRadialGradient(W / 2, H / 2, VISION * 0.35, W / 2, H / 2, VISION);
-      grd.addColorStop(0, 'rgba(3,3,8,0)');
-      grd.addColorStop(1, COL.fog);
-      ctx.fillStyle = grd;
-      ctx.fillRect(0, 0, W, H);
+      sprites.forEach(s => {
+        const pr = projectSprite(s.x, s.y, px, py, pa);
+        if (!pr || pr.screenX < -60 || pr.screenX > W + 60) return;
+        if (pr.dist < zAt(zbuf, rayCount, pr.screenX) - 6) return;
+        const size = Math.min(H * 0.8, (s.r * 2 / Math.max(pr.dist, 1)) * 320);
+        const sy = H / 2 - size / 2;
+        const sx = pr.screenX - size / 2;
+        const alpha = Math.max(0.25, 1 - pr.dist / MAX_DEPTH);
+        if (s.kind === 'e') {
+          ctx.strokeStyle = `rgba(255,0,170,${alpha})`;
+          ctx.lineWidth = 2;
+          ctx.strokeRect(sx, sy, size, size);
+          ctx.fillStyle = `rgba(255,0,170,${alpha * 0.15})`;
+          ctx.fillRect(sx, sy, size, size);
+        } else if (s.kind === 'p') {
+          const c = COL.player[s.idx % COL.player.length];
+          ctx.strokeStyle = c;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(pr.screenX, H / 2, size / 2, 0, Math.PI * 2);
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = s.owner >= 0 ? `rgba(0,255,255,${alpha})` : `rgba(255,0,255,${alpha})`;
+          ctx.beginPath();
+          ctx.arc(pr.screenX, H / 2, Math.max(3, size / 4), 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
 
       document.getElementById('hpVal').textContent = Math.max(0, Math.round(me.hp));
       document.getElementById('waveVal').textContent = this.wave;
       document.getElementById('killVal').textContent = this.kills;
+      document.getElementById('seedVal').textContent = this.seed;
       const bars = document.getElementById('teamBars');
       bars.innerHTML = '';
       this.players.forEach(p => {
@@ -728,10 +886,12 @@
     document.getElementById('btnCopyLink').classList.toggle('hidden', !asHost);
     const link = document.getElementById('inviteLink');
     if (asHost) {
-      currentInviteUrl = USE_ROOM_CODE ? hostId : (() => {
-        const u = new URL(location.href); u.search = ''; u.searchParams.set('join', hostId); return u.toString();
-      })();
-      link.textContent = USE_ROOM_CODE ? '코드: ' + hostId : currentInviteUrl;
+      currentInviteUrl = InviteShare.setupHost(hostId, {
+        inviteLinkEl: link,
+        inviteCodeEl: document.getElementById('inviteCodeText'),
+        qrCanvas: document.getElementById('inviteQr')
+      });
+      document.getElementById('btnCopyLink').textContent = '초대 링크 복사';
     }
     updateRoster({ roster: Net.buildRoster(), playerCount: Net.isHost ? 1 : 0 });
   }
@@ -840,13 +1000,13 @@
   document.getElementById('btnRetry').onclick = () => { if (game) game.start(); };
 
   canvas.addEventListener('mousemove', e => {
-    const me = game?.me();
-    if (!me) return;
+    if (!game?.me()) return;
     const rect = canvas.getBoundingClientRect();
-    mouse.x = e.clientX - rect.left + (me.rx - W / 2);
-    mouse.y = e.clientY - rect.top + (me.ry - H / 2);
-    mouse.worldValid = true;
+    mouse.sx = e.clientX - rect.left - W / 2;
+    mouse.sy = e.clientY - rect.top - H / 2;
+    mouse.valid = true;
   });
+  canvas.addEventListener('mouseleave', () => { mouse.valid = false; });
   canvas.addEventListener('mousedown', () => { mouse.down = true; });
   window.addEventListener('mouseup', () => { mouse.down = false; });
 

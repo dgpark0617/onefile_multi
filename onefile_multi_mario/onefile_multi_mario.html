@@ -207,7 +207,13 @@
       cursor: pointer;
       font-weight: bold;
     }
-  </style>
+  
+  .invite-share-box { text-align: center; margin: 10px 0; }
+  .invite-share-box canvas { border-radius: 8px; background: #fff; padding: 6px; max-width: min(176px, 80vw); height: auto; }
+  .invite-code-text { font-size: 0.75rem; opacity: 0.85; margin: 6px 0; word-break: break-all; }
+  #inviteLink { word-break: break-all; }
+
+</style>
 </head>
 <body>
   <div id="lobby">
@@ -237,7 +243,11 @@
       </div>
     </div>
     <div id="waitingBox" class="hidden">
-      <div id="waitingTitle">대기실</div>
+      <div id="waitingTitle">대기실</div>      <div class="invite-share-box">
+        <canvas id="inviteQr" width="176" height="176" aria-label="초대 QR 코드"></canvas>
+        <p id="inviteCodeText" class="invite-code-text"></p>
+      </div>
+
       <a id="inviteLink" href="#" rel="noopener"></a>
       <ul id="rosterList"></ul>
       <div class="btn-row" style="margin-top:10px">
@@ -255,11 +265,11 @@
   <div id="gameRoot" class="hidden">
     <div id="topBar">
       <h1>🍄 버섯 어드벤처</h1>
-      <div id="info">← → 이동 · 스페이스 점프(2단!) · s/ArrowDown 불쏘기 · 모바일: 하단 버튼</div>
+      <div id="info">← → 이동 · 스페이스 점프(2단!) · ↓ 불/얼음 · 파이프+↓ 지하 · 🪶 깃털=비행</div>
       <div id="hud">
         <div>코인: <span id="coins">0</span></div>
-        <div>불꽃: <span id="fireballsAmmo">0</span></div>
-        <div>상태: <span id="status">작음</span></div>
+        <div>불꽃: <span id="fireballsAmmo">0</span> · ❄️ <span id="iceAmmo">0</span></div>
+        <div>상태: <span id="status">작음</span> · 🪶 <span id="featherTime">-</span></div>
         <div>보스 HP: <span id="bossHp">-</span></div>
       </div>
       <div id="playerTags"></div>
@@ -285,6 +295,87 @@
   </div>
 
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+<script>
+/**
+ * 멀티 게임 대기실 — 초대 URL · QR · 방 코드 표시
+ * iframe(/play/slug) 및 단독 HTML(/games/slug) 모두 지원
+ */
+(function (global) {
+  'use strict';
+
+  function getInviteUrl(hostPeerId) {
+    if (!hostPeerId) return global.location.href;
+    try {
+      if (global.self !== global.top) {
+        const parentUrl = new URL(global.parent.location.href);
+        const playMatch = parentUrl.pathname.match(/\/play\/([^/]+)/);
+        if (playMatch) {
+          const u = new URL(parentUrl.origin + '/play/' + playMatch[1]);
+          u.searchParams.set('join', hostPeerId);
+          return u.toString();
+        }
+      }
+    } catch (_) {
+      /* cross-origin parent */
+    }
+    const gameMatch = global.location.pathname.match(/\/games\/([^/]+)\//);
+    if (gameMatch) {
+      const u = new URL(global.location.origin + '/play/' + gameMatch[1]);
+      u.searchParams.set('join', hostPeerId);
+      return u.toString();
+    }
+    const u = new URL(global.location.href);
+    u.search = '';
+    u.searchParams.set('join', hostPeerId);
+    return u.toString();
+  }
+
+  function drawQr(canvas, url) {
+    if (!canvas || !global.QRCode) return;
+    canvas.style.display = '';
+    global.QRCode.toCanvas(
+      canvas,
+      url,
+      { width: 176, margin: 1, color: { dark: '#0f172a', light: '#ffffff' } },
+      function (err) {
+        if (err) canvas.style.display = 'none';
+      }
+    );
+  }
+
+  function setLinkEl(el, url) {
+    if (!el) return;
+    el.textContent = url;
+    if (el.tagName === 'A') {
+      el.href = url;
+      el.target = '_blank';
+      el.rel = 'noopener';
+    }
+  }
+
+  function setupHost(hostPeerId, els) {
+    const url = getInviteUrl(hostPeerId);
+    if (els && els.inviteCodeEl) {
+      els.inviteCodeEl.textContent = '방 코드: ' + hostPeerId;
+    }
+    setLinkEl(els && els.inviteLinkEl, url);
+    if (els && els.hintEl) {
+      els.hintEl.textContent = '링크를 열거나 QR을 스캔하면 자동 참가';
+    }
+    drawQr(els && els.qrCanvas, url);
+    return url;
+  }
+
+  global.InviteShare = {
+    getInviteUrl: getInviteUrl,
+    setupHost: setupHost,
+    drawQr: drawQr,
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+
   <script>
   (function () {
     'use strict';
@@ -353,6 +444,13 @@
     const JUMP_FORCE = -11.5;
     const DOUBLE_JUMP_FORCE = -10;
     const WORLD_W = 4800;
+    const UNDERGROUND_W = 1400;
+    const FEATHER_DURATION = 3600;
+    const PIPE_COOLDOWN = 50;
+
+    function getWorldW() {
+      return game && game.world === 'underground' ? UNDERGROUND_W : WORLD_W;
+    }
 
     let game = null;
 
@@ -513,16 +611,12 @@
       guestWaitHint.classList.toggle('hidden', asHost);
       document.getElementById('btnCopyLink').classList.toggle('hidden', !asHost);
       if (asHost) {
-        if (USE_ROOM_CODE) {
-          currentInviteUrl = hostPeerId;
-          inviteLinkEl.textContent = '방 코드: ' + hostPeerId;
-          inviteLinkEl.href = '#';
-        } else {
-          currentInviteUrl = getInviteUrl(hostPeerId);
-          inviteLinkEl.textContent = currentInviteUrl;
-          inviteLinkEl.href = currentInviteUrl;
-          document.getElementById('btnCopyLink').textContent = '초대 링크 복사';
-        }
+        currentInviteUrl = InviteShare.setupHost(hostPeerId, {
+          inviteLinkEl,
+          inviteCodeEl: document.getElementById('inviteCodeText'),
+          qrCanvas: document.getElementById('inviteQr')
+        });
+        document.getElementById('btnCopyLink').textContent = '초대 링크 복사';
       } else {
         inviteLinkEl.textContent = '방장이 「게임 시작」을 누를 때까지 대기';
         inviteLinkEl.href = '#';
@@ -557,7 +651,7 @@
 
     let cameraX = 0;
 
-    const platforms = [
+    const overworldPlatforms = [
       { x: 0, y: 440, w: 730, h: 60 },
       { x: 815, y: 440, w: 370, h: 60 },
       { x: 1270, y: 440, w: 420, h: 60 },
@@ -580,6 +674,29 @@
       { x: 4000, y: 340, w: 200, h: 18 },
       { x: 4300, y: 280, w: 180, h: 18 }
     ];
+
+    const undergroundPlatforms = [
+      { x: 0, y: 440, w: UNDERGROUND_W, h: 60 },
+      { x: 80, y: 340, w: 140, h: 18 },
+      { x: 320, y: 280, w: 120, h: 18 },
+      { x: 520, y: 340, w: 100, h: 18 },
+      { x: 700, y: 260, w: 130, h: 18 },
+      { x: 920, y: 320, w: 110, h: 18 },
+      { x: 1100, y: 280, w: 140, h: 18 }
+    ];
+
+    let platforms = overworldPlatforms;
+
+    const pipeDefs = {
+      overworld: [
+        { id: 'ow1', x: 700, y: 388, w: 52, h: 64, to: 'ug1', toWorld: 'underground' },
+        { id: 'ow2', x: 2180, y: 388, w: 52, h: 64, to: 'ug2', toWorld: 'underground' }
+      ],
+      underground: [
+        { id: 'ug1', x: 100, y: 388, w: 52, h: 64, to: 'ow1', toWorld: 'overworld', spawnX: 718, spawnY: 360 },
+        { id: 'ug2', x: 880, y: 388, w: 52, h: 64, to: 'ow2', toWorld: 'overworld', spawnX: 2198, spawnY: 360 }
+      ]
+    };
 
     const pits = [
       { x: 730, w: 85 },
@@ -630,7 +747,7 @@
         this.game = g;
         this.index = index;
         this.def = PLAYER_DEFS[index];
-        this.input = { left: false, right: false, jumpPressed: false };
+        this.input = { left: false, right: false, jumpPressed: false, jumpHeld: false, downPressed: false };
         this.alive = true;
         this.reset();
       }
@@ -649,6 +766,7 @@
         this.jumpsLeft = 2;
         this.alive = true;
         this.fireCooldown = 0;
+        this.featherTimer = 0;
         this.updateSize();
         snapToGround(this);
       }
@@ -693,11 +811,17 @@
         const input = this.input;
         if (this.fireCooldown > 0) this.fireCooldown--;
         if (input.downPressed && this.fireCooldown <= 0) {
-          this.game.shootFireball(this.index);
+          if (this.game.iceAmmo > 0) this.game.shootIce(this.index);
+          else this.game.shootFireball(this.index);
           this.fireCooldown = 18;
         }
         if (input.left) { this.vx -= MOVE_SPEED; this.facing = -1; }
         if (input.right) { this.vx += MOVE_SPEED; this.facing = 1; }
+        if (this.featherTimer > 0) this.featherTimer--;
+        if (this.featherTimer > 0 && input.jumpHeld && !this.onGround) {
+          this.vy -= 0.42;
+          this.vy = Math.max(this.vy, -7.2);
+        }
         if (input.jumpPressed && this.jumpsLeft > 0) {
           this.vy = this.jumpsLeft === 2 ? JUMP_FORCE : DOUBLE_JUMP_FORCE;
           this.jumpsLeft--;
@@ -714,7 +838,7 @@
         this.onGround = false;
 
         if (this.x < 0) { this.x = 0; this.vx = 0; }
-        if (this.x + this.w > WORLD_W) { this.x = WORLD_W - this.w; this.vx = 0; }
+        if (this.x + this.w > getWorldW()) { this.x = getWorldW() - this.w; this.vx = 0; }
 
         for (const p of platforms) {
           if (this.x + this.w > p.x && this.x < p.x + p.w &&
@@ -743,7 +867,7 @@
           }
         }
 
-        if (this.y > VH + 50 || (inPit(this.x, this.w) && this.y + this.h > 445 && !this.onGround)) {
+        if (this.y > VH + 50 || (this.game.world === 'overworld' && inPit(this.x, this.w) && this.y + this.h > 445 && !this.onGround)) {
           this.game.playerDie(this);
         }
 
@@ -771,7 +895,7 @@
         return {
           x: this.x, y: this.y, vx: this.vx, vy: this.vy, big: this.big, facing: this.facing,
           invincible: this.invincible, w: this.w, h: this.h, jumpsLeft: this.jumpsLeft,
-          alive: this.alive, animPhase: this.animPhase || 0
+          alive: this.alive, animPhase: this.animPhase || 0, featherTimer: this.featherTimer
         };
       }
 
@@ -780,6 +904,7 @@
         this.big = s.big; this.facing = s.facing; this.invincible = s.invincible;
         this.w = s.w; this.h = s.h; this.jumpsLeft = s.jumpsLeft;
         this.alive = s.alive; this.animPhase = s.animPhase || 0;
+        if (s.featherTimer !== undefined) this.featherTimer = s.featherTimer;
       }
     }
 
@@ -884,8 +1009,9 @@
     }
 
     class Coin {
-      constructor(x, y) {
+      constructor(x, y, kind = 'gold') {
         this.x = x; this.y = y; this.r = 10; this.collected = false;
+        this.kind = kind;
         this.bob = Math.random() * Math.PI * 2;
       }
       update() { this.bob += 0.08; }
@@ -895,15 +1021,56 @@
         const sx = this.x - cameraX;
         ctx.beginPath();
         ctx.arc(sx, y, this.r, 0, Math.PI * 2);
-        ctx.fillStyle = '#fbbf24';
+        if (this.kind === 'blue') {
+          ctx.fillStyle = '#38bdf8';
+          ctx.fill();
+          ctx.strokeStyle = '#0284c7';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          ctx.fillStyle = '#e0f2fe';
+          ctx.font = 'bold 10px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('❄', sx, y + 4);
+        } else {
+          ctx.fillStyle = '#fbbf24';
+          ctx.fill();
+          ctx.strokeStyle = '#d97706';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          ctx.fillStyle = '#fde68a';
+          ctx.font = 'bold 10px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('C', sx, y + 4);
+        }
+      }
+    }
+
+    class PowerFeather {
+      constructor(x, y) {
+        this.x = x; this.y = y; this.w = 26; this.h = 26;
+        this.vy = 0; this.collected = false;
+        this.bob = Math.random() * Math.PI * 2;
+      }
+      update() {
+        if (this.collected) return;
+        this.bob += 0.06;
+        this.y += Math.sin(this.bob) * 0.15;
+      }
+      draw() {
+        if (this.collected) return;
+        const sx = this.x - cameraX;
+        const cy = this.y + Math.sin(this.bob) * 4;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.ellipse(sx + 13, cy + 13, 12, 6, -0.4, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = '#d97706';
+        ctx.strokeStyle = '#fbbf24';
         ctx.lineWidth = 2;
         ctx.stroke();
         ctx.fillStyle = '#fde68a';
-        ctx.font = 'bold 10px sans-serif';
+        ctx.font = 'bold 14px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('C', sx, y + 4);
+        ctx.fillText('🪶', sx + 13, cy + 18);
       }
     }
 
@@ -921,7 +1088,7 @@
         this.onGround = false;
 
         if (this.x < 0) { this.x = 0; this.vx *= -1; }
-        if (this.x + this.w > WORLD_W) { this.x = WORLD_W - this.w; this.vx *= -1; }
+        if (this.x + this.w > getWorldW()) { this.x = getWorldW() - this.w; this.vx *= -1; }
 
         for (const p of platforms) {
           if (this.x + this.w > p.x && this.x < p.x + p.w &&
@@ -959,11 +1126,17 @@
         this.speed = speed;
         this.alive = true; this.squished = false; this.squishTimer = 0;
         this.vy = 0;
+        this.frozen = false; this.frozenTimer = 0;
         snapToGround(this);
       }
       update() {
         if (!this.alive) {
           if (this.squished) { this.squishTimer--; if (this.squishTimer <= 0) this.alive = false; }
+          return;
+        }
+        if (this.frozen) {
+          this.frozenTimer--;
+          if (this.frozenTimer <= 0) this.frozen = false;
           return;
         }
 
@@ -999,7 +1172,7 @@
           ctx.fill();
           return;
         }
-        drawEnemyMushroom(sx + this.w / 2, this.y + this.h - 4, 15, '#a16207', true);
+        drawEnemyMushroom(sx + this.w / 2, this.y + this.h - 4, 15, this.frozen ? '#7dd3fc' : '#a16207', true);
       }
     }
 
@@ -1010,10 +1183,16 @@
         this.speed = speed;
         this.alive = true; this.shell = false; this.shellTimer = 0;
         this.shellVx = 0; this.vy = 0;
+        this.frozen = false; this.frozenTimer = 0;
         snapToGround(this);
       }
       update() {
         if (!this.alive) return;
+        if (this.frozen) {
+          this.frozenTimer--;
+          if (this.frozenTimer <= 0) this.frozen = false;
+          return;
+        }
         if (this.shell) {
           this.shellTimer--;
           if (this.shellTimer <= 0) {
@@ -1062,7 +1241,18 @@
           return;
         }
         drawTurtleBody(sx, this.y, this.w, this.h, this.vx > 0 ? 1 : -1);
+        if (this.frozen) {
+          ctx.fillStyle = 'rgba(125,211,252,0.35)';
+          ctx.fillRect(sx, this.y, this.w, this.h);
+        }
       }
+    }
+
+    function freezeEnemy(e) {
+      e.frozen = true;
+      e.frozenTimer = 240;
+      e.vx = 0;
+      if (e.shellVx !== undefined) e.shellVx = 0;
     }
 
     class Boss {
@@ -1083,10 +1273,17 @@
         this.onGround = true;
         this.rage = 0;
         this.spawnTimer = 200;
+        this.frozen = false;
+        this.frozenTimer = 0;
         snapToGround(this);
       }
       update() {
         if (!this.alive) return;
+        if (this.frozen) {
+          this.frozenTimer--;
+          if (this.frozenTimer <= 0) this.frozen = false;
+          return;
+        }
         this.bob += 0.05;
         this.jumpCooldown--;
         this.spawnTimer--;
@@ -1308,6 +1505,33 @@
       }
     }
 
+    const popups = [];
+    function popup(text) {
+      popups.push({ text, life: 90 });
+    }
+
+    function drawPopups() {
+      if (!popups.length) return;
+      ctx.save();
+      ctx.font = 'bold 18px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      for (let i = popups.length - 1; i >= 0; i--) {
+        const p = popups[i];
+        p.life--;
+        if (p.life <= 0) { popups.splice(i, 1); continue; }
+        const alpha = Math.min(1, p.life / 30);
+        const y = 70 + (90 - p.life) * 0.4;
+        ctx.fillStyle = `rgba(15,23,42,${0.75 * alpha})`;
+        ctx.fillRect(VW / 2 - 110, y - 22, 220, 36);
+        ctx.strokeStyle = `rgba(251,191,36,${alpha})`;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(VW / 2 - 110, y - 22, 220, 36);
+        ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+        ctx.fillText(p.text, VW / 2, y + 4);
+      }
+      ctx.restore();
+    }
+
     class Fireball {
       constructor(x, y, vx, vy, ownerIdx) {
         this.x = x;
@@ -1324,7 +1548,7 @@
         this.x += this.vx;
         this.y += this.vy;
 
-        if (this.x < 0 || this.x > WORLD_W || this.y > VH + 50) {
+        if (this.x < 0 || this.x > getWorldW() || this.y > VH + 50) {
           this.alive = false;
           return;
         }
@@ -1360,6 +1584,37 @@
       }
     }
 
+    class Iceball {
+      constructor(x, y, vx, vy, ownerIdx) {
+        this.x = x; this.y = y; this.w = 14; this.h = 14;
+        this.vx = vx; this.vy = vy; this.ownerIdx = ownerIdx; this.alive = true;
+      }
+      update() {
+        this.vy += GRAVITY * 0.35;
+        this.x += this.vx;
+        this.y += this.vy;
+        if (this.x < 0 || this.x > getWorldW() || this.y > VH + 50) this.alive = false;
+        for (const p of platforms) {
+          if (this.x + this.w > p.x && this.x < p.x + p.w &&
+              this.y + this.h > p.y && this.y < p.y + p.h) {
+            this.alive = false;
+            break;
+          }
+        }
+      }
+      draw() {
+        const sx = this.x - cameraX;
+        ctx.fillStyle = 'rgba(56,189,248,0.85)';
+        ctx.beginPath();
+        ctx.arc(sx + this.w / 2, this.y + this.h / 2, this.w / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#e0f2fe';
+        ctx.beginPath();
+        ctx.arc(sx + this.w / 2 - 2, this.y + this.h / 2 - 2, this.w / 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
     function spawnEnemy(EnemyClass, x, range, speed) {
       const temp = { x, w: 34, y: 0, h: EnemyClass === TurtleEnemy ? 38 : 30 };
       const plat = getPlatformUnder(x, temp.w);
@@ -1386,7 +1641,12 @@
         this.bossMinions = [];
         this.particles = [];
         this.fireballs = [];
+        this.iceballs = [];
         this.coinsCount = 0;
+        this.iceAmmo = 0;
+        this.world = 'overworld';
+        this.undergroundCoins = [];
+        this.pipeCooldown = 0;
         this.lastSync = 0;
         this.rafId = 0;
       }
@@ -1400,16 +1660,32 @@
         }
         this.particles = [];
         this.fireballs = [];
+        this.iceballs = [];
         this.coinsCount = 0;
+        this.iceAmmo = 0;
         this.bossMinions = [];
+        this.world = 'overworld';
+        this.pipeCooldown = 0;
+        platforms = overworldPlatforms;
+
         this.coins = [
           [250, 300], [520, 240], [950, 290], [1250, 220],
           [1600, 260], [1950, 290], [2550, 250], [3000, 200],
-          [3400, 270], [4100, 300], [4500, 240]
-        ].map(([x, y]) => new Coin(x, y));
+          [3400, 270], [4100, 300], [4500, 240],
+          [380, 310, 'blue'], [1050, 250, 'blue'], [1850, 270, 'blue'], [3200, 290, 'blue']
+        ].map(c => c.length === 3 ? new Coin(c[0], c[1], c[2]) : new Coin(c[0], c[1]));
+
+        this.undergroundCoins = [
+          [120, 380], [220, 300], [350, 240], [480, 310], [620, 260],
+          [760, 300], [900, 240], [1040, 280], [1180, 320], [1280, 250]
+        ].map(([x, y]) => new Coin(x, y, 'gold'));
 
         const m1plat = getPlatformUnder(500, 28);
-        this.items = [new PowerMushroom(500, m1plat ? m1plat.y - 60 : 350)];
+        const fplat = getPlatformUnder(1280, 28);
+        this.items = [
+          new PowerMushroom(500, m1plat ? m1plat.y - 60 : 350),
+          new PowerFeather(fplat ? fplat.x + 40 : 1280, fplat ? fplat.y - 50 : 210)
+        ];
 
         this.enemies = [
           spawnEnemy(MushroomEnemy, 300, 60, 2.0),
@@ -1439,24 +1715,76 @@
         this.updatePlayerTags();
       }
 
+      activeCoins() {
+        return this.world === 'underground' ? this.undergroundCoins : this.coins;
+      }
+
+      totalCoinsCollected() {
+        return this.coins.filter(c => c.collected).length +
+          this.undergroundCoins.filter(c => c.collected).length;
+      }
+
+      checkPipeWarp(player) {
+        if (this.pipeCooldown > 0 || !player.onGround || !player.input.downPressed) return;
+        const list = pipeDefs[this.world] || [];
+        for (const pipe of list) {
+          if (player.cx > pipe.x + 6 && player.cx < pipe.x + pipe.w - 6 &&
+              player.bottom >= pipe.y && player.bottom <= pipe.y + pipe.h + 6) {
+            this.usePipe(pipe, player);
+            player.input.downPressed = false;
+            return;
+          }
+        }
+      }
+
+      usePipe(pipe, player) {
+        const destList = pipeDefs[pipe.toWorld] || [];
+        const dest = destList.find(p => p.id === pipe.to);
+        if (!dest) return;
+        this.world = pipe.toWorld;
+        platforms = this.world === 'underground' ? undergroundPlatforms : overworldPlatforms;
+        player.x = dest.spawnX != null ? dest.spawnX : dest.x + 8;
+        player.y = (dest.spawnY != null ? dest.spawnY : dest.y) - player.h;
+        player.vx = 0;
+        player.vy = 0;
+        snapToGround(player);
+        this.pipeCooldown = PIPE_COOLDOWN;
+        addParticles(player.cx, player.cy, '#22c55e', 14);
+        popup(this.world === 'underground' ? '🕳️ 지하' : '☀️ 지상');
+      }
+
       checkCollisions() {
         for (const player of this.players) {
           if (!player.alive) continue;
-          for (const coin of this.coins) {
+          this.checkPipeWarp(player);
+          for (const coin of this.activeCoins()) {
             if (coin.collected) continue;
             if (Math.hypot(player.cx - coin.x, player.cy - coin.y) < coin.r + 16) {
               coin.collected = true;
-              this.coinsCount++;
-              addParticles(coin.x, coin.y, '#fbbf24', 6);
+              if (coin.kind === 'blue') {
+                this.iceAmmo++;
+                this.shootIce(player.index);
+                addParticles(coin.x, coin.y, '#38bdf8', 10);
+              } else {
+                this.coinsCount++;
+                addParticles(coin.x, coin.y, '#fbbf24', 6);
+              }
             }
           }
+          if (this.world === 'overworld') {
           for (const item of this.items) {
             if (item.collected) continue;
             if (player.x + player.w > item.x && player.x < item.x + item.w &&
                 player.y + player.h > item.y && player.y < item.y + item.h) {
               item.collected = true;
-              player.grow();
-              addParticles(item.x + item.w / 2, item.y, '#ef4444', 10);
+              if (item instanceof PowerFeather) {
+                player.featherTimer = FEATHER_DURATION;
+                addParticles(item.x + item.w / 2, item.y, '#fde68a', 14);
+                popup('🪶 비행 60초!');
+              } else {
+                player.grow();
+                addParticles(item.x + item.w / 2, item.y, '#ef4444', 10);
+              }
             }
           }
           for (const e of [...this.enemies, ...this.bossMinions]) {
@@ -1470,7 +1798,7 @@
               if (player.shrink()) this.playerDie(player);
             }
           }
-          if (this.boss.alive && rectOverlap(player, this.boss)) {
+          if (this.world === 'overworld' && this.boss && this.boss.alive && rectOverlap(player, this.boss)) {
             const head = this.boss.headZone;
             const onHead = player.vy > 2 &&
               player.bottom - player.vy <= head.y + head.h &&
@@ -1483,6 +1811,7 @@
               player.vx = (player.cx < this.boss.x + this.boss.w / 2 ? -6 : 6);
             }
           }
+          }
         }
       }
 
@@ -1492,7 +1821,7 @@
         addParticles(player.cx, player.cy, '#ef4444', 16);
         this.updatePlayerTags();
         if (!this.players.some(p => p.alive)) {
-          this.endGame(false, `코인 ${this.coins.filter(c => c.collected).length}개 수집`);
+          this.endGame(false, `코인 ${this.totalCoinsCollected()}개 수집`);
         }
       }
 
@@ -1500,7 +1829,7 @@
         if (this.gameWon) return;
         this.gameWon = true;
         this.gameOver = true;
-        this.endGame(true, `보스 처치! 코인 ${this.coins.filter(c => c.collected).length}개`);
+        this.endGame(true, `보스 처치! 코인 ${this.totalCoinsCollected()}개`);
       }
 
       endGame(won, msg) {
@@ -1523,12 +1852,37 @@
         }
       }
 
+      shootIce(playerIdx) {
+        const p = this.players[playerIdx];
+        if (!p || !p.alive) return;
+        if (this.iceAmmo <= 0) return;
+        this.iceAmmo--;
+        this.updateHUD();
+        const ice = new Iceball(
+          p.x + p.w / 2 + p.facing * 8,
+          p.y + p.h / 2 - 4,
+          p.facing * 7.5,
+          -1.5,
+          playerIdx
+        );
+        this.iceballs.push(ice);
+        addParticles(p.cx, p.cy, '#38bdf8', 8);
+      }
+
       updateHUD() {
         const me = this.me();
-        document.getElementById('coins').textContent = this.coins.filter(c => c.collected).length;
+        const collected = this.totalCoinsCollected();
+        document.getElementById('coins').textContent = collected;
         document.getElementById('fireballsAmmo').textContent = this.coinsCount;
-        document.getElementById('status').textContent = me && me.alive ? (me.big ? '큼' : '작음') : '전멸';
-        document.getElementById('bossHp').textContent = this.boss && this.boss.alive ? this.boss.hp : '처치!';
+        document.getElementById('iceAmmo').textContent = this.iceAmmo;
+        let status = me && me.alive ? (me.big ? '큼' : '작음') : '전멸';
+        if (me && me.featherTimer > 0) status += ' · 비행';
+        document.getElementById('status').textContent = status;
+        document.getElementById('featherTime').textContent =
+          me && me.featherTimer > 0 ? Math.ceil(me.featherTimer / 60) + 's' : '-';
+        document.getElementById('bossHp').textContent =
+          this.world === 'underground' ? '지하' :
+          (this.boss && this.boss.alive ? this.boss.hp : '처치!');
       }
 
       updatePlayerTags() {
@@ -1541,15 +1895,19 @@
 
       hostTick() {
         if (this.gameOver) return;
+        if (this.pipeCooldown > 0) this.pipeCooldown--;
         this.players.forEach(p => { if (p.alive) p.update(); });
-        this.coins.forEach(c => c.update());
-        this.items.forEach(i => i.update());
-        this.enemies.forEach(e => e.update());
-        this.bossMinions.forEach(e => e.update());
-        this.bossMinions = this.bossMinions.filter(e => e.alive || e.squished);
-        if (this.boss) this.boss.update();
-        
+        this.activeCoins().forEach(c => c.update());
+        if (this.world === 'overworld') {
+          this.items.forEach(i => i.update());
+          this.enemies.forEach(e => e.update());
+          this.bossMinions.forEach(e => e.update());
+          this.bossMinions = this.bossMinions.filter(e => e.alive || e.squished);
+          if (this.boss) this.boss.update();
+        }
+
         this.fireballs.forEach(f => f.update());
+        this.iceballs.forEach(f => f.update());
         this.fireballs.forEach(f => {
           if (!f.alive) return;
           for (const e of [...this.enemies, ...this.bossMinions]) {
@@ -1558,21 +1916,47 @@
                 f.y + f.h > e.y && f.y < e.y + e.h) {
               e.stomp();
               f.alive = false;
-              addParticles(e.x + e.w/2, e.y + e.h/2, '#ef4444', 8);
+              addParticles(e.x + e.w / 2, e.y + e.h / 2, '#ef4444', 8);
               break;
             }
           }
-          if (f.alive && this.boss && this.boss.alive) {
+          if (f.alive && this.boss && this.boss.alive && this.world === 'overworld') {
             const b = this.boss;
             if (f.x + f.w > b.x && f.x < b.x + b.w &&
                 f.y + f.h > b.y && f.y < b.y + b.h) {
               b.stomp();
               f.alive = false;
-              addParticles(b.x + b.w/2, b.y + b.h/2, '#ef4444', 12);
+              addParticles(b.x + b.w / 2, b.y + b.h / 2, '#ef4444', 12);
             }
           }
         });
         this.fireballs = this.fireballs.filter(f => f.alive);
+
+        this.iceballs.forEach(f => {
+          if (!f.alive) return;
+          for (const e of [...this.enemies, ...this.bossMinions]) {
+            if (!e.alive || e.squished) continue;
+            if (f.x + f.w > e.x && f.x < e.x + e.w &&
+                f.y + f.h > e.y && f.y < e.y + e.h) {
+              freezeEnemy(e);
+              f.alive = false;
+              addParticles(e.x + e.w / 2, e.y + e.h / 2, '#38bdf8', 10);
+              break;
+            }
+          }
+          if (f.alive && this.boss && this.boss.alive && this.world === 'overworld') {
+            const b = this.boss;
+            if (f.x + f.w > b.x && f.x < b.x + b.w &&
+                f.y + f.h > b.y && f.y < b.y + b.h) {
+              b.frozen = true;
+              b.frozenTimer = 120;
+              b.vx = 0;
+              f.alive = false;
+              addParticles(b.x + b.w / 2, b.y + b.h / 2, '#38bdf8', 12);
+            }
+          }
+        });
+        this.iceballs = this.iceballs.filter(f => f.alive);
 
         this.checkCollisions();
         this.particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.2; p.life--; });
@@ -1584,12 +1968,13 @@
         this.onNet({
           type: 'STATE',
           players: this.players.map(p => p.toNet()),
-          coins: this.coins.map(c => ({ x: c.x, y: c.y, collected: c.collected })),
+          coins: this.coins.map(c => ({ x: c.x, y: c.y, collected: c.collected, kind: c.kind })),
           items: this.items.map(i => ({ x: i.x, y: i.y, vx: i.vx, vy: i.vy, collected: i.collected })),
           enemies: this.enemies.map(e => ({
             x: e.x, y: e.y, vx: e.vx, vy: e.vy, w: e.w, h: e.h, alive: e.alive,
             squished: e.squished, squishTimer: e.squishTimer,
-            shell: e.shell, shellTimer: e.shellTimer, shellVx: e.shellVx
+            shell: e.shell, shellTimer: e.shellTimer, shellVx: e.shellVx,
+            frozen: e.frozen, frozenTimer: e.frozenTimer
           })),
           bossMinions: this.bossMinions.map(e => ({
             x: e.x, y: e.y, vx: e.vx, alive: e.alive, squished: e.squished, squishTimer: e.squishTimer, h: e.h
@@ -1597,10 +1982,15 @@
           boss: this.boss ? {
             x: this.boss.x, y: this.boss.y, vx: this.boss.vx, vy: this.boss.vy,
             hp: this.boss.hp, alive: this.boss.alive, hurtTimer: this.boss.hurtTimer,
-            stompInvincible: this.boss.stompInvincible, rage: this.boss.rage
+            stompInvincible: this.boss.stompInvincible, rage: this.boss.rage,
+            frozen: this.boss.frozen, frozenTimer: this.boss.frozenTimer
           } : null,
           fireballs: this.fireballs.map(f => ({ x: f.x, y: f.y })),
+          iceballs: this.iceballs.map(f => ({ x: f.x, y: f.y })),
           coinsCount: this.coinsCount,
+          iceAmmo: this.iceAmmo,
+          world: this.world,
+          undergroundCoins: this.undergroundCoins.map(c => ({ x: c.x, y: c.y, collected: c.collected, kind: c.kind })),
           gameOver: this.gameOver, gameWon: this.gameWon
         });
       }
@@ -1610,8 +2000,23 @@
           if (this.players[i]) this.players[i].applyNet(s);
         });
         if (data.coins) data.coins.forEach((s, i) => {
-          if (this.coins[i]) { this.coins[i].x = s.x; this.coins[i].y = s.y; this.coins[i].collected = s.collected; }
+          if (this.coins[i]) {
+            this.coins[i].x = s.x; this.coins[i].y = s.y;
+            this.coins[i].collected = s.collected;
+            if (s.kind) this.coins[i].kind = s.kind;
+          }
         });
+        if (data.undergroundCoins) data.undergroundCoins.forEach((s, i) => {
+          if (this.undergroundCoins[i]) {
+            this.undergroundCoins[i].x = s.x; this.undergroundCoins[i].y = s.y;
+            this.undergroundCoins[i].collected = s.collected;
+            if (s.kind) this.undergroundCoins[i].kind = s.kind;
+          }
+        });
+        if (data.world) {
+          this.world = data.world;
+          platforms = this.world === 'underground' ? undergroundPlatforms : overworldPlatforms;
+        }
         if (data.items) data.items.forEach((s, i) => {
           if (this.items[i]) Object.assign(this.items[i], s);
         });
@@ -1630,15 +2035,21 @@
         if (data.fireballs) {
           this.fireballs = data.fireballs.map(f => new Fireball(f.x, f.y, 0, 0, 0));
         }
+        if (data.iceballs) {
+          this.iceballs = data.iceballs.map(f => new Iceball(f.x, f.y, 0, 0, 0));
+        }
         if (data.coinsCount !== undefined) {
           this.coinsCount = data.coinsCount;
+        }
+        if (data.iceAmmo !== undefined) {
+          this.iceAmmo = data.iceAmmo;
         }
         this.gameOver = !!data.gameOver;
         this.gameWon = !!data.gameWon;
         if (this.gameOver && !document.getElementById('overlay').classList.contains('show')) {
           this.endGame(this.gameWon, this.gameWon
-            ? `보스 처치! 코인 ${this.coins.filter(c => c.collected).length}개`
-            : `코인 ${this.coins.filter(c => c.collected).length}개 수집`);
+            ? `보스 처치! 코인 ${this.totalCoinsCollected()}개`
+            : `코인 ${this.totalCoinsCollected()}개 수집`);
         }
         this.updateHUD();
         this.updatePlayerTags();
@@ -1650,6 +2061,7 @@
         p.input.left = !!inp.l;
         p.input.right = !!inp.r;
         if (inp.j) p.input.jumpPressed = true;
+        p.input.jumpHeld = !!inp.jh;
         p.input.downPressed = !!inp.d;
       }
 
@@ -1659,29 +2071,36 @@
         if (!me) return;
         this.onNet({
           type: 'INPUT', idx: this.myIndex,
-          input: { l: me.input.left, r: me.input.right, j: me.input.jumpPressed, d: me.input.downPressed }
+          input: {
+            l: me.input.left, r: me.input.right,
+            j: me.input.jumpPressed, jh: me.input.jumpHeld, d: me.input.downPressed
+          }
         });
         me.input.jumpPressed = false;
         me.input.downPressed = false;
       }
 
       draw() {
+        const ww = getWorldW();
         const me = this.me();
         if (me && me.alive) {
-          cameraX = Math.max(0, Math.min(WORLD_W - VW, me.cx - VW * 0.38));
+          cameraX = Math.max(0, Math.min(ww - VW, me.cx - VW * 0.38));
         } else if (this.players.length) {
           const live = this.players.find(p => p.alive) || this.players[0];
-          cameraX = Math.max(0, Math.min(WORLD_W - VW, live.cx - VW * 0.38));
+          cameraX = Math.max(0, Math.min(ww - VW, live.cx - VW * 0.38));
         }
 
         drawBackground();
-        this.coins.forEach(c => c.draw());
-        this.items.forEach(i => i.draw());
-        this.enemies.forEach(e => e.draw());
-        this.bossMinions.forEach(e => e.draw());
-        if (this.boss) this.boss.draw();
-        drawFlag();
+        this.activeCoins().forEach(c => c.draw());
+        if (this.world === 'overworld') {
+          this.items.forEach(i => i.draw());
+          this.enemies.forEach(e => e.draw());
+          this.bossMinions.forEach(e => e.draw());
+          if (this.boss) this.boss.draw();
+          drawFlag();
+        }
         this.fireballs.forEach(f => f.draw());
+        this.iceballs.forEach(f => f.draw());
         this.players.forEach(p => p.draw());
 
         this.particles.forEach(p => {
@@ -1691,6 +2110,7 @@
           ctx.fill();
         });
 
+        drawPopups();
         this.updateHUD();
       }
 
@@ -1742,50 +2162,106 @@
              a.y + a.h > b.y && a.y < b.y + b.h;
     }
 
+    function drawPipes() {
+      if (!game) return;
+      const list = pipeDefs[game.world] || [];
+      for (const pipe of list) {
+        const sx = pipe.x - cameraX;
+        if (sx + pipe.w < -20 || sx > VW + 20) continue;
+        const bodyH = pipe.h;
+        const lipH = 10;
+        ctx.fillStyle = '#16a34a';
+        ctx.fillRect(sx - 4, pipe.y - lipH, pipe.w + 8, lipH);
+        ctx.fillStyle = '#22c55e';
+        ctx.fillRect(sx - 2, pipe.y - lipH + 2, pipe.w + 4, lipH - 4);
+        const grad = ctx.createLinearGradient(sx, pipe.y, sx + pipe.w, pipe.y);
+        grad.addColorStop(0, '#15803d');
+        grad.addColorStop(0.5, '#22c55e');
+        grad.addColorStop(1, '#166534');
+        ctx.fillStyle = grad;
+        ctx.fillRect(sx, pipe.y, pipe.w, bodyH);
+        ctx.fillStyle = 'rgba(0,0,0,0.18)';
+        ctx.fillRect(sx + pipe.w - 8, pipe.y + lipH, 6, bodyH - lipH);
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.fillRect(sx + 4, pipe.y + lipH, 6, bodyH - lipH);
+        if (game.world === 'overworld') {
+          ctx.fillStyle = '#0f172a';
+          ctx.fillRect(sx + 8, pipe.y + 4, pipe.w - 16, 18);
+        }
+      }
+    }
+
     function drawBackground() {
+      const underground = game && game.world === 'underground';
       const grad = ctx.createLinearGradient(0, 0, 0, VH);
-      grad.addColorStop(0, '#5c94fc');
-      grad.addColorStop(1, '#94c5ff');
+      if (underground) {
+        grad.addColorStop(0, '#1e1b4b');
+        grad.addColorStop(1, '#312e81');
+      } else {
+        grad.addColorStop(0, '#5c94fc');
+        grad.addColorStop(1, '#94c5ff');
+      }
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, VW, VH);
 
-      ctx.fillStyle = 'rgba(255,255,255,0.7)';
-      [[100, 80, 60], [300, 120, 40], [550, 60, 80]].forEach(([x, y, s]) => {
-        const sx = x - cameraX * 0.3;
-        ctx.beginPath();
-        ctx.arc(sx, y, s, 0, Math.PI * 2);
-        ctx.arc(sx + s * 1.2, y, s * 0.8, 0, Math.PI * 2);
-        ctx.arc(sx + s * 2, y, s * 0.6, 0, Math.PI * 2);
-        ctx.fill();
-      });
-
-      for (const p of platforms) {
-        const sx = p.x - cameraX;
-        if (sx + p.w < 0 || sx > VW) continue;
-        ctx.fillStyle = '#c84c0c';
-        ctx.fillRect(sx, p.y, p.w, p.h);
-        ctx.fillStyle = '#22c55e';
-        ctx.fillRect(sx, p.y, p.w, 14);
-        ctx.fillStyle = 'rgba(0,0,0,0.1)';
-        for (let i = 0; i < p.w; i += 30) ctx.fillRect(sx + i, p.y + 14, 2, p.h - 14);
-      }
-
-      for (const pit of pits) {
-        const sx = pit.x - cameraX;
-        if (sx + pit.w < 0 || sx > VW) continue;
-        ctx.fillStyle = '#0f172a';
-        ctx.fillRect(sx, 440, pit.w, 80);
-        ctx.fillStyle = '#7f1d1d';
-        for (let i = 10; i < pit.w - 10; i += 18) {
+      if (!underground) {
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        [[100, 80, 60], [300, 120, 40], [550, 60, 80]].forEach(([x, y, s]) => {
+          const sx = x - cameraX * 0.3;
           ctx.beginPath();
-          ctx.moveTo(sx + i, 450);
-          ctx.lineTo(sx + i + 8, 470);
-          ctx.lineTo(sx + i + 16, 450);
+          ctx.arc(sx, y, s, 0, Math.PI * 2);
+          ctx.arc(sx + s * 1.2, y, s * 0.8, 0, Math.PI * 2);
+          ctx.arc(sx + s * 2, y, s * 0.6, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      } else {
+        ctx.fillStyle = 'rgba(99,102,241,0.25)';
+        for (let i = 0; i < 8; i++) {
+          const sx = (i * 180 - cameraX * 0.15) % (VW + 200) - 100;
+          ctx.beginPath();
+          ctx.arc(sx, 120 + (i % 3) * 40, 30 + (i % 2) * 10, 0, Math.PI * 2);
           ctx.fill();
         }
       }
 
-      if (game && game.boss && !game.boss.alive) {
+      for (const p of platforms) {
+        const sx = p.x - cameraX;
+        if (sx + p.w < 0 || sx > VW) continue;
+        if (underground) {
+          ctx.fillStyle = '#57534e';
+          ctx.fillRect(sx, p.y, p.w, p.h);
+          ctx.fillStyle = '#78716c';
+          ctx.fillRect(sx, p.y, p.w, 10);
+        } else {
+          ctx.fillStyle = '#c84c0c';
+          ctx.fillRect(sx, p.y, p.w, p.h);
+          ctx.fillStyle = '#22c55e';
+          ctx.fillRect(sx, p.y, p.w, 14);
+        }
+        ctx.fillStyle = 'rgba(0,0,0,0.1)';
+        for (let i = 0; i < p.w; i += 30) ctx.fillRect(sx + i, p.y + 14, 2, p.h - 14);
+      }
+
+      if (!underground) {
+        for (const pit of pits) {
+          const sx = pit.x - cameraX;
+          if (sx + pit.w < 0 || sx > VW) continue;
+          ctx.fillStyle = '#0f172a';
+          ctx.fillRect(sx, 440, pit.w, 80);
+          ctx.fillStyle = '#7f1d1d';
+          for (let i = 10; i < pit.w - 10; i += 18) {
+            ctx.beginPath();
+            ctx.moveTo(sx + i, 450);
+            ctx.lineTo(sx + i + 8, 470);
+            ctx.lineTo(sx + i + 16, 450);
+            ctx.fill();
+          }
+        }
+      }
+
+      drawPipes();
+
+      if (game && game.boss && !game.boss.alive && game.world === 'overworld') {
         ctx.fillStyle = 'rgba(251,191,36,0.3)';
         ctx.fillRect(3600 - cameraX, 180, 400, 260);
       }
@@ -1809,16 +2285,23 @@
       if (!me || !me.alive) return;
       if (key === 'left') me.input.left = active;
       if (key === 'right') me.input.right = active;
-      if (key === 'jump' && active) me.input.jumpPressed = true;
-      if (key === 'down' && active) me.input.downPressed = true;
+      if (key === 'jump') {
+        if (active) me.input.jumpPressed = true;
+        me.input.jumpHeld = active;
+      }
+      if (key === 'down') me.input.downPressed = active;
       document.getElementById('btnLeft').classList.toggle('active', me.input.left);
       document.getElementById('btnRight').classList.toggle('active', me.input.right);
       document.getElementById('btnDown').classList.toggle('active', me.input.downPressed);
+      document.getElementById('btnJump').classList.toggle('active', me.input.jumpHeld);
     }
 
     function bindBtn(btn, key) {
       const start = (e) => { e.preventDefault(); setInput(key, true); };
-      const stop = () => { if (key !== 'jump' && key !== 'down') setInput(key, false); };
+      const stop = (e) => {
+        e.preventDefault();
+        setInput(key, false);
+      };
       btn.addEventListener('pointerdown', start);
       btn.addEventListener('pointerup', stop);
       btn.addEventListener('pointerleave', stop);
@@ -1841,7 +2324,7 @@
     });
     window.addEventListener('keyup', (e) => {
       const k = keyMap[e.key];
-      if (!k || k === 'jump' || k === 'down') return;
+      if (!k) return;
       e.preventDefault();
       setInput(k, false);
     });
@@ -1849,10 +2332,12 @@
       if (!game) return;
       const me = game.me();
       if (!me) return;
-      me.input.left = false; me.input.right = false; me.input.downPressed = false;
+      me.input.left = false; me.input.right = false;
+      me.input.downPressed = false; me.input.jumpHeld = false;
       document.getElementById('btnLeft').classList.remove('active');
       document.getElementById('btnRight').classList.remove('active');
       document.getElementById('btnDown').classList.remove('active');
+      document.getElementById('btnJump').classList.remove('active');
     });
 
     bindBtn(document.getElementById('btnLeft'), 'left');
@@ -1952,7 +2437,7 @@
       startNet(false);
     });
     document.getElementById('btnCopyLink').addEventListener('click', () => {
-      copyText(currentInviteUrl, USE_ROOM_CODE ? '방 코드 복사됨' : '초대 링크 복사됨');
+      copyText(currentInviteUrl, '초대 링크 복사됨');
     });
     document.getElementById('btnStartGame').addEventListener('click', hostBeginGame);
     document.getElementById('btnCancelWait').addEventListener('click', showLobby);

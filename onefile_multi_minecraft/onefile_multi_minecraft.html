@@ -2,67 +2,103 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>포트나이트 타워</title>
   <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{overflow:hidden;background:#111;font-family:'Segoe UI',sans-serif;color:#fff}
-    canvas{display:block;width:100vw;height:100vh}
-    #ui{position:fixed;inset:0;pointer-events:none;z-index:5}
-    #hud{position:fixed;top:14px;left:14px;background:rgba(0,0,0,.7);padding:12px 16px;border-radius:10px;border:2px solid #f5c518;line-height:1.8;font-size:.9rem}
-    #hud span{color:#f5c518;font-weight:bold}
-    #crosshair{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:24px;height:24px}
-    #crosshair::before,#crosshair::after{content:'';position:absolute;background:#fff;box-shadow:0 0 4px #000}
-    #crosshair::before{width:2px;height:24px;left:11px}
-    #crosshair::after{width:24px;height:2px;top:11px}
-    #buildBar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;gap:10px;pointer-events:auto}
-    .bbtn{width:70px;height:70px;border:3px solid #555;border-radius:12px;background:rgba(0,0,0,.8);color:#fff;font-size:.75rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer}
-    .bbtn kbd{background:#333;padding:2px 6px;border-radius:4px;font-size:.85rem}
-    .bbtn.on{border-color:#f5c518;box-shadow:0 0 16px rgba(245,197,24,.5)}
-    #towerBar{position:fixed;top:14px;right:14px;width:24px;height:200px;background:rgba(0,0,0,.6);border:2px solid #f5c518;border-radius:12px;overflow:hidden}
-    #towerFill{width:100%;background:linear-gradient(0deg,#f5c518,#ff6b00);position:absolute;bottom:0;transition:height .3s}
-    #towerLabel{position:fixed;top:220px;right:10px;font-size:.75rem;color:#f5c518;text-align:center;width:40px}
-    #popup{position:fixed;top:40%;left:50%;transform:translate(-50%,-50%);font-size:1.6rem;color:#f5c518;text-shadow:0 0 10px #000;opacity:0;transition:opacity .3s}
-    #popup.show{opacity:1}
-    #screen{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;flex-direction:column;background:rgba(0,0,0,.85);pointer-events:auto}
-    #screen.hide{display:none}
-    h1{font-size:2.2rem;color:#f5c518;margin-bottom:10px;text-shadow:0 0 20px rgba(245,197,24,.5)}
-    .desc{color:#aaa;text-align:center;line-height:2;margin-bottom:24px;max-width:460px}
-    .start{padding:16px 40px;font-size:1.2rem;background:#f5c518;color:#111;border:none;border-radius:10px;font-weight:bold;cursor:pointer}
-    .start:hover{background:#ffe066}
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #111; font-family: 'Segoe UI', system-ui, sans-serif; color: #fff; }
+    canvas { display: block; width: 100vw; height: 100dvh; touch-action: none; cursor: crosshair; }
+    #hud {
+      position: fixed; top: max(10px, env(safe-area-inset-top)); left: 10px;
+      background: rgba(0, 0, 0, 0.72); padding: 10px 14px; border-radius: 10px;
+      border: 2px solid #f5c518; line-height: 1.75; font-size: clamp(0.72rem, 2.8vw, 0.88rem); z-index: 5;
+    }
+    #hud span { color: #f5c518; font-weight: bold; }
+    #crosshair {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 20px; height: 20px; pointer-events: none; z-index: 5;
+    }
+    #crosshair::before, #crosshair::after {
+      content: ''; position: absolute; background: #fff; box-shadow: 0 0 4px #000;
+    }
+    #crosshair::before { width: 2px; height: 20px; left: 9px; }
+    #crosshair::after { width: 20px; height: 2px; top: 9px; }
+    #towerBar {
+      position: fixed; top: max(10px, env(safe-area-inset-top)); right: 10px;
+      width: 22px; height: min(180px, 28dvh); background: rgba(0, 0, 0, 0.65);
+      border: 2px solid #f5c518; border-radius: 10px; overflow: hidden; z-index: 5;
+    }
+    #towerFill { width: 100%; background: linear-gradient(0deg, #f5c518, #ff6b00); position: absolute; bottom: 0; height: 0%; }
+    #popup {
+      position: fixed; top: 38%; left: 50%; transform: translate(-50%, -50%);
+      font-size: clamp(1rem, 4vw, 1.5rem); color: #f5c518; text-shadow: 0 0 10px #000;
+      opacity: 0; transition: opacity 0.3s; z-index: 6; pointer-events: none;
+    }
+    #popup.show { opacity: 1; }
+    #screen {
+      position: fixed; inset: 0; z-index: 20;
+      display: flex; align-items: center; justify-content: center; flex-direction: column;
+      background: rgba(0, 0, 0, 0.88); padding: 20px;
+    }
+    #screen.hide { display: none; }
+    h1 {
+      font-size: clamp(1.4rem, 5vw, 2.1rem); color: #f5c518; margin-bottom: 10px; text-align: center;
+    }
+    .desc {
+      color: #aaa; text-align: center; line-height: 1.85; margin-bottom: 22px;
+      max-width: 420px; font-size: clamp(0.82rem, 3vw, 0.95rem);
+    }
+    .start {
+      padding: 14px 36px; font-size: 1.05rem; background: #f5c518; color: #111;
+      border: none; border-radius: 10px; font-weight: bold; cursor: pointer; touch-action: manipulation;
+    }
+    #ctrl {
+      position: fixed; bottom: max(10px, env(safe-area-inset-bottom)); left: 50%;
+      transform: translateX(-50%); color: #777; font-size: 0.74rem; z-index: 5; text-align: center;
+    }
+    #mobCtrl { position: fixed; inset: 0; pointer-events: none; z-index: 4; display: none; }
+    #mobCtrl.show { display: block; }
+    .mbtn {
+      position: absolute; pointer-events: auto; border-radius: 14px;
+      border: 2px solid rgba(245, 197, 24, 0.6); background: rgba(0, 0, 0, 0.45);
+      color: #f5c518; font-size: 0.72rem; font-weight: bold;
+      display: flex; align-items: center; justify-content: center; touch-action: none; user-select: none;
+    }
+    .mbtn.active { background: rgba(245, 197, 24, 0.25); }
+    #padMove { left: 14px; bottom: max(14px, env(safe-area-inset-bottom)); width: 110px; height: 110px; border-radius: 50%; }
+    #padFire { right: 14px; bottom: max(14px, env(safe-area-inset-bottom)); width: 68px; height: 68px; }
+    #padBuild { right: 92px; bottom: max(18px, calc(env(safe-area-inset-bottom) + 4px)); width: 60px; height: 60px; }
+    #padJump { right: 162px; bottom: max(22px, calc(env(safe-area-inset-bottom) + 8px)); width: 54px; height: 54px; }
   </style>
 </head>
 <body>
   <canvas id="c"></canvas>
-  <div id="ui">
-    <div id="hud">
-      <div>🏗️ 높이: <span id="height">0</span>m / <span id="goal">30</span>m</div>
-      <div>❤️ HP: <span id="hp">100</span></div>
-      <div>💀 좀비: <span id="zombies">0</span></div>
-      <div>🎯 처치: <span id="kills">0</span></div>
-    </div>
-    <div id="crosshair"></div>
-    <div id="towerBar"><div id="towerFill" style="height:0%"></div></div>
-    <div id="towerLabel">타워</div>
-    <div id="buildBar">
-      <div class="bbtn on" data-mode="wall"><kbd>Q</kbd>벽</div>
-      <div class="bbtn" data-mode="floor"><kbd>E</kbd>발판</div>
-      <div class="bbtn" data-mode="ramp"><kbd>R</kbd>계단</div>
-      <div class="bbtn" data-mode="shoot"><kbd>좌클릭</kbd>총</div>
-    </div>
-    <div id="popup"></div>
+  <div id="hud">
+    <div>🏗️ 높이 <span id="height">0</span>m / <span id="goal">30</span>m</div>
+    <div>🧱 자재 <span id="mat">200</span></div>
+    <div>❤️ HP <span id="hp">100</span></div>
+    <div>💀 좀비 <span id="zombies">0</span> · 🎯 <span id="kills">0</span></div>
+  </div>
+  <div id="crosshair"></div>
+  <div id="towerBar"><div id="towerFill"></div></div>
+  <div id="popup"></div>
+  <div id="ctrl">WASD 이동 · 좌클릭 총 · 우클릭 블록 · 스페이스 점프 · 마우스 시점</div>
+
+  <div id="mobCtrl">
+    <div class="mbtn" id="padMove">이동</div>
+    <div class="mbtn" id="padJump">점프</div>
+    <div class="mbtn" id="padBuild">블록</div>
+    <div class="mbtn" id="padFire">총</div>
   </div>
 
   <div id="screen">
     <h1>🏗️ 포트나이트 타워</h1>
     <p class="desc">
-      가운데 <b style="color:#f5c518">거대 타워</b> 꼭대기까지 올라가세요!<br>
-      Q 벽 · E 발판 · R 계단 — 포트나이트 빌드<br>
-      좀비를 쮹쮹 쏘면서 타워를 올라가!<br><br>
-      WASD 이동 · 스페이스 점프 · 마우스 시점<br>
-      클릭해서 게임 시작
+      FPS로 좀비를 막고, <b style="color:#f5c518">블록을 쌓아</b> 타워 꼭대기까지!<br><br>
+      <b>좌클릭</b> 발사 · <b>우클릭</b> 조준한 곳에 블록 1칸<br>
+      WASD 이동 · 스페이스 점프
     </p>
-    <button class="start" id="go">게임 시작!</button>
+    <button type="button" class="start" id="go">게임 시작</button>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -79,328 +115,515 @@
 
     const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 200);
     const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2(0, 0);
 
     const B = 1;
     const TOWER_H = 30;
-    const GOAL_Y = TOWER_H * B + 1;
-    const builds = new Map();
-    const towerBlocks = new Set();
-    const zombies = [];
-    const bullets = [];
-    const keys = {};
-    let yaw = 0, pitch = 0, locked = false, running = false;
-    let hp = 100, kills = 0, buildMode = 'wall', mat = 200;
-    let player, vel, grounded, spawnT = 0;
+    const GOAL_Y = TOWER_H + 1;
+    const REACH = 5.5;
 
-    const buildMat = new THREE.MeshLambertMaterial({ color: 0x4a9eff, transparent: true, opacity: 0.85 });
+    const blocks = new Map();
+    const blockMeshes = [];
+    const playerBuilds = new Set();
+    const zombies = [];
+    const keys = {};
+    const touch = { moveX: 0, moveZ: 0, jump: false, fire: false, build: false };
+
+    let yaw = 0, pitch = 0, locked = false, running = false;
+    let hp = 100, kills = 0, mat = 200, spawnT = 0, shootCd = 0, buildCd = 0;
+    let player, vel, grounded;
+
     const towerMat = new THREE.MeshLambertMaterial({ color: 0x8899aa });
-    const towerAccent = new THREE.MeshLambertMaterial({ color: 0xf5c518 });
+    const buildMat = new THREE.MeshLambertMaterial({ color: 0x4a9eff, transparent: true, opacity: 0.9 });
     const groundMat = new THREE.MeshLambertMaterial({ color: 0x3d8b37 });
 
-    function bk(x,y,z){return `${x|0},${y|0},${z|0}`}
-    function occupied(x,y,z){return builds.has(bk(x,y,z))||towerBlocks.has(bk(x,y,z))}
+    function resize() {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    }
+    addEventListener('resize', resize);
 
-    function addBox(x,y,z,mat,group,isTower){
-      const m=new THREE.Mesh(new THREE.BoxGeometry(B,B,B),mat);
-      m.position.set(x+.5,y+.5,z+.5);
-      m.castShadow=true;m.receiveShadow=true;
-      m.userData={bx:x|0,by:y|0,bz:z|0};
-      group.add(m);
-      const k=bk(x,y,z);
-      if(isTower) towerBlocks.add(k); else builds.set(k,m);
-      return m;
+    function key(x, y, z) { return `${x | 0},${y | 0},${z | 0}`; }
+    function hasBlock(x, y, z) { return blocks.has(key(x, y, z)); }
+
+    function addBlock(x, y, z, material, isTower) {
+      const k = key(x, y, z);
+      if (blocks.has(k)) return null;
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(B, B, B), material);
+      mesh.position.set(x + 0.5, y + 0.5, z + 0.5);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.userData.block = { x: x | 0, y: y | 0, z: z | 0, tower: !!isTower };
+      scene.add(mesh);
+      blocks.set(k, mesh);
+      blockMeshes.push(mesh);
+      if (!isTower) playerBuilds.add(k);
+      return mesh;
     }
 
-    function buildTowerFixed(){
-      const g=new THREE.Group();scene.add(g);
-      const R=3;
-      for(let y=1;y<=TOWER_H;y++){
-        for(let x=-R;x<=R;x++)for(let z=-R;z<=R;z++){
-          const wall=Math.abs(x)===R||Math.abs(z)===R;
-          if(wall) addBox(x,y,z,towerMat,g,true);
-          if(y%5===0&&Math.abs(x)<R&&Math.abs(z)<R) addBox(x,y,z,new THREE.MeshLambertMaterial({color:0x556677}),g,true);
+    function removePlayerBuilds() {
+      for (const k of [...playerBuilds]) {
+        const mesh = blocks.get(k);
+        if (mesh) {
+          scene.remove(mesh);
+          blocks.delete(k);
+          const i = blockMeshes.indexOf(mesh);
+          if (i >= 0) blockMeshes.splice(i, 1);
         }
       }
-      for(let y=1;y<TOWER_H;y++){
-        if(y%2===0){addBox(2,y,1,towerMat,g,true);addBox(1,y,2,new THREE.MeshLambertMaterial({color:0x3a4a5a}),g,true);}
+      playerBuilds.clear();
+    }
+
+    function buildTower() {
+      const R = 3;
+      for (let y = 1; y <= TOWER_H; y++) {
+        for (let x = -R; x <= R; x++) {
+          for (let z = -R; z <= R; z++) {
+            if (Math.abs(x) === R || Math.abs(z) === R) addBlock(x, y, z, towerMat, true);
+          }
+        }
       }
-      const crown=new THREE.Mesh(new THREE.OctahedronGeometry(1.2),towerAccent);
-      crown.position.set(.5,TOWER_H+2,.5);g.add(crown);
-      const pl=new THREE.PointLight(0xffaa00,3,40);
-      pl.position.set(.5,TOWER_H+2,.5);g.add(pl);
-    }
-
-    function initGround(){
-      const g=new THREE.Group();
-      for(let x=-20;x<20;x++)for(let z=-20;z<20;z++){
-        if(Math.abs(x)<4&&Math.abs(z)<4) continue;
-        addBox(x,0,z,groundMat,g,false);
+      for (let x = -R + 1; x < R; x++) {
+        for (let z = -R + 1; z < R; z++) {
+          addBlock(x, TOWER_H, z, towerMat, true);
+        }
       }
-      scene.add(g);
-      const ring=new THREE.Mesh(new THREE.RingGeometry(4,4.5,32),new THREE.MeshBasicMaterial({color:0xf5c518,side:2}));
-      ring.rotation.x=-Math.PI/2;ring.position.y=.02;scene.add(ring);
+      const crown = new THREE.Mesh(
+        new THREE.OctahedronGeometry(1.1),
+        new THREE.MeshLambertMaterial({ color: 0xf5c518 })
+      );
+      crown.position.set(0.5, TOWER_H + 2, 0.5);
+      scene.add(crown);
     }
 
-    function initLights(){
-      scene.add(new THREE.AmbientLight(0xffffff,.6));
-      const sun=new THREE.DirectionalLight(0xfff0cc,.9);
-      sun.position.set(30,50,20);sun.castShadow=true;
-      sun.shadow.mapSize.set(1024,1024);scene.add(sun);
+    function initGround() {
+      for (let x = -20; x < 20; x++) {
+        for (let z = -20; z < 20; z++) {
+          if (Math.abs(x) < 4 && Math.abs(z) < 4) continue;
+          addBlock(x, 0, z, groundMat, true);
+        }
+      }
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(4, 4.5, 32),
+        new THREE.MeshBasicMaterial({ color: 0xf5c518, side: THREE.DoubleSide })
+      );
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.02;
+      scene.add(ring);
     }
 
-    function createPlayer(){
-      player=new THREE.Object3D();
-      player.position.set(7,2,0);
-      vel=new THREE.Vector3();grounded=false;
+    function initLights() {
+      scene.add(new THREE.AmbientLight(0xffffff, 0.62));
+      const sun = new THREE.DirectionalLight(0xfff0cc, 0.9);
+      sun.position.set(30, 50, 20);
+      sun.castShadow = true;
+      scene.add(sun);
+    }
+
+    function createPlayer() {
+      player = new THREE.Object3D();
+      player.position.set(8, 2, 0);
+      vel = new THREE.Vector3();
+      grounded = false;
       scene.add(player);
     }
 
-    function getHeight(x,z){
-      let h=0;
-      const check=(k,set)=>{
-        if(!set.has(k))return;
-        const p=k.split(',');const by=+p[1];
-        if(by+1>h)h=by+1;
-      };
-      const fx=Math.floor(x),fz=Math.floor(z);
-      for(let dy=0;dy<=TOWER_H+5;dy++){
-        check(bk(fx,dy,fz),towerBlocks);
-        check(bk(fx,dy,fz),new Set(builds.keys()));
+    function floorAt(x, z) {
+      const fx = Math.floor(x), fz = Math.floor(z);
+      let top = 0;
+      for (const [k, mesh] of blocks) {
+        const { x: bx, y: by, z: bz } = mesh.userData.block;
+        if (bx === fx && bz === fz && by + 1 > top) top = by + 1;
       }
-      for(const k of builds.keys()){
-        const p=k.split(',');
-        if(+p[0]===fx&&+p[2]===fz&&+p[1]+1>h)h=+p[1]+1;
-      }
-      for(const k of towerBlocks){
-        const p=k.split(',');
-        if(+p[0]===fx&&+p[2]===fz&&+p[1]+1>h)h=+p[1]+1;
-      }
-      return h;
+      return top;
     }
 
-    function collide(){
-      const px=player.position.x,pz=player.position.z;
-      const hw=.35,hh=1.7;
-      grounded=false;
-      let py=player.position.y;
+    function collide() {
+      const px = player.position.x, pz = player.position.z;
+      const hw = 0.3, hh = 1.65;
+      let py = player.position.y;
+      grounded = false;
 
-      const allKeys=[...builds.keys(),...towerBlocks];
-      for(const k of allKeys){
-        const[bx,by,bz]=k.split(',').map(Number);
-        if(px+hw>bx&&px-hw<bx+1&&py+hh>by&&py<by+1&&pz+hw>bz&&pz-hw<bz+1){
-          if(vel.y<=0&&py>by+1-.3){py=by+1;vel.y=0;grounded=true;}
-          else if(vel.y>0&&py+hh<by+1+.3){py=by-hh;vel.y=0;}
+      for (const mesh of blocks.values()) {
+        const bx = mesh.userData.block.x;
+        const by = mesh.userData.block.y;
+        const bz = mesh.userData.block.z;
+        if (px + hw > bx && px - hw < bx + 1 && py + hh > by && py < by + 1 && pz + hw > bz && pz - hw < bz + 1) {
+          if (vel.y <= 0 && py > by + 0.5) { py = by + 1; vel.y = 0; grounded = true; }
+          else if (vel.y > 0 && py + hh < by + 1.05) { py = by - hh; vel.y = 0; }
         }
       }
-      const gh=getHeight(px,pz);
-      if(py<=gh){py=gh;vel.y=0;grounded=true;}
-      player.position.y=py;
-      if(py<-5){hp=0;gameOver();}
+
+      const gy = floorAt(px, pz);
+      if (py <= gy) { py = gy; vel.y = 0; grounded = true; }
+      player.position.y = py;
+      if (py < -5) { hp = 0; gameOver(); }
     }
 
-    function forward(){
-      const v=new THREE.Vector3(0,0,-1).applyEuler(new THREE.Euler(pitch,yaw,0,'YXZ'));
-      v.y=0;v.normalize();return v;
-    }
-    function right(){
-      const v=new THREE.Vector3(1,0,0).applyEuler(new THREE.Euler(0,yaw,0,'YXZ'));
-      v.y=0;return v;
+    function camDir() {
+      const d = new THREE.Vector3();
+      camera.getWorldDirection(d);
+      return d;
     }
 
-    function placeBuild(mode){
-      if(mat<=0){popup('자재 부족!');return;}
-      const f=forward(),r=right();
-      const px=player.position.x,py=Math.floor(player.position.y),pz=player.position.z;
-      const g=new THREE.Group();let placed=0;
+    function raycastVoxel(maxDist) {
+      const origin = camera.position.clone();
+      const dir = camDir().normalize();
+      let t = 0;
+      let lx = Math.floor(origin.x), ly = Math.floor(origin.y), lz = Math.floor(origin.z);
+      const stepX = dir.x > 0 ? 1 : -1;
+      const stepY = dir.y > 0 ? 1 : -1;
+      const stepZ = dir.z > 0 ? 1 : -1;
+      const tDeltaX = dir.x === 0 ? Infinity : Math.abs(1 / dir.x);
+      const tDeltaY = dir.y === 0 ? Infinity : Math.abs(1 / dir.y);
+      const tDeltaZ = dir.z === 0 ? Infinity : Math.abs(1 / dir.z);
+      let tMaxX = dir.x === 0 ? Infinity : ((dir.x > 0 ? lx + 1 : lx) - origin.x) / dir.x;
+      let tMaxY = dir.y === 0 ? Infinity : ((dir.y > 0 ? ly + 1 : ly) - origin.y) / dir.y;
+      let tMaxZ = dir.z === 0 ? Infinity : ((dir.z > 0 ? lz + 1 : lz) - origin.z) / dir.z;
+      let nx = 0, ny = 0, nz = 0;
 
-      if(mode==='wall'){
-        const wx=Math.floor(px+f.x*3),wy=py,wz=Math.floor(pz+f.z*3);
-        const rx=Math.floor(r.x),rz=Math.floor(r.z);
-        for(let h=0;h<4;h++)for(let w=-1;w<=1;w++){
-          const bx=wx+rx*w,by=wy+h,bz=wz+rz*w;
-          if(!occupied(bx,by,bz)){addBox(bx,by,bz,buildMat,scene,false);placed++;}
+      while (t < maxDist) {
+        if (hasBlock(lx, ly, lz)) {
+          return { hit: true, x: lx, y: ly, z: lz, nx, ny, nz };
         }
-      } else if(mode==='floor'){
-        const fy=py;
-        for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++){
-          const bx=Math.floor(px)+dx,by=fy,bz=Math.floor(pz)+dz;
-          if(!occupied(bx,by,bz)){addBox(bx,by,bz,buildMat,scene,false);placed++;}
-        }
-      } else if(mode==='ramp'){
-        const sx=Math.floor(px+f.x*2),sz=Math.floor(pz+f.z*2);
-        for(let i=0;i<5;i++){
-          const bx=sx+Math.floor(f.x*i),by=py+i,bz=sz+Math.floor(f.z*i);
-          if(!occupied(bx,by,bz)){addBox(bx,by,bz,buildMat,scene,false);placed++;}
-          const bx2=bx+Math.floor(r.x),bz2=bz+Math.floor(r.z);
-          if(!occupied(bx2,by,bz2)){addBox(bx2,by,bz2,buildMat,scene,false);placed++;}
+        if (tMaxX < tMaxY) {
+          if (tMaxX < tMaxZ) { t = tMaxX; tMaxX += tDeltaX; lx += stepX; nx = -stepX; ny = nz = 0; }
+          else { t = tMaxZ; tMaxZ += tDeltaZ; lz += stepZ; nz = -stepZ; nx = ny = 0; }
+        } else {
+          if (tMaxY < tMaxZ) { t = tMaxY; tMaxY += tDeltaY; ly += stepY; ny = -stepY; nx = nz = 0; }
+          else { t = tMaxZ; tMaxZ += tDeltaZ; lz += stepZ; nz = -stepZ; nx = ny = 0; }
         }
       }
-      if(placed){mat-=placed*.5;popup(mode==='wall'?'🧱 벽!':mode==='floor'?'⬜ 발판!':'📐 계단!');beep(200,.05);}
+      return { hit: false };
     }
 
-    function shoot(){
-      beep(600,.08,true);
-      const dir=new THREE.Vector3();camera.getWorldDirection(dir);
-      bullets.push({x:camera.position.x,y:camera.position.y,z:camera.position.z,
-        dx:dir.x*50,dy:dir.y*50,dz:dir.z*50,life:2,
-        mesh:(()=>{const m=new THREE.Mesh(new THREE.SphereGeometry(.1),new THREE.MeshBasicMaterial({color:0xffee00}));
-          m.position.copy(camera.position);scene.add(m);return m;})()});
+    function playerBoxIntersects(ix, iy, iz) {
+      const px = player.position.x, py = player.position.y, pz = player.position.z;
+      const hw = 0.32, hh = 1.65;
+      return px + hw > ix && px - hw < ix + 1 &&
+             py + hh > iy && py < iy + 1 &&
+             pz + hw > iz && pz - hw < iz + 1;
     }
 
-    function spawnZombie(){
-      const a=Math.random()*Math.PI*2,d=18+Math.random()*8;
-      const x=player.position.x+Math.cos(a)*d,z=player.position.z+Math.sin(a)*d;
-      const g=new THREE.Group();
-      g.position.set(x,getHeight(x,z)+.1,z);
-      const body=new THREE.Mesh(new THREE.BoxGeometry(.7,1.1,.5),new THREE.MeshLambertMaterial({color:0x2d6b2d}));
-      body.position.y=.55;g.add(body);
-      const head=new THREE.Mesh(new THREE.BoxGeometry(.5,.5,.5),new THREE.MeshLambertMaterial({color:0x3d8b3d}));
-      head.position.y=1.2;g.add(head);
-      scene.add(g);
-      zombies.push({mesh:g,hp:30,spd:2.5+Math.random(),cd:0});
-    }
-
-    function updateZombies(dt){
-      for(let i=zombies.length-1;i>=0;i--){
-        const z=zombies[i];
-        const dx=player.position.x-z.mesh.position.x,dz=player.position.z-z.mesh.position.z;
-        const dist=Math.hypot(dx,dz)||1;
-        z.mesh.position.x+=(dx/dist)*z.spd*dt;
-        z.mesh.position.z+=(dz/dist)*z.spd*dt;
-        z.mesh.position.y=getHeight(z.mesh.position.x,z.mesh.position.z)+.1;
-        z.mesh.lookAt(player.position.x,z.mesh.position.y,player.position.z);
-        z.cd-=dt;
-        if(dist<1.5&&z.cd<=0){z.cd=1;hp-=8;document.getElementById('hp').textContent=hp;if(hp<=0)gameOver();}
-        if(z.hp<=0){scene.remove(z.mesh);zombies.splice(i,1);kills++;}
+    function tryPlaceBlock() {
+      if (buildCd > 0 || mat < 1) {
+        if (mat < 1) popup('자재 부족!');
+        return;
       }
+      const hit = raycastVoxel(REACH);
+      let px, py, pz;
+      if (hit.hit) {
+        px = hit.x + hit.nx;
+        py = hit.y + hit.ny;
+        pz = hit.z + hit.nz;
+      } else {
+        const p = camera.position.clone().add(camDir().clone().multiplyScalar(3.2));
+        px = Math.floor(p.x);
+        py = Math.floor(p.y);
+        pz = Math.floor(p.z);
+      }
+      if (hasBlock(px, py, pz) || playerBoxIntersects(px, py, pz)) return;
+      if (camera.position.distanceTo(new THREE.Vector3(px + 0.5, py + 0.5, pz + 0.5)) > REACH + 0.5) return;
+      addBlock(px, py, pz, buildMat, false);
+      mat--;
+      buildCd = 0.12;
+      document.getElementById('mat').textContent = Math.floor(mat);
+      popup('🧱');
     }
 
-    function updateBullets(dt){
-      for(let i=bullets.length-1;i>=0;i--){
-        const b=bullets[i];
-        b.x+=b.dx*dt;b.y+=b.dy*dt;b.z+=b.dz*dt;
-        b.mesh.position.set(b.x,b.y,b.z);
-        b.life-=dt;
-        for(const z of zombies){
-          if(z.hp<=0)continue;
-          if(Math.hypot(b.x-z.mesh.position.x,b.y-z.mesh.position.y-1,b.z-z.mesh.position.z)<1.2){
-            z.hp-=30;b.life=0;popup('쮹!');break;
+    function shoot() {
+      if (shootCd > 0) return;
+      shootCd = 0.22;
+      const origin = camera.position.clone();
+      const dir = camDir();
+      raycaster.set(origin, dir);
+      const hits = raycaster.intersectObjects(zombies.map(z => z.mesh), true);
+      for (const hit of hits) {
+        if (hit.distance > 80) break;
+        let node = hit.object;
+        while (node) {
+          const z = zombies.find(zz => zz.mesh === node);
+          if (z) {
+            z.hp -= 34;
+            popup('쮹!');
+            if (z.hp <= 0) {
+              scene.remove(z.mesh);
+              zombies.splice(zombies.indexOf(z), 1);
+              kills++;
+            }
+            return;
           }
+          node = node.parent;
         }
-        if(b.life<=0){scene.remove(b.mesh);bullets.splice(i,1);}
+      }
+      const flash = new THREE.Mesh(
+        new THREE.SphereGeometry(0.06),
+        new THREE.MeshBasicMaterial({ color: 0xffee00 })
+      );
+      flash.position.copy(origin);
+      scene.add(flash);
+      const end = origin.clone().add(dir.clone().multiplyScalar(40));
+      let life = 0.06;
+      const tick = () => {
+        life -= 0.016;
+        flash.position.lerp(end, 0.35);
+        if (life > 0) requestAnimationFrame(tick);
+        else scene.remove(flash);
+      };
+      tick();
+    }
+
+    function spawnZombie() {
+      const a = Math.random() * Math.PI * 2;
+      const d = 14 + Math.random() * 10;
+      const x = player.position.x + Math.cos(a) * d;
+      const z = player.position.z + Math.sin(a) * d;
+      const g = new THREE.Group();
+      g.position.set(x, floorAt(x, z) + 0.1, z);
+      const body = new THREE.Mesh(
+        new THREE.BoxGeometry(0.7, 1.1, 0.5),
+        new THREE.MeshLambertMaterial({ color: 0x2d6b2d })
+      );
+      body.position.y = 0.55;
+      g.add(body);
+      const head = new THREE.Mesh(
+        new THREE.BoxGeometry(0.5, 0.5, 0.5),
+        new THREE.MeshLambertMaterial({ color: 0x3d8b3d })
+      );
+      head.position.y = 1.2;
+      g.add(head);
+      scene.add(g);
+      zombies.push({ mesh: g, hp: 30, spd: 2.5 + Math.random() * 0.8, cd: 0 });
+    }
+
+    function updateZombies(dt) {
+      for (let i = zombies.length - 1; i >= 0; i--) {
+        const z = zombies[i];
+        const dx = player.position.x - z.mesh.position.x;
+        const dz = player.position.z - z.mesh.position.z;
+        const dist = Math.hypot(dx, dz) || 1;
+        z.mesh.position.x += (dx / dist) * z.spd * dt;
+        z.mesh.position.z += (dz / dist) * z.spd * dt;
+        z.mesh.position.y = floorAt(z.mesh.position.x, z.mesh.position.z) + 0.1;
+        z.mesh.lookAt(player.position.x, z.mesh.position.y, player.position.z);
+        z.cd -= dt;
+        if (dist < 1.3 && z.cd <= 0) {
+          z.cd = 0.9;
+          hp -= 7;
+          document.getElementById('hp').textContent = hp;
+          if (hp <= 0) gameOver();
+        }
+        if (z.hp <= 0) {
+          scene.remove(z.mesh);
+          zombies.splice(i, 1);
+        }
       }
     }
 
-    function popup(t){
-      const el=document.getElementById('popup');
-      el.textContent=t;el.classList.add('show');
-      setTimeout(()=>el.classList.remove('show'),700);
+    function popup(t) {
+      const el = document.getElementById('popup');
+      el.textContent = t;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 500);
     }
 
-    function beep(f,d,zap){
-      try{const c=new AudioContext(),o=c.createOscillator(),g=c.createGain();
-        o.connect(g);g.connect(c.destination);
-        o.frequency.value=f;g.gain.value=.12;
-        if(zap){o.frequency.exponentialRampToValueAtTime(100,c.currentTime+d);}
-        o.start();o.stop(c.currentTime+d);}catch(e){}
+    function updateHUD() {
+      const h = Math.max(0, player.position.y | 0);
+      document.getElementById('height').textContent = h;
+      document.getElementById('zombies').textContent = zombies.length;
+      document.getElementById('kills').textContent = kills;
+      document.getElementById('towerFill').style.height = Math.min(100, (h / GOAL_Y) * 100) + '%';
+      if (h >= GOAL_Y) win();
     }
 
-    function updateHUD(){
-      const h=Math.max(0,player.position.y|0);
-      document.getElementById('height').textContent=h;
-      document.getElementById('zombies').textContent=zombies.length;
-      document.getElementById('kills').textContent=kills;
-      document.getElementById('towerFill').style.height=Math.min(100,h/GOAL_Y*100)+'%';
-      if(h>=GOAL_Y) win();
-    }
-
-    function win(){
-      running=false;document.exitPointerLock?.();
+    function win() {
+      if (!running) return;
+      running = false;
+      document.exitPointerLock?.();
       document.getElementById('screen').classList.remove('hide');
-      document.querySelector('#screen h1').textContent='🎉 타워 정복!';
-      document.querySelector('.desc').innerHTML=`${GOAL_Y}m 꼭대기 도달!<br>좀비 ${kills}마리 처치!`;
-      document.getElementById('go').textContent='다시 하기';
+      document.querySelector('#screen h1').textContent = '🎉 타워 정복!';
+      document.querySelector('.desc').innerHTML = `${GOAL_Y}m 도달! · 좀비 ${kills}마리 처치`;
+      document.getElementById('go').textContent = '다시 하기';
     }
 
-    function gameOver(){
-      running=false;document.exitPointerLock?.();
+    function gameOver() {
+      if (!running) return;
+      running = false;
+      document.exitPointerLock?.();
       document.getElementById('screen').classList.remove('hide');
-      document.querySelector('#screen h1').textContent='💀 게임 오버';
-      document.querySelector('.desc').textContent=`${player.position.y|0}m까지 올라감 · 처치 ${kills}`;
-      document.getElementById('go').textContent='다시 하기';
+      document.querySelector('#screen h1').textContent = '💀 게임 오버';
+      document.querySelector('.desc').textContent = `높이 ${player.position.y | 0}m · 처치 ${kills}`;
+      document.getElementById('go').textContent = '다시 하기';
     }
 
-    let lt=0;
-    function loop(t){
-      if(!running)return;
+    function moveFlat() {
+      const f = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(0, yaw, 0, 'YXZ'));
+      f.y = 0;
+      f.normalize();
+      const r = new THREE.Vector3(1, 0, 0).applyEuler(new THREE.Euler(0, yaw, 0, 'YXZ'));
+      return { f, r };
+    }
+
+    let lastT = 0;
+    function loop(t) {
+      if (!running) return;
       requestAnimationFrame(loop);
-      const dt=Math.min((t-lt)/1000,.05);lt=t;
-      const spd=7;
-      const f=forward(),rt=right();
-      vel.x=vel.z=0;
-      if(keys.KeyW)vel.add(f.clone().multiplyScalar(spd));
-      if(keys.KeyS)vel.add(f.clone().multiplyScalar(-spd));
-      if(keys.KeyA)vel.add(rt.clone().multiplyScalar(-spd));
-      if(keys.KeyD)vel.add(rt.clone().multiplyScalar(spd));
-      if((keys.Space||keys.jump)&&grounded){vel.y=9;grounded=false;}
-      vel.y-=22*dt;
+      const dt = Math.min((t - lastT) / 1000, 0.05);
+      lastT = t;
+
+      const spd = 6.8;
+      const { f, r } = moveFlat();
+      vel.x = vel.z = 0;
+      if (keys.KeyW || touch.moveZ < 0) vel.add(f.clone().multiplyScalar(spd));
+      if (keys.KeyS || touch.moveZ > 0) vel.add(f.clone().multiplyScalar(-spd));
+      if (keys.KeyA || touch.moveX < 0) vel.add(r.clone().multiplyScalar(-spd));
+      if (keys.KeyD || touch.moveX > 0) vel.add(r.clone().multiplyScalar(spd));
+      if ((keys.Space || touch.jump) && grounded) { vel.y = 8.5; grounded = false; }
+      vel.y -= 21 * dt;
       player.position.add(vel.clone().multiplyScalar(dt));
       collide();
 
-      camera.position.copy(player.position);camera.position.y+=1.65;
-      camera.rotation.order='YXZ';camera.rotation.y=yaw;camera.rotation.x=pitch;
+      camera.position.copy(player.position);
+      camera.position.y += 1.62;
+      camera.rotation.order = 'YXZ';
+      camera.rotation.y = yaw;
+      camera.rotation.x = pitch;
 
-      spawnT-=dt;
-      if(spawnT<=0){spawnT=2.5;spawnZombie();if(kills>5)spawnZombie();}
-      updateZombies(dt);updateBullets(dt);updateHUD();
-      renderer.render(scene,camera);
+      shootCd -= dt;
+      buildCd -= dt;
+      if (touch.fire && shootCd <= 0) shoot();
+      if (touch.build && buildCd <= 0) tryPlaceBlock();
+
+      spawnT -= dt;
+      if (spawnT <= 0) {
+        spawnT = 3;
+        spawnZombie();
+        if (kills > 3) spawnZombie();
+      }
+      updateZombies(dt);
+      updateHUD();
+      renderer.render(scene, camera);
     }
 
-    function start(){
-      zombies.forEach(z=>scene.remove(z.mesh));zombies.length=0;
-      bullets.forEach(b=>scene.remove(b.mesh));bullets.length=0;
-      builds.forEach(m=>scene.remove(m));builds.clear();
-      hp=100;kills=0;mat=200;spawnT=1;
-      player.position.set(7,2,0);vel.set(0,0,0);yaw=0;pitch=0;
-      document.getElementById('hp').textContent=100;
+    function start() {
+      zombies.forEach(z => scene.remove(z.mesh));
+      zombies.length = 0;
+      removePlayerBuilds();
+      hp = 100;
+      kills = 0;
+      mat = 200;
+      spawnT = 1.2;
+      shootCd = 0;
+      buildCd = 0;
+      player.position.set(8, 2, 0);
+      vel.set(0, 0, 0);
+      yaw = 0;
+      pitch = 0;
+      document.getElementById('hp').textContent = 100;
+      document.getElementById('mat').textContent = mat;
       document.getElementById('screen').classList.add('hide');
-      document.querySelector('#screen h1').textContent='🏗️ 포트나이트 타워';
-      document.getElementById('go').textContent='게임 시작!';
-      running=true;lt=performance.now();
+      document.querySelector('#screen h1').textContent = '🏗️ 포트나이트 타워';
+      document.getElementById('go').textContent = '게임 시작';
+      running = true;
+      lastT = performance.now();
       requestAnimationFrame(loop);
-      canvas.requestPointerLock();
+      canvas.requestPointerLock?.();
     }
 
-    initLights();initGround();buildTowerFixed();createPlayer();
-    renderer.render(scene,camera);
+    initLights();
+    initGround();
+    buildTower();
+    createPlayer();
+    renderer.render(scene, camera);
 
-    document.getElementById('go').onclick=start;
-    document.addEventListener('keydown',e=>{
-      keys[e.code]=true;
-      if(e.code==='KeyQ'){buildMode='wall';setBuildUI();placeBuild('wall');}
-      if(e.code==='KeyE'){buildMode='floor';setBuildUI();placeBuild('floor');}
-      if(e.code==='KeyR'){buildMode='ramp';setBuildUI();placeBuild('ramp');}
+    document.getElementById('go').onclick = start;
+    document.addEventListener('keydown', e => {
+      keys[e.code] = true;
+      if (e.code === 'KeyQ') tryPlaceBlock();
     });
-    document.addEventListener('keyup',e=>keys[e.code]=false);
-    document.addEventListener('mousemove',e=>{
-      if(!locked)return;yaw-=e.movementX*.002;pitch-=e.movementY*.002;
-      pitch=Math.max(-1.4,Math.min(1.4,pitch));
+    document.addEventListener('keyup', e => { keys[e.code] = false; });
+    document.addEventListener('mousemove', e => {
+      if (!locked) return;
+      yaw -= e.movementX * 0.0022;
+      pitch -= e.movementY * 0.0022;
+      pitch = Math.max(-1.4, Math.min(1.4, pitch));
     });
-    document.addEventListener('mousedown',e=>{
-      if(!running||!locked)return;
-      if(e.button===0)shoot();
+    document.addEventListener('mousedown', e => {
+      if (!running) return;
+      if (e.button === 0) shoot();
+      if (e.button === 2) { e.preventDefault(); tryPlaceBlock(); }
     });
-    document.addEventListener('pointerlockchange',()=>{locked=document.pointerLockElement===canvas;});
-    document.querySelectorAll('.bbtn').forEach(b=>{
-      b.onclick=()=>{if(b.dataset.mode==='shoot')return;buildMode=b.dataset.mode;setBuildUI();placeBuild(buildMode);};
+    document.addEventListener('contextmenu', e => e.preventDefault());
+    document.addEventListener('pointerlockchange', () => {
+      locked = document.pointerLockElement === canvas;
     });
-    function setBuildUI(){document.querySelectorAll('.bbtn').forEach(b=>b.classList.toggle('on',b.dataset.mode===buildMode));}
-    addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
-    if('ontouchstart'in window){
-      document.getElementById('buildBar').style.bottom='80px';
-      addEventListener('touchstart',e=>{if(e.touches[0].clientX<innerWidth/2)keys.jump=true;},{passive:true});
-      addEventListener('touchend',()=>keys.jump=false);
+    canvas.addEventListener('click', () => {
+      if (running && !locked) canvas.requestPointerLock?.();
+    });
+
+    if ('ontouchstart' in window) {
+      document.getElementById('mobCtrl').classList.add('show');
+      document.getElementById('ctrl').textContent = '이동 · 점프 · 블록 · 총 · 드래그로 시점';
+      const pad = document.getElementById('padMove');
+      let padId = null, padCx = 0, padCy = 0;
+      pad.addEventListener('pointerdown', e => {
+        padId = e.pointerId;
+        const r = pad.getBoundingClientRect();
+        padCx = r.left + r.width / 2;
+        padCy = r.top + r.height / 2;
+        pad.setPointerCapture(padId);
+        movePad(e.clientX, e.clientY);
+      });
+      pad.addEventListener('pointermove', e => {
+        if (e.pointerId === padId) movePad(e.clientX, e.clientY);
+      });
+      function endPad(e) {
+        if (e.pointerId !== padId) return;
+        padId = null;
+        touch.moveX = touch.moveZ = 0;
+        pad.classList.remove('active');
+      }
+      pad.addEventListener('pointerup', endPad);
+      pad.addEventListener('pointercancel', endPad);
+      function movePad(cx, cy) {
+        const dx = cx - padCx, dy = cy - padCy;
+        const len = Math.hypot(dx, dy) || 1;
+        const max = 40;
+        const k = Math.min(1, max / len);
+        touch.moveX = (dx * k) / max;
+        touch.moveZ = (dy * k) / max;
+        pad.classList.toggle('active', len > 8);
+      }
+      const bindBtn = (el, k, pulse) => {
+        el.addEventListener('pointerdown', e => {
+          e.preventDefault();
+          touch[k] = true;
+          el.classList.add('active');
+          if (pulse && k === 'build') tryPlaceBlock();
+        });
+        const off = () => { touch[k] = false; el.classList.remove('active'); };
+        el.addEventListener('pointerup', off);
+        el.addEventListener('pointerleave', off);
+      };
+      bindBtn(document.getElementById('padJump'), 'jump', false);
+      bindBtn(document.getElementById('padFire'), 'fire', false);
+      bindBtn(document.getElementById('padBuild'), 'build', true);
+      let lookId = null, lx = 0, ly = 0;
+      canvas.addEventListener('pointerdown', e => {
+        if (e.target.closest('.mbtn')) return;
+        lookId = e.pointerId;
+        lx = e.clientX;
+        ly = e.clientY;
+      });
+      canvas.addEventListener('pointermove', e => {
+        if (e.pointerId !== lookId) return;
+        yaw -= (e.clientX - lx) * 0.004;
+        pitch -= (e.clientY - ly) * 0.004;
+        pitch = Math.max(-1.4, Math.min(1.4, pitch));
+        lx = e.clientX;
+        ly = e.clientY;
+      });
+      canvas.addEventListener('pointerup', e => { if (e.pointerId === lookId) lookId = null; });
     }
   </script>
 </body>

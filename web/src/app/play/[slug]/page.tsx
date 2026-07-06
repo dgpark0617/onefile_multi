@@ -5,8 +5,8 @@ import {
   downloadUrl,
   getAllSlugs,
   getGameBySlug,
-  playUrl,
 } from '@/lib/games';
+import { PlayFrame } from './PlayFrame';
 
 export function generateStaticParams() {
   return getAllSlugs().map((slug) => ({ slug }));
@@ -28,14 +28,18 @@ export async function generateMetadata({
 
 export default async function PlayPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ join?: string | string[] }>;
 }) {
   const { slug } = await params;
+  const sp = await searchParams;
+  const rawJoin = sp.join;
+  const join = typeof rawJoin === 'string' ? rawJoin.trim() : undefined;
   const game = getGameBySlug(slug);
   if (!game) notFound();
 
-  const src = playUrl(slug);
   const dl = downloadUrl(slug, game.downloadName);
 
   return (
@@ -59,16 +63,13 @@ export default async function PlayPage({
       </div>
 
       <div className="game-frame-wrap">
-        <iframe
-          className="game-frame"
-          src={src}
-          title={game.title}
-          allow="fullscreen"
-          loading="eager"
-        />
+        <PlayFrame slug={slug} join={join} title={game.title} />
       </div>
 
       <div className="note-box">
+        <strong>멀티 초대:</strong> 방을 만들면 대기실에 <strong>초대 링크·QR 코드</strong>가
+        표시됩니다. 친구가 링크를 열거나 QR을 스캔하면 방 코드 입력 없이 자동 참가합니다.
+        <br />
         <strong>오프라인 실행:</strong> 위의「HTML 다운로드」로 받은 파일을 브라우저에서
         열면 됩니다. 멀티 게임은 PeerJS 연결이 필요할 수 있습니다.
         <br />

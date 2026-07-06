@@ -2,531 +2,847 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>지렁이 게임</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>지렁이 게임 — P2P FFA</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
+    html, body {
+      height: 100%;
       background: #1a1a2e;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      font-family: 'Segoe UI', sans-serif;
+      font-family: 'Segoe UI', system-ui, sans-serif;
       color: #eee;
       overflow: hidden;
     }
-    h1 {
-      font-size: 1.6rem;
-      margin-bottom: 8px;
+    .hidden { display: none !important; }
+
+    #lobby {
+      min-height: 100dvh;
+      padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+      max-width: 520px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+    #lobby h1 {
+      font-size: clamp(1.25rem, 4.5vw, 1.55rem);
+      background: linear-gradient(90deg, #4ade80, #22d3ee);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    #lobby .sub { color: #94a3b8; font-size: 0.84rem; line-height: 1.5; }
+    .hint {
+      background: #16213e; border: 1px solid #334155; border-radius: 10px;
+      padding: 10px 12px; font-size: 0.8rem; color: #94a3b8; line-height: 1.5;
+    }
+    .mode-block {
+      background: #16213e; border: 1px solid #334155; border-radius: 12px; padding: 14px;
+    }
+    .mode-block h2 { margin: 0 0 6px; font-size: 0.95rem; color: #7ec8e3; }
+    .mode-block p { margin: 0 0 10px; font-size: 0.76rem; color: #888; line-height: 1.45; }
+    .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    button, .lobby-btn {
+      border: none; border-radius: 8px; padding: 10px 14px; font-size: 0.85rem;
+      cursor: pointer; touch-action: manipulation;
+    }
+    .btn-green { background: #059669; color: #fff; }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-red { background: #dc2626; color: #fff; }
+    .btn-yellow { background: #ca8a04; color: #fff; }
+    .btn-ghost { background: #334155; color: #ddd; }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    input {
+      width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #445;
+      background: #1a1a2e; color: #eee; font-size: 0.9rem;
+    }
+    #roomBox, #waitingBox {
+      background: #0f3460; padding: 12px; border-radius: 8px; font-size: 0.82rem;
+      word-break: break-all; border: 1px solid #2563eb;
+    }
+    #waitingBox { border-color: #ca8a04; }
+    #inviteLink { color: #7ec8e3; font-size: 0.78rem; display: block; margin: 8px 0; word-break: break-all; }
+    #rosterList { margin: 8px 0; padding: 0; list-style: none; line-height: 1.7; font-size: 0.85rem; }
+    #log { font-size: 0.75rem; color: #4ade80; max-height: 72px; overflow-y: auto; white-space: pre-wrap; }
+
+    .invite-share-box { text-align: center; margin: 10px 0; }
+    .invite-share-box canvas { border-radius: 8px; background: #fff; padding: 6px; max-width: min(176px, 80vw); height: auto; }
+    .invite-code-text { font-size: 0.75rem; opacity: 0.85; margin: 6px 0; word-break: break-all; }
+
+    #gameRoot {
+      display: flex; flex-direction: column;
+      height: 100dvh; width: 100vw;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    #topBar {
+      flex-shrink: 0;
+      padding: 6px 10px 4px;
+      text-align: center;
+    }
+    #topBar h1 {
+      font-size: clamp(0.95rem, 3.5vw, 1.2rem);
       background: linear-gradient(90deg, #4ade80, #22d3ee);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
     }
     #info {
-      font-size: 0.85rem;
+      font-size: clamp(0.65rem, 2.4vw, 0.78rem);
       color: #94a3b8;
-      margin-bottom: 10px;
-      text-align: center;
-      line-height: 1.5;
+      line-height: 1.4;
+      margin-top: 2px;
     }
     #hud {
-      display: flex;
-      gap: 24px;
-      margin-bottom: 10px;
-      font-size: 0.95rem;
+      flex-shrink: 0;
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 16px;
+      padding: 4px 10px 6px;
+      font-size: clamp(0.72rem, 2.8vw, 0.88rem);
     }
-    #hud span { color: #4ade80; font-weight: bold; }
-    canvas {
-      border: 2px solid #334155;
-      border-radius: 8px;
-      box-shadow: 0 0 30px rgba(74, 222, 128, 0.15);
-    }
-    #overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.75);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-      z-index: 10;
-    }
-    #overlay.show { display: flex; }
-    #overlay h2 { font-size: 2rem; margin-bottom: 12px; }
-    #overlay p { color: #94a3b8; margin-bottom: 20px; }
-    #restartBtn {
-      padding: 12px 32px;
-      font-size: 1rem;
-      background: #4ade80;
-      color: #1a1a2e;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: bold;
-    }
-    #restartBtn:hover { background: #22c55e; }
+    #hud span.val { color: #4ade80; font-weight: bold; }
     #gameWrap {
+      flex: 1; min-height: 0;
+      display: flex; align-items: center; justify-content: center;
+      padding: 0 6px;
       position: relative;
     }
+    canvas {
+      display: block;
+      border: 2px solid #334155;
+      border-radius: 8px;
+      box-shadow: 0 0 24px rgba(74, 222, 128, 0.12);
+      touch-action: none;
+    }
+    #backBtn {
+      position: absolute; top: 6px; right: 8px; z-index: 5;
+      padding: 5px 10px; font-size: 0.72rem;
+    }
     #controls {
-      display: flex;
-      justify-content: center;
-      gap: 20px;
-      margin-top: 14px;
+      flex-shrink: 0;
+      display: flex; justify-content: center; gap: clamp(16px, 8vw, 32px);
+      padding: 10px 16px max(14px, env(safe-area-inset-bottom));
     }
     .ctrl-btn {
-      width: 72px;
-      height: 72px;
-      font-size: 1.8rem;
-      background: rgba(74, 222, 128, 0.15);
+      width: clamp(64px, 18vw, 84px);
+      height: clamp(64px, 18vw, 84px);
+      font-size: clamp(1.4rem, 6vw, 2rem);
+      background: rgba(74, 222, 128, 0.12);
       color: #4ade80;
       border: 2px solid #4ade80;
-      border-radius: 16px;
+      border-radius: 18px;
       cursor: pointer;
       user-select: none;
       touch-action: none;
       transition: background 0.1s, transform 0.1s;
     }
-    .ctrl-btn:hover { background: rgba(74, 222, 128, 0.25); }
-    .ctrl-btn.active {
+    .ctrl-btn:active, .ctrl-btn.active {
       background: #4ade80;
       color: #1a1a2e;
-      transform: scale(0.95);
+      transform: scale(0.94);
     }
+    #overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.8);
+      display: none; align-items: center; justify-content: center;
+      flex-direction: column; z-index: 30;
+      padding: 20px; text-align: center;
+    }
+    #overlay.show { display: flex; }
+    #overlay h2 { font-size: clamp(1.3rem, 5vw, 1.8rem); margin-bottom: 10px; }
+    #overlay p { color: #94a3b8; margin-bottom: 16px; font-size: 0.9rem; line-height: 1.5; }
+    #overlay .btn-row { justify-content: center; }
   </style>
 </head>
 <body>
+
+<div id="lobby">
   <h1>🐛 지렁이 게임</h1>
-  <div id="info">← → 방향키 또는 버튼으로 좌우 회전 · 5초마다 새 지렁이 등장 · 사과를 먹으면 길어짐</div>
+  <p class="sub">좌우 회전 · 사과 먹고 성장 · AI와 PvP FFA</p>
+  <div class="hint">
+    <strong>조작:</strong> ← → 방향키 또는 하단 버튼 · 5초마다 AI 지렁이 추가<br>
+    <strong>멀티:</strong> 방 만들기 → 링크·QR 공유 → 2~4인 대결
+  </div>
+
+  <div class="mode-block">
+    <h2>① 솔로</h2>
+    <p>AI 지렁이와 서바이벌</p>
+    <button class="btn-green" id="btnSolo">솔로 시작</button>
+  </div>
+
+  <div class="mode-block">
+    <h2>② FFA 멀티 (2~4인)</h2>
+    <p>실시간 P2P · 가장 오래 살아남거나 최장 길이 승리</p>
+    <button class="btn-primary" id="btnHost">방 만들기</button>
+  </div>
+
+  <div class="mode-block" id="joinPanel">
+    <h2>참가</h2>
+    <input id="joinCodeInput" placeholder="방 코드 입력" autocomplete="off" spellcheck="false">
+    <div class="btn-row" style="margin-top:8px">
+      <button class="btn-red" id="btnJoin">참가</button>
+    </div>
+  </div>
+
+  <div id="waitingBox" class="hidden">
+    <div id="waitingTitle">대기실</div>
+    <div class="invite-share-box">
+      <canvas id="inviteQr" width="176" height="176" aria-label="초대 QR 코드"></canvas>
+      <p id="inviteCodeText" class="invite-code-text"></p>
+    </div>
+    <a id="inviteLink" href="#" rel="noopener"></a>
+    <ul id="rosterList"></ul>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn-yellow" id="btnCopyLink">초대 링크 복사</button>
+      <button class="btn-green hidden" id="btnStartGame" disabled>게임 시작 (2인+)</button>
+      <button class="btn-ghost" id="btnCancelWait">나가기</button>
+    </div>
+    <p id="guestWaitHint" class="hidden" style="font-size:0.78rem;color:#888;margin-top:8px">방장이 시작할 때까지 대기…</p>
+  </div>
+
+  <input id="roomInput" type="hidden" autocomplete="off">
+  <div id="roomBox" class="hidden">Peer: <b id="roomCode">—</b></div>
+  <div id="log"></div>
+</div>
+
+<div id="gameRoot" class="hidden">
+  <div id="topBar">
+    <h1>🐛 지렁이 게임</h1>
+    <div id="info">← → 회전 · 사과를 먹으면 성장</div>
+  </div>
   <div id="hud">
-    <div>길이: <span id="length">3</span></div>
-    <div>사과: <span id="apples">0</span></div>
-    <div>생존: <span id="alive">3</span></div>
+    <div>길이: <span class="val" id="length">3</span></div>
+    <div>사과: <span class="val" id="apples">0</span></div>
+    <div>생존: <span class="val" id="alive">0</span></div>
+    <div id="rankHud" class="hidden" style="width:100%;text-align:center;color:#94a3b8;font-size:0.75rem"></div>
   </div>
   <div id="gameWrap">
-    <canvas id="game" width="900" height="600"></canvas>
+    <button type="button" id="backBtn" class="btn-ghost">← 로비</button>
+    <canvas id="game"></canvas>
   </div>
   <div id="controls">
     <button id="btnLeft" class="ctrl-btn" aria-label="왼쪽">◀</button>
     <button id="btnRight" class="ctrl-btn" aria-label="오른쪽">▶</button>
   </div>
+</div>
 
-  <div id="overlay">
-    <h2 id="overlayTitle">게임 오버</h2>
-    <p id="overlayMsg">다시 도전해보세요!</p>
-    <button id="restartBtn">다시 시작</button>
+<div id="overlay">
+  <h2 id="overlayTitle">게임 오버</h2>
+  <p id="overlayMsg"></p>
+  <div class="btn-row">
+    <button class="btn-green" id="restartBtn">다시 시작</button>
+    <button class="btn-ghost" id="toLobbyBtn">로비로</button>
   </div>
+</div>
 
-  <script>
-    const canvas = document.getElementById('game');
-    const ctx = canvas.getContext('2d');
-    const W = canvas.width;
-    const H = canvas.height;
-
-    const SEGMENT_DIST = 10;
-    const HEAD_RADIUS = 9;
-    const BODY_RADIUS = 7;
-    const BASE_SPEED = 2.2;
-    const TURN_SPEED = 0.08;
-    const APPLE_COUNT = 25;
-    const INITIAL_WORMS = 3;
-    const SPAWN_INTERVAL_MS = 5000;
-    const COLORS = ['#f472b6', '#60a5fa', '#fbbf24', '#a78bfa', '#fb923c', '#2dd4bf'];
-    const RAINBOW_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#6366f1', '#a855f7'];
-
-    let worms = [];
-    let apples = [];
-    let player = null;
-    let gameOver = false;
-    let animId = null;
-    let lastSpawnTime = 0;
-
-    const input = { left: false, right: false };
-
-    function getTurnInput() {
-      if (input.left && !input.right) return -1;
-      if (input.right && !input.left) return 1;
-      return 0;
-    }
-
-    function setTurn(dir, active) {
-      if (dir === 'left') input.left = active;
-      if (dir === 'right') input.right = active;
-      document.getElementById('btnLeft').classList.toggle('active', input.left);
-      document.getElementById('btnRight').classList.toggle('active', input.right);
-    }
-
-    function bindTurnButton(btn, dir) {
-      const start = (e) => { e.preventDefault(); setTurn(dir, true); };
-      const stop = () => setTurn(dir, false);
-      btn.addEventListener('pointerdown', start);
-      btn.addEventListener('pointerup', stop);
-      btn.addEventListener('pointerleave', stop);
-      btn.addEventListener('pointercancel', stop);
-    }
-
-    function bindKeyboard() {
-      const keyMap = {
-        ArrowLeft: 'left',
-        ArrowRight: 'right',
-        a: 'left',
-        A: 'left',
-        d: 'right',
-        D: 'right'
-      };
-
-      window.addEventListener('keydown', (e) => {
-        const dir = keyMap[e.key];
-        if (!dir) return;
-        e.preventDefault();
-        setTurn(dir, true);
-      });
-
-      window.addEventListener('keyup', (e) => {
-        const dir = keyMap[e.key];
-        if (!dir) return;
-        e.preventDefault();
-        setTurn(dir, false);
-      });
-
-      window.addEventListener('blur', () => {
-        setTurn('left', false);
-        setTurn('right', false);
-      });
-    }
-
-    function rand(min, max) { return Math.random() * (max - min) + min; }
-    function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
-    function dist(x1, y1, x2, y2) { return Math.hypot(x2 - x1, y2 - y1); }
-
-    class Worm {
-      constructor(x, y, color, isPlayer = false) {
-        this.segments = [];
-        this.color = color;
-        this.isPlayer = isPlayer;
-        this.angle = rand(0, Math.PI * 2);
-        this.speed = BASE_SPEED;
-        this.alive = true;
-        this.applesEaten = 0;
-        this.aiTarget = null;
-        this.aiTimer = 0;
-        this.pendingGrowth = 0;
-        this.rainbowOffset = 0;
-
-        for (let i = 0; i < 3; i++) {
-          this.segments.push({
-            x: x - Math.cos(this.angle) * i * SEGMENT_DIST,
-            y: y - Math.sin(this.angle) * i * SEGMENT_DIST
-          });
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+<script>
+(function (global) {
+  'use strict';
+  function getInviteUrl(hostPeerId) {
+    if (!hostPeerId) return global.location.href;
+    try {
+      if (global.self !== global.top) {
+        const parentUrl = new URL(global.parent.location.href);
+        const playMatch = parentUrl.pathname.match(/\/play\/([^/]+)/);
+        if (playMatch) {
+          const u = new URL(parentUrl.origin + '/play/' + playMatch[1]);
+          u.searchParams.set('join', hostPeerId);
+          return u.toString();
         }
       }
+    } catch (_) {}
+    const gameMatch = global.location.pathname.match(/\/games\/([^/]+)\//);
+    if (gameMatch) {
+      const u = new URL(global.location.origin + '/play/' + gameMatch[1]);
+      u.searchParams.set('join', hostPeerId);
+      return u.toString();
+    }
+    const u = new URL(global.location.href);
+    u.search = ''; u.searchParams.set('join', hostPeerId);
+    return u.toString();
+  }
+  function drawQr(canvas, url) {
+    if (!canvas || !global.QRCode) return;
+    canvas.style.display = '';
+    global.QRCode.toCanvas(canvas, url, { width: 176, margin: 1, color: { dark: '#0f172a', light: '#ffffff' } }, err => {
+      if (err) canvas.style.display = 'none';
+    });
+  }
+  function setLinkEl(el, url) {
+    if (!el) return;
+    el.textContent = url;
+    if (el.tagName === 'A') { el.href = url; el.target = '_blank'; el.rel = 'noopener'; }
+  }
+  function setupHost(hostPeerId, els) {
+    const url = getInviteUrl(hostPeerId);
+    if (els && els.inviteCodeEl) els.inviteCodeEl.textContent = '방 코드: ' + hostPeerId;
+    setLinkEl(els && els.inviteLinkEl, url);
+    drawQr(els && els.qrCanvas, url);
+    return url;
+  }
+  global.InviteShare = { getInviteUrl, setupHost, drawQr };
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
 
-      get length() { return this.segments.length; }
-      get head() { return this.segments[0]; }
+<script>
+(function () {
+  'use strict';
 
-      getSegmentColor(index) {
-        if (!this.isPlayer) return this.color;
+  const IS_FILE = location.protocol === 'file:';
+  const USE_ROOM_CODE = true;
+  const MAX_PLAYERS = 4;
+  const WORLD_W = 900;
+  const WORLD_H = 600;
+  const SEGMENT_DIST = 10;
+  const HEAD_RADIUS = 9;
+  const BODY_RADIUS = 7;
+  const BASE_SPEED = 2.2;
+  const TURN_SPEED = 0.08;
+  const APPLE_COUNT = 22;
+  const INITIAL_AI = 2;
+  const SPAWN_INTERVAL_MS = 5000;
+  const SYNC_MS = 50;
+  const COLORS = ['#f472b6', '#60a5fa', '#fbbf24', '#a78bfa', '#fb923c', '#2dd4bf'];
+  const RAINBOW_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#6366f1', '#a855f7'];
+  const PLAYER_DEFS = [
+    { emoji: '🐛', name: '초록', color: '#4ade80' },
+    { emoji: '🪱', name: '핑크', color: '#f472b6' },
+    { emoji: '🐍', name: '블루', color: '#60a5fa' },
+    { emoji: '🦎', name: '골드', color: '#fbbf24' }
+  ];
+  const SPAWN_SPOTS = [
+    { x: 140, y: WORLD_H - 140, angle: -Math.PI / 2 },
+    { x: WORLD_W - 140, y: WORLD_H - 140, angle: Math.PI },
+    { x: WORLD_W - 140, y: 140, angle: Math.PI / 2 },
+    { x: 140, y: 140, angle: 0 }
+  ];
+
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  let viewScale = 1;
+
+  const input = { left: false, right: false };
+  let game = null;
+  let currentInviteUrl = '';
+  let inCoopWait = false;
+
+  /* ── PeerJS ── */
+  const WwNet = (function () {
+    let peer = null, guestConn = null;
+    const clients = new Map();
+    let isHost = false, myIndex = 0, roomId = '', gameStarted = false;
+    let onData = null, onOpen = null, onClose = null, onError = null, onLobby = null;
+
+    function allocSlot() {
+      for (let i = 1; i < MAX_PLAYERS; i++) if (!clients.has(i)) return i;
+      return -1;
+    }
+    function buildRoster() {
+      const roster = [{ index: 0, emoji: PLAYER_DEFS[0].emoji, name: PLAYER_DEFS[0].name + (isHost ? ' (방장)' : ''), connected: true }];
+      [...clients.keys()].sort((a, b) => a - b).forEach(i => {
+        roster.push({ index: i, emoji: PLAYER_DEFS[i].emoji, name: PLAYER_DEFS[i].name, connected: true });
+      });
+      return roster;
+    }
+    function broadcast(data) { clients.forEach(({ conn }) => { if (conn.open) conn.send(data); }); }
+    function broadcastLobby() {
+      const payload = { type: 'LOBBY', roster: buildRoster(), playerCount: buildRoster().length };
+      broadcast(payload);
+      onLobby && onLobby(payload);
+    }
+    function sendToHost(data) { if (guestConn?.open) guestConn.send(data); }
+
+    function initPeer(opts) {
+      const { asHost, remoteId, handlers } = opts;
+      isHost = asHost; myIndex = asHost ? 0 : -1; gameStarted = false;
+      clients.clear(); guestConn = null;
+      onData = handlers.onData; onOpen = handlers.onOpen;
+      onClose = handlers.onClose; onError = handlers.onError; onLobby = handlers.onLobby;
+
+      peer = new Peer({ debug: 1 });
+      peer.on('open', id => {
+        roomId = id;
+        if (asHost) {
+          peer.on('connection', conn => {
+            conn.on('open', () => {
+              if (gameStarted) {
+                conn.send({ type: 'REJECT', reason: '이미 시작됨' });
+                setTimeout(() => conn.close(), 300);
+                return;
+              }
+              const slot = allocSlot();
+              if (slot < 0) {
+                conn.send({ type: 'REJECT', reason: '방 가득 참' });
+                setTimeout(() => conn.close(), 300);
+                return;
+              }
+              clients.set(slot, { conn });
+              conn.send({ type: 'WELCOME', index: slot, roster: buildRoster() });
+              broadcastLobby();
+              onOpen && onOpen({ role: 'host', clientJoined: true, index: slot });
+              conn.on('data', d => {
+                if (typeof d === 'object' && d !== null) d.from = slot;
+                onData && onData(d);
+              });
+              conn.on('close', () => {
+                clients.delete(slot);
+                if (!gameStarted) broadcastLobby();
+                else onData && onData({ type: 'PEER_LEFT', index: slot });
+              });
+            });
+          });
+          onOpen && onOpen({ id, role: 'host', roomReady: true });
+        } else {
+          guestConn = peer.connect(remoteId.trim(), { reliable: true });
+          guestConn.on('open', () => onOpen && onOpen({ role: 'client', connOpen: true }));
+          guestConn.on('data', d => {
+            if (d.type === 'WELCOME') myIndex = d.index;
+            onData && onData(d);
+          });
+          guestConn.on('close', () => { guestConn = null; onClose && onClose(); });
+        }
+      });
+      peer.on('error', e => onError && onError(e));
+    }
+
+    function startGameBroadcast(playerCount) {
+      gameStarted = true;
+      broadcast({ type: 'START', playerCount, myIndex });
+    }
+    function destroy() {
+      clients.forEach(({ conn }) => { try { conn.close(); } catch (e) {} });
+      clients.clear();
+      if (guestConn) guestConn.close();
+      if (peer) peer.destroy();
+      peer = null; guestConn = null; gameStarted = false; myIndex = 0;
+    }
+    return {
+      initPeer, broadcast, sendToHost, startGameBroadcast, destroy, buildRoster,
+      get isHost() { return isHost; },
+      get myIndex() { return myIndex; },
+      get roomId() { return roomId; },
+      get gameStarted() { return gameStarted; }
+    };
+  })();
+
+  function rand(min, max) { return Math.random() * (max - min) + min; }
+  function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
+  function dist(x1, y1, x2, y2) { return Math.hypot(x2 - x1, y2 - y1); }
+
+  class Worm {
+    constructor(x, y, opts = {}) {
+      this.id = opts.id ?? (Worm._nextId++);
+      this.playerIndex = opts.playerIndex ?? -1;
+      this.color = opts.color ?? COLORS[randInt(0, COLORS.length - 1)];
+      this.angle = opts.angle ?? rand(0, Math.PI * 2);
+      this.speed = BASE_SPEED;
+      this.alive = true;
+      this.applesEaten = 0;
+      this.aiTarget = null;
+      this.aiTimer = 0;
+      this.pendingGrowth = 0;
+      this.rainbowOffset = 0;
+      this.segments = [];
+      for (let i = 0; i < 3; i++) {
+        this.segments.push({
+          x: x - Math.cos(this.angle) * i * SEGMENT_DIST,
+          y: y - Math.sin(this.angle) * i * SEGMENT_DIST
+        });
+      }
+    }
+    static _nextId = 1;
+
+    static fromSnapshot(s) {
+      const w = new Worm(s.s[0][0], s.s[0][1], { id: s.id, playerIndex: s.pi, color: s.c, angle: s.a });
+      w.alive = !!s.alive;
+      w.applesEaten = s.ae || 0;
+      w.segments = s.s.map(p => ({ x: p[0], y: p[1] }));
+      return w;
+    }
+
+    toSnapshot() {
+      return {
+        id: this.id,
+        pi: this.playerIndex,
+        a: Math.round(this.angle * 1000) / 1000,
+        alive: this.alive ? 1 : 0,
+        ae: this.applesEaten,
+        c: this.color,
+        s: this.segments.map(p => [Math.round(p.x), Math.round(p.y)])
+      };
+    }
+
+    get length() { return this.segments.length; }
+    get head() { return this.segments[0]; }
+    isHuman() { return this.playerIndex >= 0; }
+
+    getSegmentColor(index, myIdx) {
+      if (this.playerIndex === myIdx && myIdx >= 0) {
         return RAINBOW_COLORS[(index + Math.floor(this.rainbowOffset)) % RAINBOW_COLORS.length];
       }
+      return this.color;
+    }
 
-      grow(n = 1) {
-        this.pendingGrowth = (this.pendingGrowth || 0) + n;
+    grow(n = 1) { this.pendingGrowth = (this.pendingGrowth || 0) + n; }
+
+    update(turnInput, worms, apples) {
+      if (!this.alive) return;
+
+      if (this.isHuman()) {
+        if (turnInput) this.angle += turnInput * TURN_SPEED;
+        if (this.playerIndex >= 0) this.rainbowOffset += 0.08;
+      } else {
+        this.updateAI(worms, apples);
       }
 
-      update() {
-        if (!this.alive) return;
+      const head = this.head;
+      const nx = head.x + Math.cos(this.angle) * this.speed;
+      const ny = head.y + Math.sin(this.angle) * this.speed;
+      const margin = HEAD_RADIUS;
+      if (nx < margin || nx > WORLD_W - margin || ny < margin || ny > WORLD_H - margin) {
+        this.angle += Math.PI;
+      }
+      const newHead = {
+        x: Math.max(margin, Math.min(WORLD_W - margin, nx)),
+        y: Math.max(margin, Math.min(WORLD_H - margin, ny))
+      };
+      this.segments.unshift(newHead);
+      for (let i = 1; i < this.segments.length; i++) {
+        const prev = this.segments[i - 1];
+        const curr = this.segments[i];
+        const d = dist(prev.x, prev.y, curr.x, curr.y);
+        if (d > SEGMENT_DIST) {
+          const ratio = (d - SEGMENT_DIST) / d;
+          curr.x += (prev.x - curr.x) * ratio;
+          curr.y += (prev.y - curr.y) * ratio;
+        }
+      }
+      if (this.pendingGrowth > 0) this.pendingGrowth--;
+      else if (this.segments.length > 3) this.segments.pop();
+    }
 
-        if (this.isPlayer) {
-          const turn = getTurnInput();
-          if (turn !== 0) {
-            this.angle += turn * TURN_SPEED;
-          }
-          this.rainbowOffset += 0.08;
+    updateAI(worms, apples) {
+      this.aiTimer--;
+      if (this.aiTimer <= 0 || !this.aiTarget) {
+        this.aiTimer = randInt(60, 180);
+        if (apples.length > 0 && Math.random() < 0.7) {
+          this.aiTarget = apples[randInt(0, apples.length - 1)];
         } else {
-          this.updateAI();
-        }
-
-        const head = this.head;
-        const nx = head.x + Math.cos(this.angle) * this.speed;
-        const ny = head.y + Math.sin(this.angle) * this.speed;
-
-        const margin = HEAD_RADIUS;
-        if (nx < margin || nx > W - margin || ny < margin || ny > H - margin) {
-          this.angle += Math.PI;
-        }
-
-        const newHead = {
-          x: Math.max(margin, Math.min(W - margin, nx)),
-          y: Math.max(margin, Math.min(H - margin, ny))
-        };
-
-        this.segments.unshift(newHead);
-
-        for (let i = 1; i < this.segments.length; i++) {
-          const prev = this.segments[i - 1];
-          const curr = this.segments[i];
-          const d = dist(prev.x, prev.y, curr.x, curr.y);
-          if (d > SEGMENT_DIST) {
-            const ratio = (d - SEGMENT_DIST) / d;
-            curr.x += (prev.x - curr.x) * ratio;
-            curr.y += (prev.y - curr.y) * ratio;
-          }
-        }
-
-        if (this.pendingGrowth > 0) {
-          this.pendingGrowth--;
-        } else if (this.segments.length > 3) {
-          this.segments.pop();
+          this.aiTarget = { x: rand(50, WORLD_W - 50), y: rand(50, WORLD_H - 50) };
         }
       }
-
-      updateAI() {
-        this.aiTimer--;
-        if (this.aiTimer <= 0 || !this.aiTarget) {
-          this.aiTimer = randInt(60, 180);
-          if (apples.length > 0 && Math.random() < 0.7) {
-            this.aiTarget = apples[randInt(0, apples.length - 1)];
-          } else {
-            this.aiTarget = { x: rand(50, W - 50), y: rand(50, H - 50) };
-          }
-        }
-
-        const head = this.head;
-        const tx = this.aiTarget.x ?? this.aiTarget.segments?.[0]?.x ?? W / 2;
-        const ty = this.aiTarget.y ?? this.aiTarget.segments?.[0]?.y ?? H / 2;
-        const targetAngle = Math.atan2(ty - head.y, tx - head.x);
-        let diff = targetAngle - this.angle;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
-        this.angle += Math.sign(diff) * Math.min(Math.abs(diff), TURN_SPEED * 0.8);
-
-        for (const w of worms) {
-          if (w === this || !w.alive) continue;
-          if (this.length > w.length * 1.1) {
-            const d = dist(head.x, head.y, w.head.x, w.head.y);
-            if (d < 200) {
-              this.aiTarget = w;
-              this.aiTimer = 30;
-              break;
-            }
-          }
+      const head = this.head;
+      const tx = this.aiTarget.x ?? WORLD_W / 2;
+      const ty = this.aiTarget.y ?? WORLD_H / 2;
+      const targetAngle = Math.atan2(ty - head.y, tx - head.x);
+      let diff = targetAngle - this.angle;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      this.angle += Math.sign(diff) * Math.min(Math.abs(diff), TURN_SPEED * 0.8);
+      for (const w of worms) {
+        if (w === this || !w.alive) continue;
+        if (this.length > w.length * 1.1) {
+          const d = dist(head.x, head.y, w.head.x, w.head.y);
+          if (d < 200) { this.aiTarget = w; this.aiTimer = 30; break; }
         }
       }
+    }
 
-      draw() {
-        if (!this.alive) return;
-        const head = this.head;
-
-        for (let i = this.segments.length - 1; i >= 1; i--) {
-          const seg = this.segments[i];
+    draw(myIdx) {
+      if (!this.alive) return;
+      const head = this.head;
+      for (let i = this.segments.length - 1; i >= 1; i--) {
+        const seg = this.segments[i];
+        ctx.beginPath();
+        ctx.arc(seg.x, seg.y, BODY_RADIUS, 0, Math.PI * 2);
+        ctx.fillStyle = this.getSegmentColor(i, myIdx);
+        ctx.fill();
+      }
+      if (this.segments.length > 1) {
+        for (let i = this.segments.length - 1; i >= 2; i--) {
+          ctx.strokeStyle = this.getSegmentColor(i, myIdx);
+          ctx.lineWidth = BODY_RADIUS * 2;
+          ctx.lineCap = 'round';
           ctx.beginPath();
-          ctx.arc(seg.x, seg.y, BODY_RADIUS, 0, Math.PI * 2);
-          ctx.fillStyle = this.getSegmentColor(i);
-          ctx.fill();
+          ctx.moveTo(this.segments[i].x, this.segments[i].y);
+          ctx.lineTo(this.segments[i - 1].x, this.segments[i - 1].y);
+          ctx.stroke();
         }
-
-        if (this.segments.length > 1) {
-          for (let i = this.segments.length - 1; i >= 2; i--) {
-            ctx.strokeStyle = this.getSegmentColor(i);
-            ctx.lineWidth = BODY_RADIUS * 2;
-            ctx.lineCap = 'round';
-            ctx.beginPath();
-            ctx.moveTo(this.segments[i].x, this.segments[i].y);
-            ctx.lineTo(this.segments[i - 1].x, this.segments[i - 1].y);
-            ctx.stroke();
-          }
-        }
-
-        ctx.beginPath();
-        ctx.arc(head.x, head.y, HEAD_RADIUS, 0, Math.PI * 2);
-        ctx.fillStyle = this.getSegmentColor(0);
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        const eyeOff = HEAD_RADIUS * 0.4;
-        const ex1 = head.x + Math.cos(this.angle - 0.5) * eyeOff;
-        const ey1 = head.y + Math.sin(this.angle - 0.5) * eyeOff;
-        const ex2 = head.x + Math.cos(this.angle + 0.5) * eyeOff;
-        const ey2 = head.y + Math.sin(this.angle + 0.5) * eyeOff;
-
+      }
+      ctx.beginPath();
+      ctx.arc(head.x, head.y, HEAD_RADIUS, 0, Math.PI * 2);
+      ctx.fillStyle = this.getSegmentColor(0, myIdx);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      const eyeOff = HEAD_RADIUS * 0.4;
+      const ex1 = head.x + Math.cos(this.angle - 0.5) * eyeOff;
+      const ey1 = head.y + Math.sin(this.angle - 0.5) * eyeOff;
+      const ex2 = head.x + Math.cos(this.angle + 0.5) * eyeOff;
+      const ey2 = head.y + Math.sin(this.angle + 0.5) * eyeOff;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(ex1, ey1, 3, 0, Math.PI * 2);
+      ctx.arc(ex2, ey2, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#1a1a2e';
+      ctx.beginPath();
+      ctx.arc(ex1 + Math.cos(this.angle) * 1.5, ey1 + Math.sin(this.angle) * 1.5, 1.5, 0, Math.PI * 2);
+      ctx.arc(ex2 + Math.cos(this.angle) * 1.5, ey2 + Math.sin(this.angle) * 1.5, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      if (this.isHuman()) {
+        const label = this.playerIndex === myIdx ? '나' : (PLAYER_DEFS[this.playerIndex]?.emoji || '');
         ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.arc(ex1, ey1, 3, 0, Math.PI * 2);
-        ctx.arc(ex2, ey2, 3, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.fillStyle = '#1a1a2e';
-        ctx.beginPath();
-        ctx.arc(ex1 + Math.cos(this.angle) * 1.5, ey1 + Math.sin(this.angle) * 1.5, 1.5, 0, Math.PI * 2);
-        ctx.arc(ex2 + Math.cos(this.angle) * 1.5, ey2 + Math.sin(this.angle) * 1.5, 1.5, 0, Math.PI * 2);
-        ctx.fill();
-
-        if (this.isPlayer) {
-          ctx.fillStyle = '#fff';
-          ctx.font = 'bold 11px sans-serif';
-          ctx.textAlign = 'center';
-          ctx.fillText(this.length, head.x, head.y - HEAD_RADIUS - 6);
-        }
-      }
-
-      die() {
-        this.alive = false;
-        const count = Math.max(3, Math.floor(this.length * 0.6));
-        for (let i = 0; i < count; i++) {
-          const seg = this.segments[Math.floor(i * this.segments.length / count)] || this.head;
-          apples.push({
-            x: seg.x + rand(-15, 15),
-            y: seg.y + rand(-15, 15),
-            r: 7
-          });
-        }
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(label + ' ' + this.length, head.x, head.y - HEAD_RADIUS - 6);
       }
     }
 
-
-    function spawnApple() {
-      apples.push({
-        x: rand(30, W - 30),
-        y: rand(30, H - 30),
-        r: 7 + rand(0, 2)
-      });
-    }
-
-    function initGame() {
-      worms = [];
-      apples = [];
-      gameOver = false;
-      document.getElementById('overlay').classList.remove('show');
-
-      for (let i = 0; i < APPLE_COUNT; i++) spawnApple();
-
-      const positions = [
-        { x: W * 0.3, y: H * 0.5 },
-        { x: W * 0.7, y: H * 0.3 },
-        { x: W * 0.5, y: H * 0.7 }
-      ];
-
-      player = new Worm(positions[0].x, positions[0].y, null, true);
-      worms.push(player);
-
-      for (let i = 1; i < INITIAL_WORMS; i++) {
-        const pos = positions[i];
-        worms.push(new Worm(pos.x, pos.y, COLORS[(i - 1) % COLORS.length]));
+    die(applesOut) {
+      this.alive = false;
+      const count = Math.max(3, Math.floor(this.length * 0.6));
+      for (let i = 0; i < count; i++) {
+        const seg = this.segments[Math.floor(i * this.segments.length / count)] || this.head;
+        applesOut.push({ x: seg.x + rand(-15, 15), y: seg.y + rand(-15, 15), r: 7 });
       }
+    }
+  }
 
-      lastSpawnTime = Date.now();
-      updateHUD();
+  class WormsGame {
+    constructor(opts) {
+      this.solo = !!opts.solo;
+      this.playerCount = opts.playerCount || 1;
+      this.myIndex = opts.myIndex ?? 0;
+      this.isHost = opts.isHost ?? this.solo;
+      this.worms = [];
+      this.apples = [];
+      this.gameOver = false;
+      this.eliminated = false;
+      this.won = false;
+      this.lastSpawnTime = 0;
+      this.lastSync = 0;
+      this.rafId = 0;
+      this.running = false;
+      this.playerInputs = {};
     }
 
-    function spawnNewWorm() {
+    myWorm() {
+      return this.worms.find(w => w.playerIndex === this.myIndex);
+    }
+
+    spawnApple() {
+      this.apples.push({ x: rand(30, WORLD_W - 30), y: rand(30, WORLD_H - 30), r: 7 + rand(0, 2) });
+    }
+
+    initWorld() {
+      Worm._nextId = 1;
+      this.worms = [];
+      this.apples = [];
+      this.gameOver = false;
+      this.eliminated = false;
+      this.won = false;
+      this.playerInputs = {};
+      for (let i = 0; i < APPLE_COUNT; i++) this.spawnApple();
+
+      const humans = this.solo ? 1 : this.playerCount;
+      for (let i = 0; i < humans; i++) {
+        const spot = SPAWN_SPOTS[i];
+        this.worms.push(new Worm(spot.x, spot.y, {
+          playerIndex: i,
+          color: PLAYER_DEFS[i].color,
+          angle: spot.angle
+        }));
+      }
+      for (let i = 0; i < INITIAL_AI; i++) {
+        const spot = SPAWN_SPOTS[(i + humans) % SPAWN_SPOTS.length];
+        this.worms.push(new Worm(
+          spot.x + rand(-40, 40), spot.y + rand(-40, 40),
+          { color: COLORS[i % COLORS.length], angle: spot.angle }
+        ));
+      }
+      this.lastSpawnTime = Date.now();
+    }
+
+    spawnNewAI() {
       let x, y, safe = false;
       for (let attempt = 0; attempt < 30; attempt++) {
-        x = rand(80, W - 80);
-        y = rand(80, H - 80);
+        x = rand(80, WORLD_W - 80);
+        y = rand(80, WORLD_H - 80);
         safe = true;
-        for (const w of worms) {
-          if (w.alive && dist(x, y, w.head.x, w.head.y) < 120) {
-            safe = false;
-            break;
-          }
+        for (const w of this.worms) {
+          if (w.alive && dist(x, y, w.head.x, w.head.y) < 120) { safe = false; break; }
         }
         if (safe) break;
       }
       if (!safe) return;
-
-      const color = COLORS[randInt(0, COLORS.length - 1)];
-      worms.push(new Worm(x, y, color));
+      this.worms.push(new Worm(x, y, { color: COLORS[randInt(0, COLORS.length - 1)] }));
     }
 
-    function updateHUD() {
-      document.getElementById('length').textContent = player ? player.length : 0;
-      document.getElementById('apples').textContent = player ? player.applesEaten : 0;
-      document.getElementById('alive').textContent = worms.filter(w => w.alive).length;
+    getTurnFor(w) {
+      if (w.playerIndex === this.myIndex && (this.isHost || !this.solo)) {
+        return getTurnInput();
+      }
+      if (this.isHost && w.isHuman()) {
+        return this.playerInputs[w.playerIndex] || 0;
+      }
+      return 0;
     }
 
-    function checkCollisions() {
-      for (const worm of worms) {
+    tick() {
+      if (this.gameOver) return;
+      for (const w of this.worms) {
+        w.update(this.getTurnFor(w), this.worms, this.apples);
+      }
+      this.checkCollisions();
+      const now = Date.now();
+      if (now - this.lastSpawnTime >= SPAWN_INTERVAL_MS) {
+        this.spawnNewAI();
+        this.lastSpawnTime = now;
+      }
+    }
+
+    checkCollisions() {
+      for (const worm of this.worms) {
         if (!worm.alive) continue;
         const head = worm.head;
-
-        for (let i = apples.length - 1; i >= 0; i--) {
-          const a = apples[i];
+        for (let i = this.apples.length - 1; i >= 0; i--) {
+          const a = this.apples[i];
           if (dist(head.x, head.y, a.x, a.y) < HEAD_RADIUS + a.r) {
             worm.grow(2);
             worm.applesEaten++;
-            apples.splice(i, 1);
-            spawnApple();
+            this.apples.splice(i, 1);
+            this.spawnApple();
           }
         }
-
-        for (const other of worms) {
+        for (const other of this.worms) {
           if (other === worm || !other.alive) continue;
-
           for (let i = 0; i < other.segments.length; i += 2) {
             const seg = other.segments[i];
             const sr = i === 0 ? HEAD_RADIUS : BODY_RADIUS;
             const d = dist(head.x, head.y, seg.x, seg.y);
-
             if (d < HEAD_RADIUS + sr - 2) {
               if (worm.length > other.length * 1.15) {
-                other.die();
+                other.die(this.apples);
                 worm.grow(Math.floor(other.length * 0.5));
               } else if (worm.length < other.length * 0.85) {
-                worm.die();
-                if (worm.isPlayer) endGame(false);
+                worm.die(this.apples);
+                this.onWormDied(worm);
               }
               break;
             }
           }
         }
       }
-
-      if (player && !player.alive) endGame(false);
+      const me = this.myWorm();
+      if (me && !me.alive) this.onWormDied(me);
+      if (!this.solo && this.isHost) this.checkMultiWinner();
     }
 
-    function endGame(won) {
-      gameOver = true;
+    onWormDied(worm) {
+      if (this.solo && worm.playerIndex === this.myIndex) {
+        this.endGame(false);
+        return;
+      }
+      if (!this.solo && worm.playerIndex === this.myIndex && !this.eliminated) {
+        this.eliminated = true;
+      }
+    }
+
+    checkMultiWinner() {
+      const aliveHumans = this.worms.filter(w => w.isHuman() && w.alive);
+      if (aliveHumans.length <= 1 && this.playerCount > 1) {
+        const winner = aliveHumans[0];
+        this.endGame(winner && winner.playerIndex === this.myIndex, winner);
+      }
+    }
+
+    endGame(won, winnerWorm) {
+      if (this.gameOver) return;
+      this.gameOver = true;
+      this.won = won;
+      this.running = false;
+      cancelAnimationFrame(this.rafId);
+      const me = this.myWorm();
       const overlay = document.getElementById('overlay');
-      document.getElementById('overlayTitle').textContent = won ? '🎉 승리!' : '💀 게임 오버';
-      document.getElementById('overlayMsg').textContent = won
-        ? `최종 길이 ${player.length}, 사과 ${player.applesEaten}개!`
-        : `길이 ${player.length}, 사과 ${player.applesEaten}개 먹었습니다.`;
+      if (this.solo) {
+        document.getElementById('overlayTitle').textContent = won ? '🎉 승리!' : '💀 게임 오버';
+        document.getElementById('overlayMsg').textContent = won
+          ? `최종 길이 ${me?.length || 0}, 사과 ${me?.applesEaten || 0}개!`
+          : `길이 ${me?.length || 0}, 사과 ${me?.applesEaten || 0}개 먹었습니다.`;
+      } else {
+        if (won) {
+          document.getElementById('overlayTitle').textContent = '🏆 승리!';
+          document.getElementById('overlayMsg').textContent = `최종 길이 ${winnerWorm?.length || me?.length || 0}`;
+        } else if (this.eliminated) {
+          document.getElementById('overlayTitle').textContent = '💀 탈락';
+          document.getElementById('overlayMsg').textContent = `길이 ${me?.length || 0} · 경기가 끝날 때까지 대기`;
+        } else {
+          document.getElementById('overlayTitle').textContent = '경기 종료';
+          document.getElementById('overlayMsg').textContent = winnerWorm
+            ? `${PLAYER_DEFS[winnerWorm.playerIndex]?.name || '플레이어'} 승리!`
+            : '무승부';
+        }
+      }
       overlay.classList.add('show');
+      if (!this.solo && this.isHost) {
+        WwNet.broadcast({ type: 'END', won: won ? this.myIndex : (winnerWorm?.playerIndex ?? -1), msg: document.getElementById('overlayMsg').textContent });
+      }
     }
 
-    function drawBackground() {
-      ctx.fillStyle = '#16213e';
-      ctx.fillRect(0, 0, W, H);
+    broadcastState() {
+      WwNet.broadcast({
+        type: 'STATE',
+        t: Date.now(),
+        lst: this.lastSpawnTime,
+        worms: this.worms.map(w => w.toSnapshot()),
+        apples: this.apples.map(a => [Math.round(a.x), Math.round(a.y), a.r])
+      });
+    }
 
+    applyState(data) {
+      if (data.worms) this.worms = data.worms.map(Worm.fromSnapshot);
+      if (data.apples) this.apples = data.apples.map(a => ({ x: a[0], y: a[1], r: a[2] }));
+      if (data.lst) this.lastSpawnTime = data.lst;
+    }
+
+    updateHUD() {
+      const me = this.myWorm();
+      document.getElementById('length').textContent = me ? me.length : 0;
+      document.getElementById('apples').textContent = me ? me.applesEaten : 0;
+      document.getElementById('alive').textContent = this.worms.filter(w => w.alive).length;
+      const rankEl = document.getElementById('rankHud');
+      if (!this.solo) {
+        rankEl.classList.remove('hidden');
+        const humans = this.worms.filter(w => w.isHuman()).sort((a, b) => b.length - a.length);
+        rankEl.textContent = humans.map(w =>
+          `${w.playerIndex === this.myIndex ? '▶' : ''}${PLAYER_DEFS[w.playerIndex]?.emoji}${w.length}${w.alive ? '' : '💀'}`
+        ).join(' · ');
+      } else {
+        rankEl.classList.add('hidden');
+      }
+    }
+
+    drawBackground() {
+      ctx.fillStyle = '#16213e';
+      ctx.fillRect(0, 0, WORLD_W, WORLD_H);
       ctx.strokeStyle = 'rgba(255,255,255,0.03)';
       ctx.lineWidth = 1;
-      for (let x = 0; x < W; x += 40) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, H);
-        ctx.stroke();
+      for (let x = 0; x < WORLD_W; x += 40) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_H); ctx.stroke();
       }
-      for (let y = 0; y < H; y += 40) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(W, y);
-        ctx.stroke();
+      for (let y = 0; y < WORLD_H; y += 40) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD_W, y); ctx.stroke();
       }
     }
 
-    function drawApple(a) {
+    drawApple(a) {
       ctx.beginPath();
       ctx.arc(a.x, a.y, a.r, 0, Math.PI * 2);
       ctx.fillStyle = '#ef4444';
-      ctx.fill();
-      ctx.fillStyle = 'rgba(0,0,0,0.15)';
-      ctx.beginPath();
-      ctx.arc(a.x - a.r * 0.2, a.y - a.r * 0.2, a.r * 0.3, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = '#22c55e';
       ctx.beginPath();
@@ -535,44 +851,295 @@
       ctx.fill();
     }
 
-    function gameLoop() {
-      if (gameOver) return;
-
-      drawBackground();
-
-      for (const a of apples) drawApple(a);
-
-      for (const worm of worms) worm.update();
-      checkCollisions();
-
-      const sorted = [...worms].sort((a, b) => a.length - b.length);
-      for (const worm of sorted) worm.draw();
-
-      updateHUD();
-
-      const now = Date.now();
-      if (now - lastSpawnTime >= SPAWN_INTERVAL_MS) {
-        spawnNewWorm();
-        lastSpawnTime = now;
-      }
-
-      animId = requestAnimationFrame(gameLoop);
+    draw() {
+      this.drawBackground();
+      for (const a of this.apples) this.drawApple(a);
+      const sorted = [...this.worms].sort((a, b) => a.length - b.length);
+      for (const worm of sorted) worm.draw(this.myIndex);
+      this.updateHUD();
     }
 
-    canvas.style.cursor = 'default';
+    collectInput() {
+      if (this.solo || this.isHost) return;
+      const turn = getTurnInput();
+      WwNet.sendToHost({ type: 'INPUT', turn });
+    }
 
-    bindTurnButton(document.getElementById('btnLeft'), 'left');
-    bindTurnButton(document.getElementById('btnRight'), 'right');
-    bindKeyboard();
+    loop(t) {
+      if (!this.running) return;
+      if (this.isHost || this.solo) {
+        this.tick();
+        if (!this.solo && t - this.lastSync >= SYNC_MS) {
+          this.broadcastState();
+          this.lastSync = t;
+        }
+      } else {
+        this.collectInput();
+      }
+      this.draw();
+      this.rafId = requestAnimationFrame(ts => this.loop(ts));
+    }
 
-    document.getElementById('restartBtn').addEventListener('click', () => {
-      cancelAnimationFrame(animId);
-      initGame();
-      gameLoop();
+    start() {
+      this.initWorld();
+      this.running = true;
+      this.lastSync = 0;
+      document.getElementById('overlay').classList.remove('show');
+      resize();
+      cancelAnimationFrame(this.rafId);
+      this.rafId = requestAnimationFrame(ts => this.loop(ts));
+    }
+
+    stop() {
+      this.running = false;
+      cancelAnimationFrame(this.rafId);
+    }
+  }
+
+  function getTurnInput() {
+    if (input.left && !input.right) return -1;
+    if (input.right && !input.left) return 1;
+    return 0;
+  }
+
+  function setTurn(dir, active) {
+    if (dir === 'left') input.left = active;
+    if (dir === 'right') input.right = active;
+    document.getElementById('btnLeft').classList.toggle('active', input.left);
+    document.getElementById('btnRight').classList.toggle('active', input.right);
+  }
+
+  function bindTurnButton(btn, dir) {
+    const start = e => { e.preventDefault(); setTurn(dir, true); };
+    const stop = () => setTurn(dir, false);
+    btn.addEventListener('pointerdown', start);
+    btn.addEventListener('pointerup', stop);
+    btn.addEventListener('pointerleave', stop);
+    btn.addEventListener('pointercancel', stop);
+  }
+
+  function bindKeyboard() {
+    const keyMap = { ArrowLeft: 'left', ArrowRight: 'right', a: 'left', A: 'left', d: 'right', D: 'right' };
+    window.addEventListener('keydown', e => {
+      const dir = keyMap[e.key];
+      if (!dir) return;
+      e.preventDefault();
+      setTurn(dir, true);
     });
+    window.addEventListener('keyup', e => {
+      const dir = keyMap[e.key];
+      if (!dir) return;
+      e.preventDefault();
+      setTurn(dir, false);
+    });
+    window.addEventListener('blur', () => { setTurn('left', false); setTurn('right', false); });
+  }
 
-    initGame();
-    gameLoop();
-  </script>
+  function resize() {
+    const wrap = document.getElementById('gameWrap');
+    if (!wrap || !wrap.clientWidth) return;
+    const maxW = wrap.clientWidth - 4;
+    const maxH = wrap.clientHeight - 4;
+    viewScale = Math.min(maxW / WORLD_W, maxH / WORLD_H, 1.2);
+    const vw = WORLD_W * viewScale;
+    const vh = WORLD_H * viewScale;
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    canvas.width = Math.floor(vw * dpr);
+    canvas.height = Math.floor(vh * dpr);
+    canvas.style.width = vw + 'px';
+    canvas.style.height = vh + 'px';
+    ctx.setTransform(dpr * viewScale, 0, 0, dpr * viewScale, 0, 0);
+  }
+
+  function lobbyLog(msg) {
+    const el = document.getElementById('log');
+    el.textContent = (el.textContent ? el.textContent + '\n' : '') + msg;
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function copyText(text, msg) {
+    const done = () => lobbyLog(msg);
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done).catch(fallback);
+    else fallback();
+    function fallback() {
+      const ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); ta.remove(); done();
+    }
+  }
+
+  function updateRosterUI(data) {
+    const roster = data.roster || WwNet.buildRoster();
+    const count = data.playerCount || roster.length;
+    const ul = document.getElementById('rosterList');
+    ul.innerHTML = '';
+    roster.forEach(r => {
+      const li = document.createElement('li');
+      li.textContent = `${r.emoji} ${r.name}`;
+      ul.appendChild(li);
+    });
+    for (let i = count; i < MAX_PLAYERS; i++) {
+      const li = document.createElement('li');
+      li.style.color = '#666';
+      li.textContent = `${PLAYER_DEFS[i].emoji} (빈)`;
+      ul.appendChild(li);
+    }
+    document.getElementById('waitingTitle').textContent = `대기실 — ${count}/${MAX_PLAYERS}명`;
+    const btn = document.getElementById('btnStartGame');
+    btn.disabled = count < 2;
+    btn.textContent = count < 2 ? '게임 시작 (2인 이상)' : `게임 시작 (${count}인)`;
+  }
+
+  function showCoopWait(hostPeerId, asHost) {
+    inCoopWait = true;
+    document.getElementById('roomCode').textContent = hostPeerId;
+    document.getElementById('roomBox').classList.remove('hidden');
+    document.getElementById('waitingBox').classList.remove('hidden');
+    document.getElementById('joinPanel').classList.add('hidden');
+    document.getElementById('btnStartGame').classList.toggle('hidden', !asHost);
+    document.getElementById('guestWaitHint').classList.toggle('hidden', asHost);
+    document.getElementById('btnCopyLink').classList.toggle('hidden', !asHost);
+    if (asHost) {
+      currentInviteUrl = InviteShare.setupHost(hostPeerId, {
+        inviteLinkEl: document.getElementById('inviteLink'),
+        inviteCodeEl: document.getElementById('inviteCodeText'),
+        qrCanvas: document.getElementById('inviteQr')
+      });
+      document.getElementById('btnCopyLink').textContent = '초대 링크 복사';
+    }
+    updateRosterUI({ roster: WwNet.buildRoster(), playerCount: WwNet.isHost ? 1 : 0 });
+    lobbyLog(asHost ? '대기실 — 친구를 초대하세요' : '대기실 입장');
+  }
+
+  function hideCoopWait() {
+    inCoopWait = false;
+    document.getElementById('waitingBox').classList.add('hidden');
+    document.getElementById('roomBox').classList.add('hidden');
+    document.getElementById('joinPanel').classList.remove('hidden');
+    currentInviteUrl = '';
+  }
+
+  function showLobby() {
+    if (game) game.stop();
+    game = null;
+    WwNet.destroy();
+    hideCoopWait();
+    document.getElementById('overlay').classList.remove('show');
+    document.getElementById('gameRoot').classList.add('hidden');
+    document.getElementById('lobby').classList.remove('hidden');
+    if (!IS_FILE) history.replaceState(null, '', location.pathname);
+  }
+
+  function showGameView() {
+    hideCoopWait();
+    document.getElementById('lobby').classList.add('hidden');
+    document.getElementById('gameRoot').classList.remove('hidden');
+    resize();
+  }
+
+  function startSolo() {
+    showGameView();
+    game = new WormsGame({ solo: true, isHost: true, myIndex: 0 });
+    game.start();
+  }
+
+  function startNet(asHost) {
+    const remoteId = asHost ? '' : document.getElementById('roomInput').value.trim()
+      || document.getElementById('joinCodeInput').value.trim();
+    if (!asHost && !remoteId) { lobbyLog('방 코드를 입력하세요'); return; }
+
+    WwNet.initPeer({
+      asHost,
+      remoteId,
+      handlers: {
+        onOpen: info => {
+          if (info.roomReady) showCoopWait(info.id, true);
+          else if (info.clientJoined) updateRosterUI({ roster: WwNet.buildRoster(), playerCount: WwNet.buildRoster().length });
+          else if (info.connOpen) lobbyLog('연결됨 — 방장 시작 대기');
+        },
+        onLobby: updateRosterUI,
+        onData: d => handleNetData(d),
+        onClose: () => lobbyLog('연결 끊김'),
+        onError: e => lobbyLog('오류: ' + (e.type || e.message || e))
+      }
+    });
+  }
+
+  function hostBeginGame() {
+    const count = WwNet.buildRoster().length;
+    WwNet.startGameBroadcast(count);
+    showGameView();
+    game = new WormsGame({ solo: false, isHost: true, myIndex: 0, playerCount: count });
+    game.start();
+  }
+
+  function handleNetData(d) {
+    if (d.type === 'LOBBY') updateRosterUI(d);
+    else if (d.type === 'WELCOME' && !WwNet.isHost) {
+      showCoopWait(document.getElementById('roomInput').value, false);
+      updateRosterUI({ roster: d.roster, playerCount: d.roster.length });
+    } else if (d.type === 'REJECT') lobbyLog('거절: ' + (d.reason || ''));
+    else if (d.type === 'START' && !WwNet.isHost) {
+      showGameView();
+      game = new WormsGame({
+        solo: false, isHost: false,
+        myIndex: WwNet.myIndex,
+        playerCount: d.playerCount
+      });
+      game.start();
+    } else if (d.type === 'STATE' && game && !game.isHost) {
+      game.applyState(d);
+    } else if (d.type === 'INPUT' && game && game.isHost && d.from != null) {
+      game.playerInputs[d.from] = d.turn;
+    } else if (d.type === 'END' && game && !game.isHost) {
+      game.gameOver = true;
+      game.stop();
+      const won = d.won === WwNet.myIndex;
+      document.getElementById('overlayTitle').textContent = won ? '🏆 승리!' : '경기 종료';
+      document.getElementById('overlayMsg').textContent = d.msg || '';
+      document.getElementById('overlay').classList.add('show');
+    }
+  }
+
+  document.getElementById('btnSolo').addEventListener('click', startSolo);
+  document.getElementById('btnHost').addEventListener('click', () => startNet(true));
+  document.getElementById('btnJoin').addEventListener('click', () => {
+    document.getElementById('roomInput').value = document.getElementById('joinCodeInput').value.trim();
+    startNet(false);
+  });
+  document.getElementById('btnCopyLink').addEventListener('click', () => {
+    if (!currentInviteUrl) return;
+    copyText(currentInviteUrl, '초대 링크 복사됨');
+  });
+  document.getElementById('btnStartGame').addEventListener('click', hostBeginGame);
+  document.getElementById('btnCancelWait').addEventListener('click', showLobby);
+  document.getElementById('backBtn').addEventListener('click', showLobby);
+  document.getElementById('toLobbyBtn').addEventListener('click', showLobby);
+  document.getElementById('restartBtn').addEventListener('click', () => {
+    document.getElementById('overlay').classList.remove('show');
+    if (game && game.solo) {
+      game.start();
+    } else {
+      showLobby();
+    }
+  });
+
+  bindTurnButton(document.getElementById('btnLeft'), 'left');
+  bindTurnButton(document.getElementById('btnRight'), 'right');
+  bindKeyboard();
+  window.addEventListener('resize', resize);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', resize);
+  }
+
+  const joinParam = new URLSearchParams(location.search).get('join');
+  if (joinParam) {
+    document.getElementById('joinCodeInput').value = joinParam;
+    document.getElementById('roomInput').value = joinParam;
+    lobbyLog('초대 링크 감지 — 연결 중…');
+    startNet(false);
+  }
+})();
+</script>
 </body>
 </html>
