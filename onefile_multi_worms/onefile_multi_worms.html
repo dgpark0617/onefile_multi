@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
@@ -236,7 +236,7 @@
 </div>
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
 <script>
 (function (global) {
   'use strict';
@@ -362,6 +362,22 @@
       onData = handlers.onData; onOpen = handlers.onOpen;
       onClose = handlers.onClose; onError = handlers.onError; onLobby = handlers.onLobby;
 
+      let guestConnectAttempt = 0;
+      const GUEST_CONNECT_MAX = 6;
+
+      function connectAsGuest(id) {
+        guestConn = peer.connect(id.trim(), { reliable: true });
+        guestConn.on('open', () => onOpen && onOpen({ role: 'client', connOpen: true }));
+        guestConn.on('data', d => {
+          if (d.type === 'WELCOME') myIndex = d.index;
+          onData && onData(d);
+        });
+        guestConn.on('close', () => { guestConn = null; onClose && onClose(); });
+        guestConn.on('error', () => {
+          onError && onError({ type: 'connection', message: '데이터 연결 오류' });
+        });
+      }
+
       peer = new Peer({ debug: 0 });
       peer.on('open', id => {
         roomId = id;
@@ -396,16 +412,22 @@
           });
           onOpen && onOpen({ id, role: 'host', roomReady: true });
         } else {
-          guestConn = peer.connect(remoteId.trim(), { reliable: true });
-          guestConn.on('open', () => onOpen && onOpen({ role: 'client', connOpen: true }));
-          guestConn.on('data', d => {
-            if (d.type === 'WELCOME') myIndex = d.index;
-            onData && onData(d);
-          });
-          guestConn.on('close', () => { guestConn = null; onClose && onClose(); });
+          connectAsGuest(remoteId);
         }
       });
-      peer.on('error', e => onError && onError(e));
+      peer.on('error', e => {
+        if (!asHost && e.type === 'peer-unavailable' && guestConnectAttempt < GUEST_CONNECT_MAX) {
+          guestConnectAttempt++;
+          onError && onError({ type: 'retry', message: `방 연결 재시도 (${guestConnectAttempt}/${GUEST_CONNECT_MAX})…` });
+          setTimeout(() => connectAsGuest(remoteId), 800 + guestConnectAttempt * 400);
+          return;
+        }
+        if (!asHost && e.type === 'peer-unavailable') {
+          onError && onError({ type: 'peer-unavailable', message: '방을 찾을 수 없습니다. 방장이 대기실을 연 상태인지, 방 코드가 맞는지 확인하세요.' });
+          return;
+        }
+        onError && onError(e);
+      });
     }
 
     function startGameBroadcast(playerCount, seed) {
@@ -1116,7 +1138,7 @@
         onLobby: updateRosterUI,
         onData: d => handleNetData(d),
         onClose: () => lobbyLog('연결 끊김'),
-        onError: e => lobbyLog('오류: ' + (e.type || e.message || e))
+        onError: e => lobbyLog(e.message || ('오류: ' + (e.type || e.message || e)))
       }
     });
   }
