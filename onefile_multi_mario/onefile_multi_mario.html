@@ -230,7 +230,7 @@
     </div>
     <div class="mode-block" id="coopBlock">
       <h2>② 협동 (2~4인)</h2>
-      <p>🍄🔵🟡🟣 · 같은 맵 · 코인·보스 공유</p>
+      <p>🍄🔵🟡🟣 · Lockstep(입력만 동기화) · 2~4인 P2P</p>
       <div class="btn-row">
         <button class="lobby-btn btn-primary" id="btnCoopHost">방 만들기</button>
       </div>
@@ -382,7 +382,8 @@
     const IS_FILE = location.protocol === 'file:';
     const USE_ROOM_CODE = true;
     const MAX_PLAYERS = 4;
-    const SYNC_MS = 50;
+    const TICK_HZ = 60;
+    const TICK_MS = 1000 / TICK_HZ;
     const PLAYER_DEFS = [
       { emoji: '🍄', name: '레드', hat: '#dc2626', overall: '#2563eb' },
       { emoji: '🔵', name: '블루', hat: '#1d4ed8', overall: '#0369a1' },
@@ -477,7 +478,6 @@
         const payload = { type: 'LOBBY', proto: PROTO, roster: buildRoster(), playerCount: buildRoster().length };
         broadcast(payload); onLobby && onLobby(payload);
       }
-      function broadcastState(state) { broadcast({ type: 'STATE', proto: PROTO, ...state }); }
       function sendToHost(data) { if (guestConn && guestConn.open) guestConn.send(data); }
 
       function initPeer(opts) {
@@ -486,7 +486,7 @@
         clients.clear(); guestConn = null;
         onData = handlers.onData || null; onOpen = handlers.onOpen || null;
         onClose = handlers.onClose || null; onError = handlers.onError || null; onLobby = handlers.onLobby || null;
-        peer = new Peer({ debug: 1 });
+        peer = new Peer({ debug: 0 });
         peer.on('open', (id) => {
           roomId = id;
           if (asHost) {
@@ -505,7 +505,10 @@
                 connection.send({ type: 'WELCOME', proto: PROTO, index: slot, roster: buildRoster() });
                 broadcastLobby();
                 onOpen && onOpen({ role: 'host', clientJoined: true, index: slot });
-                connection.on('data', (data) => { onData && onData(data); });
+                connection.on('data', (data) => {
+                  if (typeof data === 'object' && data !== null) data.from = slot;
+                  onData && onData(data);
+                });
                 connection.on('close', () => {
                   clients.delete(slot);
                   if (!gameStarted) broadcastLobby();
@@ -523,9 +526,9 @@
         });
         peer.on('error', (err) => { onError && onError(err); });
       }
-      function startGameBroadcast(playerCount) {
+      function startGameBroadcast(playerCount, seed) {
         gameStarted = true;
-        broadcast({ type: 'START', proto: PROTO, playerCount });
+        broadcast({ type: 'START', proto: PROTO, playerCount, seed });
       }
       function destroy() {
         clients.forEach(({ conn }) => { try { conn.close(); } catch (e) {} });
@@ -535,7 +538,7 @@
         guestConn = null; peer = null; gameStarted = false; myIndex = 0;
       }
       return {
-        initPeer, broadcast, broadcastState, sendToHost, startGameBroadcast, destroy, buildRoster,
+        initPeer, broadcast, sendToHost, startGameBroadcast, destroy, buildRoster,
         get isHost() { return isHost; },
         get myIndex() { return myIndex; },
         get roomId() { return roomId; },
@@ -543,6 +546,17 @@
         get playerCount() { return isHost ? buildRoster().length : 0; }
       };
     })();
+
+    function mulberry32(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a |= 0;
+        a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
 
     const lobby = document.getElementById('lobby');
     const gameRoot = document.getElementById('gameRoot');
@@ -1009,10 +1023,10 @@
     }
 
     class Coin {
-      constructor(x, y, kind = 'gold') {
+      constructor(x, y, kind = 'gold', rng) {
         this.x = x; this.y = y; this.r = 10; this.collected = false;
         this.kind = kind;
-        this.bob = Math.random() * Math.PI * 2;
+        this.bob = (rng ? rng() : Math.random()) * Math.PI * 2;
       }
       update() { this.bob += 0.08; }
       draw() {
@@ -1046,10 +1060,10 @@
     }
 
     class PowerFeather {
-      constructor(x, y) {
+      constructor(x, y, rng) {
         this.x = x; this.y = y; this.w = 26; this.h = 26;
         this.vy = 0; this.collected = false;
-        this.bob = Math.random() * Math.PI * 2;
+        this.bob = (rng ? rng() : Math.random()) * Math.PI * 2;
       }
       update() {
         if (this.collected) return;
@@ -1312,7 +1326,8 @@
 
         if (this.spawnTimer <= 0) {
           this.spawnTimer = Math.max(90, 200 - this.rage * 10);
-          const mx = this.x + (Math.random() > 0.5 ? this.w + 20 : -50);
+          const rng = game && game.rng ? game.rng : Math.random;
+          const mx = this.x + (rng() > 0.5 ? this.w + 20 : -50);
           const m = new MushroomEnemy(mx, 0, 60, 2.2 + this.rage * 0.1);
           snapToGround(m);
           if (game) game.bossMinions.push(m);
@@ -1493,14 +1508,15 @@
 
     function addParticles(x, y, color, count = 8) {
       if (!game) return;
+      const rng = game.rng || Math.random;
       for (let i = 0; i < count; i++) {
         game.particles.push({
           x, y,
-          vx: (Math.random() - 0.5) * 6,
-          vy: (Math.random() - 0.5) * 6 - 2,
-          life: 30 + Math.random() * 20,
+          vx: (rng() - 0.5) * 6,
+          vy: (rng() - 0.5) * 6 - 2,
+          life: 30 + rng() * 20,
           color,
-          r: 3 + Math.random() * 3
+          r: 3 + rng() * 3
         });
       }
     }
@@ -1629,7 +1645,8 @@
         this.isHost = opts.isHost;
         this.myIndex = opts.myIndex;
         this.playerCount = opts.playerCount || 1;
-        this.onNet = opts.onNet;
+        this.seed = opts.seed ?? (Date.now() >>> 0);
+        this.rng = mulberry32(this.seed);
         this.running = false;
         this.gameOver = false;
         this.gameWon = false;
@@ -1647,13 +1664,26 @@
         this.world = 'overworld';
         this.undergroundCoins = [];
         this.pipeCooldown = 0;
-        this.lastSync = 0;
+        this.simTick = 0;
+        this.simAccumulator = 0;
+        this.inputBuffer = {};
+        this.lastSentInputTick = -1;
+        this.lastFrameT = 0;
+        this.disconnectedPlayers = new Set();
         this.rafId = 0;
       }
 
       me() { return this.players[this.myIndex] || this.players[0]; }
 
       initLevel() {
+        if (this.solo) this.seed = Date.now() >>> 0;
+        this.rng = mulberry32(this.seed);
+        this.simTick = 0;
+        this.simAccumulator = 0;
+        this.inputBuffer = {};
+        this.lastSentInputTick = -1;
+        this.disconnectedPlayers = new Set();
+        popups.length = 0;
         this.players = [];
         for (let i = 0; i < this.playerCount; i++) {
           this.players.push(new Player(this, i));
@@ -1668,23 +1698,24 @@
         this.pipeCooldown = 0;
         platforms = overworldPlatforms;
 
+        const rng = this.rng;
         this.coins = [
           [250, 300], [520, 240], [950, 290], [1250, 220],
           [1600, 260], [1950, 290], [2550, 250], [3000, 200],
           [3400, 270], [4100, 300], [4500, 240],
           [380, 310, 'blue'], [1050, 250, 'blue'], [1850, 270, 'blue'], [3200, 290, 'blue']
-        ].map(c => c.length === 3 ? new Coin(c[0], c[1], c[2]) : new Coin(c[0], c[1]));
+        ].map(c => c.length === 3 ? new Coin(c[0], c[1], c[2], rng) : new Coin(c[0], c[1], 'gold', rng));
 
         this.undergroundCoins = [
           [120, 380], [220, 300], [350, 240], [480, 310], [620, 260],
           [760, 300], [900, 240], [1040, 280], [1180, 320], [1280, 250]
-        ].map(([x, y]) => new Coin(x, y, 'gold'));
+        ].map(([x, y]) => new Coin(x, y, 'gold', rng));
 
         const m1plat = getPlatformUnder(500, 28);
         const fplat = getPlatformUnder(1280, 28);
         this.items = [
           new PowerMushroom(500, m1plat ? m1plat.y - 60 : 350),
-          new PowerFeather(fplat ? fplat.x + 40 : 1280, fplat ? fplat.y - 50 : 210)
+          new PowerFeather(fplat ? fplat.x + 40 : 1280, fplat ? fplat.y - 50 : 210, rng)
         ];
 
         this.enemies = [
@@ -1837,7 +1868,9 @@
         document.getElementById('overlayTitle').textContent = won ? '🎉 클리어!' : '💀 게임 오버';
         document.getElementById('overlayMsg').textContent = msg;
         document.getElementById('overlay').classList.add('show');
-        if (this.isHost && this.onNet) this.broadcastState();
+        if (!this.solo && this.isHost) {
+          WwNet.broadcast({ type: 'END', proto: 1, won, msg });
+        }
       }
 
       shootFireball(playerIdx) {
@@ -1963,121 +1996,99 @@
         this.particles = this.particles.filter(p => p.life > 0);
       }
 
-      broadcastState() {
-        if (!this.onNet) return;
-        this.onNet({
-          type: 'STATE',
-          players: this.players.map(p => p.toNet()),
-          coins: this.coins.map(c => ({ x: c.x, y: c.y, collected: c.collected, kind: c.kind })),
-          items: this.items.map(i => ({ x: i.x, y: i.y, vx: i.vx, vy: i.vy, collected: i.collected })),
-          enemies: this.enemies.map(e => ({
-            x: e.x, y: e.y, vx: e.vx, vy: e.vy, w: e.w, h: e.h, alive: e.alive,
-            squished: e.squished, squishTimer: e.squishTimer,
-            shell: e.shell, shellTimer: e.shellTimer, shellVx: e.shellVx,
-            frozen: e.frozen, frozenTimer: e.frozenTimer
-          })),
-          bossMinions: this.bossMinions.map(e => ({
-            x: e.x, y: e.y, vx: e.vx, alive: e.alive, squished: e.squished, squishTimer: e.squishTimer, h: e.h
-          })),
-          boss: this.boss ? {
-            x: this.boss.x, y: this.boss.y, vx: this.boss.vx, vy: this.boss.vy,
-            hp: this.boss.hp, alive: this.boss.alive, hurtTimer: this.boss.hurtTimer,
-            stompInvincible: this.boss.stompInvincible, rage: this.boss.rage,
-            frozen: this.boss.frozen, frozenTimer: this.boss.frozenTimer
-          } : null,
-          fireballs: this.fireballs.map(f => ({ x: f.x, y: f.y })),
-          iceballs: this.iceballs.map(f => ({ x: f.x, y: f.y })),
-          coinsCount: this.coinsCount,
-          iceAmmo: this.iceAmmo,
-          world: this.world,
-          undergroundCoins: this.undergroundCoins.map(c => ({ x: c.x, y: c.y, collected: c.collected, kind: c.kind })),
-          gameOver: this.gameOver, gameWon: this.gameWon
-        });
-      }
-
-      applyState(data) {
-        if (data.players) data.players.forEach((s, i) => {
-          if (this.players[i]) this.players[i].applyNet(s);
-        });
-        if (data.coins) data.coins.forEach((s, i) => {
-          if (this.coins[i]) {
-            this.coins[i].x = s.x; this.coins[i].y = s.y;
-            this.coins[i].collected = s.collected;
-            if (s.kind) this.coins[i].kind = s.kind;
-          }
-        });
-        if (data.undergroundCoins) data.undergroundCoins.forEach((s, i) => {
-          if (this.undergroundCoins[i]) {
-            this.undergroundCoins[i].x = s.x; this.undergroundCoins[i].y = s.y;
-            this.undergroundCoins[i].collected = s.collected;
-            if (s.kind) this.undergroundCoins[i].kind = s.kind;
-          }
-        });
-        if (data.world) {
-          this.world = data.world;
-          platforms = this.world === 'underground' ? undergroundPlatforms : overworldPlatforms;
-        }
-        if (data.items) data.items.forEach((s, i) => {
-          if (this.items[i]) Object.assign(this.items[i], s);
-        });
-        if (data.enemies) data.enemies.forEach((s, i) => {
-          if (this.enemies[i]) Object.assign(this.enemies[i], s);
-        });
-        if (data.bossMinions) {
-          while (this.bossMinions.length < data.bossMinions.length) {
-            const m = new MushroomEnemy(0, 0, 60, 2);
-            this.bossMinions.push(m);
-          }
-          data.bossMinions.forEach((s, i) => { if (this.bossMinions[i]) Object.assign(this.bossMinions[i], s); });
-          this.bossMinions = this.bossMinions.filter((e, i) => i < data.bossMinions.length);
-        }
-        if (data.boss && this.boss) Object.assign(this.boss, data.boss);
-        if (data.fireballs) {
-          this.fireballs = data.fireballs.map(f => new Fireball(f.x, f.y, 0, 0, 0));
-        }
-        if (data.iceballs) {
-          this.iceballs = data.iceballs.map(f => new Iceball(f.x, f.y, 0, 0, 0));
-        }
-        if (data.coinsCount !== undefined) {
-          this.coinsCount = data.coinsCount;
-        }
-        if (data.iceAmmo !== undefined) {
-          this.iceAmmo = data.iceAmmo;
-        }
-        this.gameOver = !!data.gameOver;
-        this.gameWon = !!data.gameWon;
-        if (this.gameOver && !document.getElementById('overlay').classList.contains('show')) {
-          this.endGame(this.gameWon, this.gameWon
-            ? `보스 처치! 코인 ${this.totalCoinsCollected()}개`
-            : `코인 ${this.totalCoinsCollected()}개 수집`);
-        }
-        this.updateHUD();
-        this.updatePlayerTags();
-      }
-
-      applyGuestInput(idx, inp) {
-        const p = this.players[idx];
-        if (!p) return;
-        p.input.left = !!inp.l;
-        p.input.right = !!inp.r;
-        if (inp.j) p.input.jumpPressed = true;
-        p.input.jumpHeld = !!inp.jh;
-        p.input.downPressed = !!inp.d;
-      }
-
-      sendLocalInput() {
-        if (this.solo || this.isHost || !this.onNet) return;
+      sampleLocalInput() {
         const me = this.me();
-        if (!me) return;
-        this.onNet({
-          type: 'INPUT', idx: this.myIndex,
-          input: {
-            l: me.input.left, r: me.input.right,
-            j: me.input.jumpPressed, jh: me.input.jumpHeld, d: me.input.downPressed
-          }
-        });
+        if (!me) return { l: 0, r: 0, j: 0, jh: 0, d: 0 };
+        const inp = {
+          l: me.input.left ? 1 : 0,
+          r: me.input.right ? 1 : 0,
+          j: me.input.jumpPressed ? 1 : 0,
+          jh: me.input.jumpHeld ? 1 : 0,
+          d: me.input.downPressed ? 1 : 0
+        };
         me.input.jumpPressed = false;
         me.input.downPressed = false;
+        return inp;
+      }
+
+      applyInputsForTick(inputs) {
+        for (let i = 0; i < this.playerCount; i++) {
+          const inp = inputs[i];
+          if (!inp) continue;
+          const p = this.players[i];
+          if (!p) continue;
+          p.input.left = !!inp.l;
+          p.input.right = !!inp.r;
+          p.input.jumpHeld = !!inp.jh;
+          if (inp.j) p.input.jumpPressed = true;
+          if (inp.d) p.input.downPressed = true;
+        }
+      }
+
+      storeInput(tick, playerIndex, inp) {
+        if (tick < this.simTick) return;
+        if (!this.inputBuffer[tick]) this.inputBuffer[tick] = {};
+        this.inputBuffer[tick][playerIndex] = inp;
+      }
+
+      hasAllInputs(tick) {
+        for (let i = 0; i < this.playerCount; i++) {
+          if (this.disconnectedPlayers.has(i)) continue;
+          if (this.inputBuffer[tick]?.[i] === undefined) return false;
+        }
+        return true;
+      }
+
+      getInputsArray(tick) {
+        const inputs = {};
+        for (let i = 0; i < this.playerCount; i++) {
+          inputs[i] = this.disconnectedPlayers.has(i)
+            ? { l: 0, r: 0, j: 0, jh: 0, d: 0 }
+            : (this.inputBuffer[tick]?.[i] ?? { l: 0, r: 0, j: 0, jh: 0, d: 0 });
+        }
+        return inputs;
+      }
+
+      simulateTick(inputs) {
+        this.applyInputsForTick(inputs);
+        this.hostTick();
+      }
+
+      applyFrame(tick, inputs) {
+        if (tick !== this.simTick || this.gameOver) return;
+        this.simulateTick(inputs);
+        this.simTick++;
+        delete this.inputBuffer[tick];
+      }
+
+      sealFrame(tick) {
+        if (tick !== this.simTick || this.gameOver) return;
+        const inputs = this.getInputsArray(tick);
+        if (!this.solo && this.isHost) {
+          WwNet.broadcast({ type: 'FRAME', proto: 1, tick, inputs });
+        }
+        this.applyFrame(tick, inputs);
+      }
+
+      onRemoteInput(from, tick, inp) {
+        this.storeInput(tick, from, inp);
+        if (this.isHost && tick === this.simTick && this.hasAllInputs(tick)) {
+          this.sealFrame(tick);
+        }
+      }
+
+      onFrame(tick, inputs) {
+        if (this.solo || this.isHost) return;
+        this.applyFrame(tick, inputs);
+      }
+
+      onPeerLeft(index) {
+        this.disconnectedPlayers.add(index);
+        const p = this.players[index];
+        if (p && p.alive) this.playerDie(p);
+        if (this.isHost && this.hasAllInputs(this.simTick)) {
+          this.sealFrame(this.simTick);
+        }
       }
 
       draw() {
@@ -2116,14 +2127,39 @@
 
       loop(t) {
         if (!this.running) return;
-        this.sendLocalInput();
-        if (this.isHost || this.solo) {
-          this.hostTick();
-          if (t - this.lastSync >= SYNC_MS) {
-            this.broadcastState();
-            this.lastSync = t;
+        const dt = Math.min(50, t - (this.lastFrameT || t));
+        this.lastFrameT = t;
+
+        if (!this.gameOver) {
+          this.simAccumulator += dt;
+          if (this.solo) {
+            while (this.simAccumulator >= TICK_MS) {
+              this.simAccumulator -= TICK_MS;
+              const inputs = {};
+              inputs[this.myIndex] = this.sampleLocalInput();
+              this.applyFrame(this.simTick, inputs);
+            }
+          } else if (this.isHost) {
+            while (this.simAccumulator >= TICK_MS) {
+              this.simAccumulator -= TICK_MS;
+              const tick = this.simTick;
+              this.storeInput(tick, this.myIndex, this.sampleLocalInput());
+              if (this.hasAllInputs(tick)) {
+                this.sealFrame(tick);
+              } else {
+                break;
+              }
+            }
+          } else if (this.simAccumulator >= TICK_MS) {
+            this.simAccumulator -= TICK_MS;
+            const tick = this.simTick;
+            if (this.lastSentInputTick < tick) {
+              WwNet.sendToHost({ type: 'INP', proto: 1, tick, input: this.sampleLocalInput() });
+              this.lastSentInputTick = tick;
+            }
           }
         }
+
         this.draw();
         this.rafId = requestAnimationFrame(ts => this.loop(ts));
       }
@@ -2131,10 +2167,9 @@
       start() {
         this.running = true;
         this.initLevel();
-        this.lastSync = 0;
+        this.lastFrameT = 0;
         cancelAnimationFrame(this.rafId);
         this.rafId = requestAnimationFrame(ts => this.loop(ts));
-        if (this.isHost && this.onNet) this.broadcastState();
       }
 
       stop() {
@@ -2351,37 +2386,29 @@
     document.getElementById('btnToLobby').addEventListener('click', showLobby);
     document.getElementById('backBtn').addEventListener('click', showLobby);
 
-    function makeNetHandler(isHost) {
-      return (payload) => {
-        if (payload.type === 'STATE') WwNet.broadcastState(payload);
-        else WwNet.broadcast(payload);
-      };
-    }
-
     function hostBeginGame() {
       const count = WwNet.playerCount;
       if (count < 2) return;
-      WwNet.startGameBroadcast(count);
+      const seed = Date.now() >>> 0;
+      WwNet.startGameBroadcast(count, seed);
       showGameView();
       game = new MarioGame({
-        solo: false, isHost: true, myIndex: 0, playerCount: count,
-        onNet: makeNetHandler(true)
+        solo: false, isHost: true, myIndex: 0, playerCount: count, seed
       });
       game.start();
     }
 
-    function clientBeginGame(playerCount) {
+    function clientBeginGame(playerCount, seed) {
       showGameView();
       game = new MarioGame({
-        solo: false, isHost: false, myIndex: WwNet.myIndex, playerCount,
-        onNet: (payload) => WwNet.sendToHost(payload)
+        solo: false, isHost: false, myIndex: WwNet.myIndex, playerCount, seed
       });
       game.start();
     }
 
     function startSolo() {
       showGameView();
-      game = new MarioGame({ solo: true, isHost: true, myIndex: 0, playerCount: 1, onNet: null });
+      game = new MarioGame({ solo: true, isHost: true, myIndex: 0, playerCount: 1 });
       game.start();
     }
 
@@ -2392,16 +2419,22 @@
         updateRosterUI({ roster: data.roster, playerCount: data.roster.length });
         lobbyLog(`대기실 입장 (${PLAYER_DEFS[data.index].emoji} ${PLAYER_DEFS[data.index].name})`);
       } else if (data.type === 'START' && !WwNet.isHost) {
-        clientBeginGame(data.playerCount);
+        clientBeginGame(data.playerCount, data.seed);
         lobbyLog(`${data.playerCount}인 협동 시작!`);
-      } else if (data.type === 'STATE' && game) {
-        game.applyState(data);
-      } else if (data.type === 'INPUT' && game && WwNet.isHost) {
-        game.applyGuestInput(data.idx, data.input);
-      } else if (data.type === 'PEER_LEFT' && game && WwNet.isHost) {
-        const p = game.players[data.index];
-        if (p && p.alive) game.playerDie(p);
+      } else if (data.type === 'FRAME' && game && !game.isHost) {
+        game.onFrame(data.tick, data.inputs);
+      } else if (data.type === 'INP' && game && WwNet.isHost && data.from != null) {
+        game.onRemoteInput(data.from, data.tick, data.input);
+      } else if (data.type === 'PEER_LEFT' && game) {
+        game.onPeerLeft(data.index);
         lobbyLog(`${PLAYER_DEFS[data.index]?.emoji || '?'} 퇴장`);
+      } else if (data.type === 'END' && game && !game.isHost && !game.gameOver) {
+        game.gameOver = true;
+        game.gameWon = !!data.won;
+        game.stop();
+        document.getElementById('overlayTitle').textContent = data.won ? '🎉 클리어!' : '💀 게임 오버';
+        document.getElementById('overlayMsg').textContent = data.msg || '';
+        document.getElementById('overlay').classList.add('show');
       } else if (data.type === 'REJECT') {
         lobbyLog('거부: ' + data.reason);
         if (!WwNet.isHost) showLobby();
