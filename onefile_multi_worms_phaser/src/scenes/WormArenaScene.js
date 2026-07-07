@@ -33,7 +33,6 @@ export class WormArenaScene extends Phaser.Scene {
       onAppleEaten: ({ x, y }) => this.fx.eatBurst(x, y),
       onWormDeath: ({ x, y, color }) => this.fx.deathBurst(x, y, color),
       onEndGame: (result) => {
-        if (!result.won && result.solo) this.fx.shake(0.008);
         showGameOverlay({ title: result.title, msg: result.msg });
         if (!result.solo && result.isHost) {
           WwNet.broadcast({

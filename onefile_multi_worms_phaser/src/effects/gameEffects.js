@@ -37,19 +37,13 @@ export class GameEffects {
 
   eatBurst(x, y) {
     this.eatEmitter.setPosition(x, y);
-    this.eatEmitter.explode(10, x, y);
-    this.shake(0.0025);
+    this.eatEmitter.explode(6, x, y);
   }
 
   deathBurst(x, y, colorHex) {
     const tint = Phaser.Display.Color.HexStringToColor(colorHex || "#f472b6").color;
     this.deathEmitter.setParticleTint(tint);
-    this.deathEmitter.explode(18, x, y);
-    this.shake(0.006);
-  }
-
-  shake(intensity = 0.004) {
-    this.scene.cameras.main.shake(120, intensity);
+    this.deathEmitter.explode(10, x, y);
   }
 
   destroy() {
