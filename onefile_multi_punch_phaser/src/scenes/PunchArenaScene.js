@@ -25,7 +25,7 @@ export class PunchArenaScene extends Phaser.Scene {
     this.paintArena(this.bgGraphics);
 
     this.graphics = this.add.graphics().setDepth(1);
-    this.hudCache = { hearts: -1, kills: -1, scale: -1, fwd: null };
+    this.hudCache = { hearts: -1, kills: -1, growth: -1, fwd: null };
 
     this.keys = this.input.keyboard.addKeys({
       left: Phaser.Input.Keyboard.KeyCodes.LEFT,
@@ -169,8 +169,12 @@ export class PunchArenaScene extends Phaser.Scene {
     const me = sim.myFighter();
     if (me) {
       const heartStr = `♥ ${Math.max(0, me.hearts)}/${me.maxHearts}`;
+      const needed = me.orbsToNextLevel();
+      const growthStr =
+        needed > 0
+          ? `Lv.${me.growthLevel} · 오브 ${me.orbProgress}/${needed}`
+          : `Lv.${me.growthLevel} MAX · x${me.scale.toFixed(2)}`;
       const killStr = `KO ${me.kills}`;
-      const sizeStr = `크기 x${me.scale.toFixed(2)}`;
       const fwdStr = `전진 ${me.forwardOn ? "ON" : "off"}`;
       if (this.hudCache.hearts !== heartStr) {
         this.hudCache.hearts = heartStr;
@@ -180,9 +184,9 @@ export class PunchArenaScene extends Phaser.Scene {
         this.hudCache.kills = killStr;
         this.killText.setText(killStr);
       }
-      if (this.hudCache.scale !== sizeStr) {
-        this.hudCache.scale = sizeStr;
-        this.sizeText.setText(sizeStr);
+      if (this.hudCache.growth !== growthStr) {
+        this.hudCache.growth = growthStr;
+        this.sizeText.setText(growthStr);
       }
       if (this.hudCache.fwd !== fwdStr) {
         this.hudCache.fwd = fwdStr;

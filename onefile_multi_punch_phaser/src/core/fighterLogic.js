@@ -1,10 +1,6 @@
 import { COLORS, RULES, WORLD } from "./constants.js";
 import { randFrom, randIntFrom } from "./rng.js";
 
-function dist(x1, y1, x2, y2) {
-  return Math.hypot(x2 - x1, y2 - y1);
-}
-
 function clampInWorld(f) {
   const m = RULES.worldMargin + f.radius;
   if (f.x < m) {
@@ -23,6 +19,14 @@ function clampInWorld(f) {
     f.y = WORLD.height - m;
     f.vy = -Math.abs(f.vy) * 0.4;
   }
+}
+
+function dist(x1, y1, x2, y2) {
+  return Math.hypot(x2 - x1, y2 - y1);
+}
+
+export function orbsNeededForGrowth(level) {
+  return RULES.growthOrbsBase * RULES.growthOrbsMultiplier ** level;
 }
 
 export class Fighter {
@@ -45,6 +49,8 @@ export class Fighter {
     this.hearts = RULES.baseHearts;
     this.maxHearts = RULES.baseHearts;
     this.scale = 1;
+    this.growthLevel = 0;
+    this.orbProgress = 0;
     this.orbsEaten = 0;
     this.kills = 0;
     this.punchSide = "left";
@@ -70,9 +76,25 @@ export class Fighter {
 
   growFromOrb() {
     this.orbsEaten += 1;
-    this.scale = Math.min(2.2, 1 + this.orbsEaten * RULES.scalePerOrb);
-    this.maxHearts += RULES.heartsPerOrb;
-    this.hearts = Math.min(this.maxHearts, this.hearts + RULES.heartsPerOrb);
+    this.orbProgress += 1;
+    this.tryLevelUp();
+  }
+
+  tryLevelUp() {
+    while (this.growthLevel < RULES.maxGrowthLevel) {
+      const needed = orbsNeededForGrowth(this.growthLevel);
+      if (this.orbProgress < needed) break;
+      this.orbProgress -= needed;
+      this.growthLevel += 1;
+      this.scale = Math.min(RULES.maxScale, 1 + this.growthLevel * RULES.scalePerLevel);
+      this.maxHearts += RULES.heartsPerLevel;
+      this.hearts = Math.min(this.maxHearts, this.hearts + RULES.heartsPerLevel);
+    }
+  }
+
+  orbsToNextLevel() {
+    if (this.growthLevel >= RULES.maxGrowthLevel) return 0;
+    return orbsNeededForGrowth(this.growthLevel);
   }
 
   startPunch() {
@@ -222,7 +244,7 @@ export class Fighter {
 }
 
 export function spawnOrbsOnDeath(fighter, orbsOut, rng) {
-  const n = Math.max(3, Math.floor(fighter.orbsEaten * 0.5) + 2);
+  const n = Math.max(3, fighter.growthLevel + 2);
   for (let i = 0; i < n; i++) {
     const a = randFrom(rng, 0, Math.PI * 2);
     const r = randFrom(rng, 8, 28);
