@@ -15,6 +15,8 @@ export class WormsSimulation {
     this.seed = opts.seed ?? (Date.now() >>> 0);
     this.onEndGame = opts.onEndGame ?? (() => {});
     this.onBroadcastFrame = opts.onBroadcastFrame ?? (() => {});
+    this.onAppleEaten = opts.onAppleEaten ?? (() => {});
+    this.onWormDeath = opts.onWormDeath ?? (() => {});
     this.rng = mulberry32(this.seed);
     this.worms = [];
     this.apples = [];
@@ -183,6 +185,7 @@ export class WormsSimulation {
         if (dist(head.x, head.y, a.x, a.y) < RULES.headRadius + a.r) {
           worm.grow(2);
           worm.applesEaten += 1;
+          this.onAppleEaten({ x: a.x, y: a.y });
           this.apples.splice(i, 1);
           this.spawnApple();
         }
@@ -196,9 +199,11 @@ export class WormsSimulation {
           const d = dist(head.x, head.y, seg.x, seg.y);
           if (d < RULES.headRadius + sr - 2) {
             if (worm.length > other.length * 1.15) {
+              this.onWormDeath({ x: other.head.x, y: other.head.y, color: other.color });
               other.die(this.apples, this.rng);
               worm.grow(Math.floor(other.length * 0.5));
             } else if (worm.length < other.length * 0.85) {
+              this.onWormDeath({ x: worm.head.x, y: worm.head.y, color: worm.color });
               worm.die(this.apples, this.rng);
               this.onWormDied(worm);
             }
