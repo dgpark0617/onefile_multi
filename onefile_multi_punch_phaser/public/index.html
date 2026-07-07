@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>펀치 아레나 — Phaser</title>
+  <link rel="stylesheet" href="../src/ui/lobby.css" />
+  <style>
+  html, body { margin: 0; height: 100%; background: #1a1030; overflow: hidden; }
+  #gameShell { display: flex; flex-direction: column; height: 100dvh; width: 100vw; }
+  #app { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+  #app canvas { border: 2px solid #6d28d9; border-radius: 8px; box-shadow: 0 0 24px rgba(167, 139, 250, 0.2); }
+  #gameShellHeader { flex-shrink: 0; text-align: center; padding: 6px 10px 4px; }
+  #gameShellHeader h1 {
+    margin: 0; font-size: clamp(0.95rem, 3.5vw, 1.2rem);
+    background: linear-gradient(90deg, #f472b6, #a78bfa);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    font-family: "Segoe UI", system-ui, sans-serif;
+  }
+  #backBtn { position: absolute; top: 8px; right: 10px; z-index: 5; }
+  #gameWrap { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; padding: 0 6px; }
+  #controls { gap: 8px !important; }
+  #btnForward.active, #btnPunch.active { background: #a78bfa; color: #1a1030; }
+  </style>
+</head>
+<body>
+  <div id="lobby">
+    <h1>🥊 펀치 아레나 (Phaser)</h1>
+    <p class="sub">회전 · 전진 토글 · 좌우 교차 펀치 · 오브로 성장</p>
+    <div class="hint">
+      <strong>조작:</strong> ◀ ▶ 회전 · ▲ 전진 on/off · 🥊 펀치(좌↔우 교차)<br>
+      <strong>키보드:</strong> ← → · ↑/W 전진 토글 · 스페이스 펀치<br>
+      <strong>멀티:</strong> Lockstep · 2~4인 P2P
+    </div>
+    <div id="iosFileWarn" class="hidden ios-warn">
+      <strong>아이폰 안내</strong><br>
+      저장 파일에서는 멀티 불가. <strong>/play/punch</strong> 웹 접속을 사용하세요.
+    </div>
+
+    <div class="mode-block">
+      <h2>① 솔로</h2>
+      <p>AI와 펀치 배틀</p>
+      <button class="btn-green" id="btnSolo">솔로 시작</button>
+    </div>
+
+    <div class="mode-block">
+      <h2>② FFA 멀티 (2~4인)</h2>
+      <button class="btn-primary" id="btnHost">방 만들기</button>
+    </div>
+
+    <div class="mode-block" id="joinPanel">
+      <h2>참가</h2>
+      <input id="joinCodeInput" placeholder="방 코드 입력" autocomplete="off" spellcheck="false" />
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn-red" id="btnJoin">참가</button>
+      </div>
+    </div>
+
+    <div id="waitingBox" class="hidden">
+      <div id="waitingTitle">대기실</div>
+      <div class="invite-share-box">
+        <canvas id="inviteQr" width="176" height="176" aria-label="초대 QR"></canvas>
+        <p id="inviteCodeText" class="invite-code-text"></p>
+      </div>
+      <a id="inviteLink" href="#" rel="noopener"></a>
+      <ul id="rosterList"></ul>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn-yellow" id="btnCopyLink">초대 링크 복사</button>
+        <button class="btn-green hidden" id="btnStartGame" disabled>게임 시작 (2인+)</button>
+        <button class="btn-ghost" id="btnCancelWait">나가기</button>
+      </div>
+      <p id="guestWaitHint" class="hidden guest-hint">방장 시작 대기…</p>
+    </div>
+
+    <input id="roomInput" type="hidden" autocomplete="off" />
+    <div id="roomBox" class="hidden">Peer: <b id="roomCode">—</b></div>
+    <div id="log"></div>
+  </div>
+
+  <div id="gameShell" class="hidden">
+    <div id="gameShellHeader"><h1>🥊 펀치 아레나</h1></div>
+    <div id="gameWrap">
+      <button type="button" id="backBtn" class="btn-ghost">← 로비</button>
+      <div id="app"></div>
+    </div>
+    <div id="controls">
+      <button id="btnLeft" class="ctrl-btn" aria-label="왼쪽">◀</button>
+      <button id="btnForward" class="ctrl-btn" aria-label="전진">▲</button>
+      <button id="btnPunch" class="ctrl-btn" aria-label="펀치">🥊</button>
+      <button id="btnRight" class="ctrl-btn" aria-label="오른쪽">▶</button>
+    </div>
+  </div>
+
+  <div id="overlay">
+    <h2 id="overlayTitle">게임 오버</h2>
+    <p id="overlayMsg"></p>
+    <div class="btn-row">
+      <button class="btn-green" id="restartBtn">다시 시작</button>
+      <button class="btn-ghost" id="toLobbyBtn">로비로</button>
+    </div>
+  </div>
+
+  <script type="module" src="../src/main.js"></script>
+</body>
+</html>

@@ -83,6 +83,15 @@
     "downloadName": "worms.html"
   },
   {
+    "slug": "punch",
+    "title": "펀치 아레나",
+    "subtitle": "회전·전진·펀치 배틀 · P2P 최대 4인",
+    "category": "arcade",
+    "tags": ["격투", "멀티", "PeerJS", "Phaser"],
+    "source": "onefile_multi_punch_phaser/onefile_multi_punch_phaser.html",
+    "downloadName": "punch.html"
+  },
+  {
     "slug": "flight",
     "title": "스카이 파이터",
     "subtitle": "3D 비행 슈팅 · 뱅크 선회",
