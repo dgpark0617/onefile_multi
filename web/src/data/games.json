@@ -24,8 +24,8 @@
     "title": "버섯 어드벤처",
     "subtitle": "멀티 플랫포머",
     "category": "action",
-    "tags": ["플랫포머", "멀티"],
-    "source": "onefile_multi_mario/onefile_multi_mario.html",
+    "tags": ["플랫포머", "멀티", "Phaser"],
+    "source": "onefile_multi_mario_phaser/onefile_multi_mario_phaser.html",
     "downloadName": "mushroom_adventure.html"
   },
   {

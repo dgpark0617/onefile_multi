@@ -1,671 +1,29 @@
-﻿<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>🍄 버섯 어드벤처 — 멀티</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    .hidden { display: none !important; }
-    #lobby {
-      min-height: 100dvh; padding: 16px; max-width: 520px; margin: 0 auto;
-      display: flex; flex-direction: column; gap: 12px; overflow-y: auto;
-    }
-    #lobby h1 { font-size: 1.35rem; margin: 0; background: none; -webkit-text-fill-color: #eee; color: #eee; }
-    #lobby .sub { color: #94a3b8; font-size: 0.85rem; line-height: 1.5; }
-    #lobby .hint {
-      background: #16213e; border: 1px solid #334; border-radius: 10px;
-      padding: 12px 14px; font-size: 0.82rem; color: #bbb; line-height: 1.55;
-    }
-    #lobby .hint strong { color: #fbbf24; }
-    .mode-block { background: #16213e; border: 1px solid #334; border-radius: 12px; padding: 14px; }
-    .mode-block h2 { margin: 0 0 8px; font-size: 1rem; color: #7ec8e3; }
-    .mode-block p { margin: 0 0 10px; font-size: 0.78rem; color: #888; line-height: 1.4; }
-    .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
-    .lobby-btn {
-      border: none; border-radius: 8px; padding: 10px 14px; font-size: 0.85rem;
-      cursor: pointer; touch-action: manipulation;
-    }
-    .btn-primary { background: #2563eb; color: #fff; }
-    .btn-green { background: #059669; color: #fff; }
-    .btn-red { background: #dc2626; color: #fff; }
-    .btn-yellow { background: #ca8a04; color: #fff; }
-    .btn-ghost { background: #334; color: #ddd; }
-    .lobby-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-    #lobby input[type="text"] {
-      width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #445;
-      background: #1a1a2e; color: #eee; font-size: 0.9rem;
-    }
-    #roomBox, #waitingBox {
-      background: #0f3460; padding: 12px; border-radius: 8px; font-size: 0.82rem;
-      word-break: break-all; border: 1px solid #2563eb; color: #ddd;
-    }
-    #waitingBox { border-color: #ca8a04; }
-    #inviteLink { color: #7ec8e3; font-size: 0.78rem; display: block; margin: 8px 0; }
-    #rosterList { margin: 10px 0; padding: 0; list-style: none; line-height: 1.8; }
-    #rosterList li { font-size: 0.9rem; }
-    #rosterList .empty { color: #666; font-style: italic; }
-    #netLog { font-size: 0.75rem; color: #4ade80; max-height: 80px; overflow-y: auto; white-space: pre-wrap; }
-    #gameRoot { display: flex; flex-direction: column; height: 100dvh; width: 100%; }
-    #backBtn {
-      position: absolute; top: 6px; right: 6px; z-index: 20;
-      padding: 5px 10px; font-size: 11px; border: none; border-radius: 6px;
-      background: rgba(51,65,85,0.9); color: #ddd; cursor: pointer;
-    }
-    #stage { position: relative; }
-    #playerTags {
-      display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 8px;
-      margin-top: 2px; font-size: clamp(0.68rem, 2.5vw, 0.78rem);
-    }
-    .ptag {
-      padding: 1px 6px; border-radius: 6px; background: rgba(30,30,50,0.85);
-      border: 1px solid transparent;
-    }
-    .ptag.me { border-color: #fbbf24; color: #fbbf24; }
-    .ptag.dead { opacity: 0.35; text-decoration: line-through; }
-    :root {
-      --design-w: 900;
-      --design-h: 500;
-      --design-ar: calc(var(--design-w) / var(--design-h));
-      --frame-max-w: 960px;
-      --frame-min-w: 260px;
-      --frame-min-h: calc(var(--frame-min-w) / (var(--design-w) / var(--design-h)));
-    }
-    html, body {
-      height: 100%;
-      max-height: 100dvh;
-      overflow: hidden;
-    }
-    body {
-      background: #1a1a2e;
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      height: 100dvh;
-      font-family: 'Segoe UI', sans-serif;
-      color: #eee;
-      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-    }
-    #topBar {
-      flex: 0 0 auto;
-      padding: 6px 10px 4px;
-      text-align: center;
-    }
-    h1 {
-      font-size: clamp(1rem, 4vw, 1.5rem);
-      margin-bottom: 2px;
-      background: linear-gradient(90deg, #ef4444, #fbbf24);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    #info {
-      font-size: clamp(0.68rem, 2.8vw, 0.82rem);
-      color: #94a3b8;
-      line-height: 1.35;
-    }
-    @media (max-height: 520px) {
-      #info { display: none; }
-      #topBar { padding: 4px 8px 2px; }
-      #hud { margin-top: 2px; gap: 6px 12px; }
-    }
-    @media (max-height: 420px) {
-      h1 { font-size: 0.95rem; margin-bottom: 0; }
-      #hud { font-size: 0.72rem; }
-      .ctrl-btn {
-        min-width: 52px;
-        height: 44px;
-        padding: 0 8px;
-      }
-    }
-    #hud {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 10px 18px;
-      margin-top: 4px;
-      font-size: clamp(0.78rem, 2.8vw, 0.9rem);
-    }
-    #hud span { color: #fbbf24; font-weight: bold; }
-    /* 무대: 900×500(1.8:1) 디자인 비율 고정, 남은 공간에 contain-fit + 레터박스 */
-    #stage {
-      flex: 1 1 0;
-      min-height: 0;
-      width: 100%;
-      container-type: size;
-      container-name: stage;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 4px 8px;
-      background: #0f0f1a;
-    }
-    #gameFrame {
-      position: relative;
-      aspect-ratio: 900 / 500;
-      width: min(100cqw, calc(100cqh * 900 / 500), var(--frame-max-w));
-      max-height: 100cqh;
-      min-width: min(var(--frame-min-w), 100cqw);
-      min-height: min(var(--frame-min-h), 100cqh);
-      height: auto;
-      border: 2px solid #334155;
-      border-radius: 10px;
-      overflow: hidden;
-      background: #5c94fc;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
-      flex-shrink: 0;
-    }
-    canvas {
-      width: 100%;
-      height: 100%;
-      display: block;
-      touch-action: none;
-    }
-    #controls {
-      flex: 0 0 auto;
-      display: flex;
-      justify-content: center;
-      gap: 10px;
-      padding: 8px 10px max(10px, env(safe-area-inset-bottom));
-      min-height: var(--chrome-bottom);
-      align-items: center;
-    }
-    .ctrl-btn {
-      min-width: clamp(56px, 18vw, 72px);
-      height: clamp(48px, 12vw, 56px);
-      padding: 0 12px;
-      font-size: clamp(0.95rem, 3.5vw, 1.1rem);
-      background: rgba(251, 191, 36, 0.15);
-      color: #fbbf24;
-      border: 2px solid #fbbf24;
-      border-radius: 12px;
-      cursor: pointer;
-      user-select: none;
-      touch-action: none;
-    }
-    .ctrl-btn.active { background: #fbbf24; color: #1a1a2e; }
-    #overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.8);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-      z-index: 10;
-    }
-    #overlay.show { display: flex; }
-    #overlay h2 { font-size: 2rem; margin-bottom: 10px; }
-    #overlay p { color: #94a3b8; margin-bottom: 18px; }
-    #restartBtn {
-      padding: 12px 28px;
-      font-size: 1rem;
-      background: #fbbf24;
-      color: #1a1a2e;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: bold;
-    }
-  
-  .invite-share-box { text-align: center; margin: 10px 0; }
-  .invite-share-box canvas { border-radius: 8px; background: #fff; padding: 6px; max-width: min(176px, 80vw); height: auto; }
-  .invite-code-text { font-size: 0.75rem; opacity: 0.85; margin: 6px 0; word-break: break-all; }
-  #inviteLink { word-break: break-all; }
+import { mulberry32 } from "./rng.js";
+import {
+  DOUBLE_JUMP_FORCE,
+  FEATHER_DURATION,
+  FRICTION,
+  GRAVITY,
+  JUMP_FORCE,
+  MAX_SPEED,
+  MOVE_SPEED,
+  PIPE_COOLDOWN,
+  PLAYER_DEFS,
+  TICK_MS,
+  UNDERGROUND_W,
+  VH,
+  VW,
+  WORLD_W,
+} from "./marioConstants.js";
 
-</style>
-</head>
-<body>
-  <div id="lobby">
-    <h1>🍄 버섯 어드벤처</h1>
-    <p class="sub">실시간 횡스크롤 · 2~4인 P2P 협동</p>
-    <div class="hint">
-      <strong>조작:</strong> ← → 이동 · 스페이스/점프 (2단 점프!) · 모바일 하단 버튼<br>
-      <strong>멀티:</strong> 방 만들기 → 친구 초대 → 2인 이상이면 시작 · 호스트가 물리 처리
-    </div>
-    <div class="mode-block" id="modeBlocks">
-      <h2>① 솔로</h2>
-      <p>혼자 보스까지 클리어</p>
-      <button class="lobby-btn btn-green" id="btnSolo">솔로 시작</button>
-    </div>
-    <div class="mode-block" id="coopBlock">
-      <h2>② 협동 (2~4인)</h2>
-      <p>🍄🔵🟡🟣 · Lockstep(입력만 동기화) · 2~4인 P2P</p>
-      <div class="btn-row">
-        <button class="lobby-btn btn-primary" id="btnCoopHost">방 만들기</button>
-      </div>
-    </div>
-    <div class="mode-block" id="joinPanel">
-      <h2>친구 방 참가</h2>
-      <input id="joinCodeInput" type="text" placeholder="방 코드 붙여넣기" autocomplete="off" spellcheck="false">
-      <div class="btn-row" style="margin-top:8px">
-        <button class="lobby-btn btn-red" id="btnJoin">참가</button>
-      </div>
-    </div>
-    <div id="waitingBox" class="hidden">
-      <div id="waitingTitle">대기실</div>      <div class="invite-share-box">
-        <canvas id="inviteQr" width="176" height="176" aria-label="초대 QR 코드"></canvas>
-        <p id="inviteCodeText" class="invite-code-text"></p>
-      </div>
+export function createMarioEngine(env) {
+  const { getCanvasContext, getHudEl, netBroadcast, WwNetRef } = env;
 
-      <a id="inviteLink" href="#" rel="noopener"></a>
-      <ul id="rosterList"></ul>
-      <div class="btn-row" style="margin-top:10px">
-        <button class="lobby-btn btn-yellow" id="btnCopyLink">방 코드 복사</button>
-        <button class="lobby-btn btn-green hidden" id="btnStartGame" disabled>게임 시작 (2인 이상)</button>
-        <button class="lobby-btn btn-ghost" id="btnCancelWait">나가기</button>
-      </div>
-      <p id="guestWaitHint" class="hidden" style="margin:8px 0 0;font-size:0.78rem;color:#888">방장이 「게임 시작」을 누를 때까지 대기…</p>
-    </div>
-    <input id="roomInput" type="text" class="hidden" autocomplete="off">
-    <div id="roomBox" class="hidden">Peer ID: <b id="roomCode">—</b></div>
-    <div id="netLog"></div>
-  </div>
+  let ctx = null;
+  let game = null;
+  let cameraX = 0;
 
-  <div id="gameRoot" class="hidden">
-    <div id="topBar">
-      <h1>🍄 버섯 어드벤처</h1>
-      <div id="info">← → 이동 · 스페이스 점프(2단!) · ↓ 불/얼음 · 파이프+↓ 지하 · 🪶 깃털=비행</div>
-      <div id="hud">
-        <div>코인: <span id="coins">0</span></div>
-        <div>불꽃: <span id="fireballsAmmo">0</span> · ❄️ <span id="iceAmmo">0</span></div>
-        <div>상태: <span id="status">작음</span> · 🪶 <span id="featherTime">-</span></div>
-        <div>보스 HP: <span id="bossHp">-</span></div>
-      </div>
-      <div id="playerTags"></div>
-    </div>
-    <div id="stage">
-      <button type="button" id="backBtn" class="btn-ghost">← 로비</button>
-      <div id="gameFrame">
-        <canvas id="game"></canvas>
-      </div>
-    </div>
-    <div id="controls">
-      <button id="btnLeft" class="ctrl-btn">◀</button>
-      <button id="btnDown" class="ctrl-btn">▼</button>
-      <button id="btnJump" class="ctrl-btn">점프</button>
-      <button id="btnRight" class="ctrl-btn">▶</button>
-    </div>
-    <div id="overlay">
-      <h2 id="overlayTitle">게임 오버</h2>
-      <p id="overlayMsg"></p>
-      <button id="restartBtn">다시 시작</button>
-      <button id="btnToLobby" class="lobby-btn btn-ghost" style="margin-top:10px">로비로</button>
-    </div>
-  </div>
-
-  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
-<script>
-/**
- * 멀티 게임 대기실 — 초대 URL · QR · 방 코드 표시
- * iframe(/play/slug) 및 단독 HTML(/games/slug) 모두 지원
- */
-(function (global) {
-  'use strict';
-
-  function getInviteUrl(hostPeerId) {
-    if (!hostPeerId) return global.location.href;
-    try {
-      if (global.self !== global.top) {
-        const parentUrl = new URL(global.parent.location.href);
-        const playMatch = parentUrl.pathname.match(/\/play\/([^/]+)/);
-        if (playMatch) {
-          const u = new URL(parentUrl.origin + '/play/' + playMatch[1]);
-          u.searchParams.set('join', hostPeerId);
-          return u.toString();
-        }
-      }
-    } catch (_) {
-      /* cross-origin parent */
-    }
-    const gameMatch = global.location.pathname.match(/\/games\/([^/]+)\//);
-    if (gameMatch) {
-      const u = new URL(global.location.origin + '/play/' + gameMatch[1]);
-      u.searchParams.set('join', hostPeerId);
-      return u.toString();
-    }
-    const u = new URL(global.location.href);
-    u.search = '';
-    u.searchParams.set('join', hostPeerId);
-    return u.toString();
-  }
-
-  function drawQr(canvas, url) {
-    if (!canvas || !global.QRCode) return;
-    canvas.style.display = '';
-    global.QRCode.toCanvas(
-      canvas,
-      url,
-      { width: 176, margin: 1, color: { dark: '#0f172a', light: '#ffffff' } },
-      function (err) {
-        if (err) canvas.style.display = 'none';
-      }
-    );
-  }
-
-  function setLinkEl(el, url) {
-    if (!el) return;
-    el.textContent = url;
-    if (el.tagName === 'A') {
-      el.href = url;
-      el.target = '_blank';
-      el.rel = 'noopener';
-    }
-  }
-
-  function setupHost(hostPeerId, els) {
-    const url = getInviteUrl(hostPeerId);
-    if (els && els.inviteCodeEl) {
-      els.inviteCodeEl.textContent = '방 코드: ' + hostPeerId;
-    }
-    setLinkEl(els && els.inviteLinkEl, url);
-    if (els && els.hintEl) {
-      els.hintEl.textContent = '링크를 열거나 QR을 스캔하면 자동 참가';
-    }
-    drawQr(els && els.qrCanvas, url);
-    return url;
-  }
-
-  global.InviteShare = {
-    getInviteUrl: getInviteUrl,
-    setupHost: setupHost,
-    drawQr: drawQr,
-  };
-})(typeof window !== 'undefined' ? window : globalThis);
-
-</script>
-
-  <script>
-  (function () {
-    'use strict';
-    const IS_FILE = location.protocol === 'file:';
-    const USE_ROOM_CODE = true;
-    const MAX_PLAYERS = 4;
-    const TICK_HZ = 60;
-    const TICK_MS = 1000 / TICK_HZ;
-    const PLAYER_DEFS = [
-      { emoji: '🍄', name: '레드', hat: '#dc2626', overall: '#2563eb' },
-      { emoji: '🔵', name: '블루', hat: '#1d4ed8', overall: '#0369a1' },
-      { emoji: '🟡', name: '옐로', hat: '#ca8a04', overall: '#b45309' },
-      { emoji: '🟣', name: '퍼플', hat: '#7c3aed', overall: '#5b21b6' }
-    ];
-    const canvas = document.getElementById('game');
-    const ctx = canvas.getContext('2d');
-    const DESIGN_W = 900;
-    const DESIGN_H = 500;
-    const DESIGN_AR = DESIGN_W / DESIGN_H;
-    const VW = DESIGN_W;
-    const VH = DESIGN_H;
-    canvas.width = VW;
-    canvas.height = VH;
-
-    const stageEl = document.getElementById('stage');
-    const frameEl = document.getElementById('gameFrame');
-    const topBarEl = document.getElementById('topBar');
-    const controlsEl = document.getElementById('controls');
-
-    function layoutGameFrame() {
-      const vv = window.visualViewport;
-      const vw = vv ? vv.width : window.innerWidth;
-      const vh = vv ? vv.height : window.innerHeight;
-      const topH = topBarEl.getBoundingClientRect().height;
-      const ctrlH = controlsEl.getBoundingClientRect().height;
-      const padX = 16;
-      const padY = 12;
-      const availW = Math.max(0, vw - padX);
-      const availH = Math.max(0, vh - topH - ctrlH - padY);
-      if (availW <= 0 || availH <= 0) return;
-
-      const maxScale = Math.min(availW / DESIGN_W, availH / DESIGN_H, 960 / DESIGN_W);
-      const minScale = 260 / DESIGN_W;
-      const canFitMin = availW >= 260 && availH >= 260 / DESIGN_AR;
-      const scale = canFitMin ? Math.max(maxScale, minScale) : maxScale;
-
-      const w = Math.floor(DESIGN_W * scale);
-      const h = Math.floor(DESIGN_H * scale);
-      frameEl.style.width = w + 'px';
-      frameEl.style.height = h + 'px';
-    }
-
-    let layoutQueued = false;
-    function queueLayout() {
-      if (layoutQueued) return;
-      layoutQueued = true;
-      requestAnimationFrame(() => {
-        layoutQueued = false;
-        layoutGameFrame();
-      });
-    }
-
-    const GRAVITY = 0.58;
-    const FRICTION = 0.8;
-    const MOVE_SPEED = 0.55;
-    const MAX_SPEED = 4.8;
-    const JUMP_FORCE = -11.5;
-    const DOUBLE_JUMP_FORCE = -10;
-    const WORLD_W = 4800;
-    const UNDERGROUND_W = 1400;
-    const FEATHER_DURATION = 3600;
-    const PIPE_COOLDOWN = 50;
-
-    function getWorldW() {
-      return game && game.world === 'underground' ? UNDERGROUND_W : WORLD_W;
-    }
-
-    let game = null;
-
-    const WwNet = (function () {
-      const PROTO = 1;
-      let peer = null, guestConn = null;
-      const clients = new Map();
-      let isHost = false, myIndex = 0, roomId = '', gameStarted = false;
-      let onData = null, onOpen = null, onClose = null, onError = null, onLobby = null;
-
-      function allocSlot() {
-        for (let i = 1; i < MAX_PLAYERS; i++) if (!clients.has(i)) return i;
-        return -1;
-      }
-      function buildRoster() {
-        const roster = [{ index: 0, emoji: PLAYER_DEFS[0].emoji, name: PLAYER_DEFS[0].name + (isHost ? ' (방장)' : ''), connected: true }];
-        [...clients.keys()].sort((a, b) => a - b).forEach(idx => {
-          roster.push({ index: idx, emoji: PLAYER_DEFS[idx].emoji, name: PLAYER_DEFS[idx].name, connected: true });
-        });
-        return roster;
-      }
-      function broadcast(data) { clients.forEach(({ conn }) => { if (conn.open) conn.send(data); }); }
-      function broadcastLobby() {
-        const payload = { type: 'LOBBY', proto: PROTO, roster: buildRoster(), playerCount: buildRoster().length };
-        broadcast(payload); onLobby && onLobby(payload);
-      }
-      function sendToHost(data) { if (guestConn && guestConn.open) guestConn.send(data); }
-
-      function initPeer(opts) {
-        const { asHost, remoteId, handlers } = opts;
-        isHost = asHost; myIndex = asHost ? 0 : -1; gameStarted = false;
-        clients.clear(); guestConn = null;
-        onData = handlers.onData || null; onOpen = handlers.onOpen || null;
-        onClose = handlers.onClose || null; onError = handlers.onError || null; onLobby = handlers.onLobby || null;
-        peer = new Peer({ debug: 0 });
-        peer.on('open', (id) => {
-          roomId = id;
-          if (asHost) {
-            peer.on('connection', (connection) => {
-              connection.on('open', () => {
-                if (gameStarted) {
-                  connection.send({ type: 'REJECT', reason: '이미 게임이 시작되었습니다' });
-                  setTimeout(() => connection.close(), 300); return;
-                }
-                const slot = allocSlot();
-                if (slot < 0) {
-                  connection.send({ type: 'REJECT', reason: '방이 가득 찼습니다 (최대 4인)' });
-                  setTimeout(() => connection.close(), 300); return;
-                }
-                clients.set(slot, { conn: connection });
-                connection.send({ type: 'WELCOME', proto: PROTO, index: slot, roster: buildRoster() });
-                broadcastLobby();
-                onOpen && onOpen({ role: 'host', clientJoined: true, index: slot });
-                connection.on('data', (data) => {
-                  if (typeof data === 'object' && data !== null) data.from = slot;
-                  onData && onData(data);
-                });
-                connection.on('close', () => {
-                  clients.delete(slot);
-                  if (!gameStarted) broadcastLobby();
-                  else onData && onData({ type: 'PEER_LEFT', index: slot });
-                });
-              });
-            });
-            onOpen && onOpen({ id, role: 'host', roomReady: true });
-          } else {
-            guestConn = peer.connect(remoteId.trim(), { reliable: true });
-            guestConn.on('open', () => onOpen && onOpen({ role: 'client', connOpen: true }));
-            guestConn.on('data', (data) => { if (data.type === 'WELCOME') myIndex = data.index; onData && onData(data); });
-            guestConn.on('close', () => { guestConn = null; onClose && onClose(); });
-          }
-        });
-        peer.on('error', (err) => { onError && onError(err); });
-      }
-      function startGameBroadcast(playerCount, seed) {
-        gameStarted = true;
-        broadcast({ type: 'START', proto: PROTO, playerCount, seed });
-      }
-      function destroy() {
-        clients.forEach(({ conn }) => { try { conn.close(); } catch (e) {} });
-        clients.clear();
-        if (guestConn) guestConn.close();
-        if (peer) peer.destroy();
-        guestConn = null; peer = null; gameStarted = false; myIndex = 0;
-      }
-      return {
-        initPeer, broadcast, sendToHost, startGameBroadcast, destroy, buildRoster,
-        get isHost() { return isHost; },
-        get myIndex() { return myIndex; },
-        get roomId() { return roomId; },
-        get gameStarted() { return gameStarted; },
-        get playerCount() { return isHost ? buildRoster().length : 0; }
-      };
-    })();
-
-    function mulberry32(seed) {
-      let a = seed >>> 0;
-      return function () {
-        a |= 0;
-        a = (a + 0x6D2B79F5) | 0;
-        let t = Math.imul(a ^ (a >>> 15), 1 | a);
-        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-      };
-    }
-
-    const lobby = document.getElementById('lobby');
-    const gameRoot = document.getElementById('gameRoot');
-    const netLogEl = document.getElementById('netLog');
-    const roomBox = document.getElementById('roomBox');
-    const roomCode = document.getElementById('roomCode');
-    const roomInput = document.getElementById('roomInput');
-    const waitingBox = document.getElementById('waitingBox');
-    const inviteLinkEl = document.getElementById('inviteLink');
-    const waitingTitle = document.getElementById('waitingTitle');
-    const rosterListEl = document.getElementById('rosterList');
-    const btnStartGame = document.getElementById('btnStartGame');
-    const guestWaitHint = document.getElementById('guestWaitHint');
-    const joinPanel = document.getElementById('joinPanel');
-    const modeBlocks = document.getElementById('modeBlocks');
-    const coopBlock = document.getElementById('coopBlock');
-    const playerTagsEl = document.getElementById('playerTags');
-    let inCoopWait = false, currentInviteUrl = '';
-
-    function lobbyLog(msg) { netLogEl.textContent = msg + '\n' + netLogEl.textContent; }
-    function copyText(text, msg) {
-      const done = () => lobbyLog(msg);
-      if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done).catch(fallback);
-      else fallback();
-      function fallback() {
-        const ta = document.createElement('textarea');
-        ta.value = text; document.body.appendChild(ta); ta.select();
-        document.execCommand('copy'); ta.remove(); done();
-      }
-    }
-    function getInviteUrl(hostPeerId) {
-      const u = new URL(location.href);
-      u.search = ''; u.searchParams.set('join', hostPeerId);
-      return u.toString();
-    }
-    function updateRosterUI(data) {
-      const roster = data.roster || WwNet.buildRoster();
-      const count = data.playerCount || roster.length;
-      rosterListEl.innerHTML = '';
-      roster.forEach(r => {
-        const li = document.createElement('li');
-        li.textContent = `${r.emoji} ${r.name}`;
-        rosterListEl.appendChild(li);
-      });
-      for (let i = count; i < MAX_PLAYERS; i++) {
-        const li = document.createElement('li');
-        li.className = 'empty';
-        li.textContent = `${PLAYER_DEFS[i].emoji} (빈 슬롯)`;
-        rosterListEl.appendChild(li);
-      }
-      waitingTitle.textContent = `대기실 — ${count}/${MAX_PLAYERS}명`;
-      if (WwNet.isHost) {
-        btnStartGame.disabled = count < 2;
-        btnStartGame.textContent = count < 2 ? '게임 시작 (2인 이상)' : `게임 시작 (${count}인)`;
-      }
-    }
-    function showCoopWait(hostPeerId, asHost) {
-      inCoopWait = true;
-      roomCode.textContent = hostPeerId;
-      roomBox.classList.remove('hidden');
-      modeBlocks.classList.add('hidden');
-      coopBlock.classList.add('hidden');
-      joinPanel.classList.add('hidden');
-      waitingBox.classList.remove('hidden');
-      btnStartGame.classList.toggle('hidden', !asHost);
-      guestWaitHint.classList.toggle('hidden', asHost);
-      document.getElementById('btnCopyLink').classList.toggle('hidden', !asHost);
-      if (asHost) {
-        currentInviteUrl = InviteShare.setupHost(hostPeerId, {
-          inviteLinkEl,
-          inviteCodeEl: document.getElementById('inviteCodeText'),
-          qrCanvas: document.getElementById('inviteQr')
-        });
-        document.getElementById('btnCopyLink').textContent = '초대 링크 복사';
-      } else {
-        inviteLinkEl.textContent = '방장이 「게임 시작」을 누를 때까지 대기';
-        inviteLinkEl.href = '#';
-      }
-      updateRosterUI({ roster: WwNet.buildRoster(), playerCount: WwNet.isHost ? 1 : 0 });
-      lobbyLog(asHost ? '대기실 열림 — 친구를 초대하세요' : '대기실 입장 — 방장 시작 대기');
-    }
-    function hideCoopWait() {
-      inCoopWait = false;
-      waitingBox.classList.add('hidden');
-      roomBox.classList.add('hidden');
-      modeBlocks.classList.remove('hidden');
-      coopBlock.classList.remove('hidden');
-      if (USE_ROOM_CODE) joinPanel.classList.remove('hidden');
-      currentInviteUrl = '';
-    }
-    function showLobby() {
-      if (game) { game.stop(); game = null; }
-      WwNet.destroy();
-      hideCoopWait();
-      document.getElementById('overlay').classList.remove('show');
-      gameRoot.classList.add('hidden');
-      lobby.classList.remove('hidden');
-      if (!IS_FILE) history.replaceState(null, '', location.pathname);
-    }
-    function showGameView() {
-      hideCoopWait();
-      lobby.classList.add('hidden');
-      gameRoot.classList.remove('hidden');
-      queueLayout();
-    }
-
-    let cameraX = 0;
-
-    const overworldPlatforms = [
+const overworldPlatforms = [
       { x: 0, y: 440, w: 730, h: 60 },
       { x: 815, y: 440, w: 370, h: 60 },
       { x: 1270, y: 440, w: 420, h: 60 },
@@ -1784,7 +1142,7 @@
         this.gameOver = false;
         this.gameWon = false;
         cameraX = 0;
-        document.getElementById('overlay').classList.remove('show');
+        getHudEl('overlay').classList.remove('show');
         this.updateHUD();
         this.updatePlayerTags();
       }
@@ -1910,11 +1268,11 @@
 
       endGame(won, msg) {
         this.gameOver = true;
-        document.getElementById('overlayTitle').textContent = won ? '🎉 클리어!' : '💀 게임 오버';
-        document.getElementById('overlayMsg').textContent = msg;
-        document.getElementById('overlay').classList.add('show');
+        getHudEl('overlayTitle').textContent = won ? '🎉 클리어!' : '💀 게임 오버';
+        getHudEl('overlayMsg').textContent = msg;
+        getHudEl('overlay').classList.add('show');
         if (!this.solo && this.isHost) {
-          WwNet.broadcast({ type: 'END', proto: 1, won, msg });
+          netBroadcast({ type: 'END', proto: 1, won, msg });
         }
       }
 
@@ -1950,22 +1308,22 @@
       updateHUD() {
         const me = this.me();
         const collected = this.totalCoinsCollected();
-        document.getElementById('coins').textContent = collected;
-        document.getElementById('fireballsAmmo').textContent = this.coinsCount;
-        document.getElementById('iceAmmo').textContent = this.iceAmmo;
+        getHudEl('coins').textContent = collected;
+        getHudEl('fireballsAmmo').textContent = this.coinsCount;
+        getHudEl('iceAmmo').textContent = this.iceAmmo;
         let status = me && me.alive ? (me.big ? '큼' : '작음') : '전멸';
         if (me && me.featherTimer > 0) status += ' · 비행';
-        document.getElementById('status').textContent = status;
-        document.getElementById('featherTime').textContent =
+        getHudEl('status').textContent = status;
+        getHudEl('featherTime').textContent =
           me && me.featherTimer > 0 ? Math.ceil(me.featherTimer / 60) + 's' : '-';
-        document.getElementById('bossHp').textContent =
+        getHudEl('bossHp').textContent =
           this.world === 'underground' ? '지하' :
           (this.boss && this.boss.alive ? this.boss.hp : '처치!');
       }
 
       updatePlayerTags() {
-        if (this.solo) { playerTagsEl.innerHTML = ''; return; }
-        playerTagsEl.innerHTML = this.players.map((p, i) => {
+        if (this.solo) { getHudEl('playerTags').innerHTML = ''; return; }
+        getHudEl('playerTags').innerHTML = this.players.map((p, i) => {
           const cls = 'ptag' + (i === this.myIndex ? ' me' : '') + (p.alive ? '' : ' dead');
           return `<span class="${cls}">${p.def.emoji} ${p.def.name}${i === this.myIndex ? ' (나)' : ''}</span>`;
         }).join('');
@@ -2110,7 +1468,7 @@
         if (tick !== this.simTick || this.gameOver) return;
         const inputs = this.getInputsArray(tick);
         if (!this.solo && this.isHost) {
-          WwNet.broadcast({ type: 'FRAME', proto: 1, tick, inputs });
+          netBroadcast({ type: 'FRAME', proto: 1, tick, inputs });
         }
         this.applyFrame(tick, inputs);
       }
@@ -2199,7 +1557,7 @@
             this.simAccumulator -= TICK_MS;
             const tick = this.simTick;
             if (this.lastSentInputTick < tick) {
-              WwNet.sendToHost({ type: 'INP', proto: 1, tick, input: this.sampleLocalInput() });
+              WwNetRef.sendToHost({ type: 'INP', proto: 1, tick, input: this.sampleLocalInput() });
               this.lastSentInputTick = tick;
             }
           }
@@ -2224,7 +1582,7 @@
 
       restart() {
         this.stop();
-        document.getElementById('overlay').classList.remove('show');
+        getHudEl('overlay').classList.remove('show');
         this.start();
       }
     }
@@ -2358,189 +1716,21 @@
       ctx.lineTo(fx + 8, 250);
       ctx.fill();
     }
-
-    function setInput(key, active) {
-      if (!game || game.gameOver) return;
-      const me = game.me();
-      if (!me || !me.alive) return;
-      if (key === 'left') me.input.left = active;
-      if (key === 'right') me.input.right = active;
-      if (key === 'jump') {
-        if (active) me.input.jumpPressed = true;
-        me.input.jumpHeld = active;
-      }
-      if (key === 'down') me.input.downPressed = active;
-      document.getElementById('btnLeft').classList.toggle('active', me.input.left);
-      document.getElementById('btnRight').classList.toggle('active', me.input.right);
-      document.getElementById('btnDown').classList.toggle('active', me.input.downPressed);
-      document.getElementById('btnJump').classList.toggle('active', me.input.jumpHeld);
-    }
-
-    function bindBtn(btn, key) {
-      const start = (e) => { e.preventDefault(); setInput(key, true); };
-      const stop = (e) => {
-        e.preventDefault();
-        setInput(key, false);
-      };
-      btn.addEventListener('pointerdown', start);
-      btn.addEventListener('pointerup', stop);
-      btn.addEventListener('pointerleave', stop);
-      btn.addEventListener('pointercancel', stop);
-    }
-
-    const keyMap = {
-      ArrowLeft: 'left', ArrowRight: 'right',
-      ArrowUp: 'jump', ' ': 'jump',
-      ArrowDown: 'down', s: 'down', S: 'down',
-      a: 'left', A: 'left', d: 'right', D: 'right',
-      w: 'jump', W: 'jump'
-    };
-
-    window.addEventListener('keydown', (e) => {
-      const k = keyMap[e.key];
-      if (!k) return;
-      e.preventDefault();
-      setInput(k, true);
-    });
-    window.addEventListener('keyup', (e) => {
-      const k = keyMap[e.key];
-      if (!k) return;
-      e.preventDefault();
-      setInput(k, false);
-    });
-    window.addEventListener('blur', () => {
-      if (!game) return;
-      const me = game.me();
-      if (!me) return;
-      me.input.left = false; me.input.right = false;
-      me.input.downPressed = false; me.input.jumpHeld = false;
-      document.getElementById('btnLeft').classList.remove('active');
-      document.getElementById('btnRight').classList.remove('active');
-      document.getElementById('btnDown').classList.remove('active');
-      document.getElementById('btnJump').classList.remove('active');
-    });
-
-    bindBtn(document.getElementById('btnLeft'), 'left');
-    bindBtn(document.getElementById('btnRight'), 'right');
-    bindBtn(document.getElementById('btnJump'), 'jump');
-    bindBtn(document.getElementById('btnDown'), 'down');
-
-    document.getElementById('restartBtn').addEventListener('click', () => {
-      if (game) { game.restart(); queueLayout(); }
-    });
-    document.getElementById('btnToLobby').addEventListener('click', showLobby);
-    document.getElementById('backBtn').addEventListener('click', showLobby);
-
-    function hostBeginGame() {
-      const count = WwNet.playerCount;
-      if (count < 2) return;
-      const seed = Date.now() >>> 0;
-      WwNet.startGameBroadcast(count, seed);
-      showGameView();
-      game = new MarioGame({
-        solo: false, isHost: true, myIndex: 0, playerCount: count, seed
-      });
-      game.start();
-    }
-
-    function clientBeginGame(playerCount, seed) {
-      showGameView();
-      game = new MarioGame({
-        solo: false, isHost: false, myIndex: WwNet.myIndex, playerCount, seed
-      });
-      game.start();
-    }
-
-    function startSolo() {
-      showGameView();
-      game = new MarioGame({ solo: true, isHost: true, myIndex: 0, playerCount: 1 });
-      game.start();
-    }
-
-    function handleNetData(data) {
-      if (data.type === 'LOBBY') updateRosterUI(data);
-      else if (data.type === 'WELCOME' && !WwNet.isHost) {
-        showCoopWait(roomInput.value.trim(), false);
-        updateRosterUI({ roster: data.roster, playerCount: data.roster.length });
-        lobbyLog(`대기실 입장 (${PLAYER_DEFS[data.index].emoji} ${PLAYER_DEFS[data.index].name})`);
-      } else if (data.type === 'START' && !WwNet.isHost) {
-        clientBeginGame(data.playerCount, data.seed);
-        lobbyLog(`${data.playerCount}인 협동 시작!`);
-      } else if (data.type === 'FRAME' && game && !game.isHost) {
-        game.onFrame(data.tick, data.inputs);
-      } else if (data.type === 'INP' && game && WwNet.isHost && data.from != null) {
-        game.onRemoteInput(data.from, data.tick, data.input);
-      } else if (data.type === 'PEER_LEFT' && game) {
-        game.onPeerLeft(data.index);
-        lobbyLog(`${PLAYER_DEFS[data.index]?.emoji || '?'} 퇴장`);
-      } else if (data.type === 'END' && game && !game.isHost && !game.gameOver) {
-        game.gameOver = true;
-        game.gameWon = !!data.won;
-        game.stop();
-        document.getElementById('overlayTitle').textContent = data.won ? '🎉 클리어!' : '💀 게임 오버';
-        document.getElementById('overlayMsg').textContent = data.msg || '';
-        document.getElementById('overlay').classList.add('show');
-      } else if (data.type === 'REJECT') {
-        lobbyLog('거부: ' + data.reason);
-        if (!WwNet.isHost) showLobby();
-      }
-    }
-
-    function startNet(asHost) {
-      const remoteId = roomInput.value.trim();
-      if (!asHost && !remoteId) {
-        lobbyLog(USE_ROOM_CODE ? '방 코드를 입력하세요' : '초대 링크가 없습니다');
-        return;
-      }
-      WwNet.initPeer({
-        asHost, remoteId,
-        handlers: {
-          onOpen: (info) => {
-            if (info.role === 'host' && info.roomReady) showCoopWait(info.id, true);
-            else if (info.role === 'host' && info.clientJoined) lobbyLog(`${PLAYER_DEFS[info.index].emoji} 입장`);
-            else if (info.role === 'client' && info.connOpen) lobbyLog('호스트에 연결됨 — 대기실');
-          },
-          onLobby: updateRosterUI,
-          onData: handleNetData,
-          onClose: () => { if (!WwNet.gameStarted) lobbyLog('연결 종료'); else showLobby(); },
-          onError: (e) => lobbyLog('Peer 오류: ' + (e.type || e.message))
-        }
-      });
-    }
-
-    document.getElementById('btnSolo').addEventListener('click', startSolo);
-    document.getElementById('btnCoopHost').addEventListener('click', () => startNet(true));
-    document.getElementById('btnJoin').addEventListener('click', () => {
-      roomInput.value = document.getElementById('joinCodeInput').value.trim();
-      startNet(false);
-    });
-    document.getElementById('btnCopyLink').addEventListener('click', () => {
-      copyText(currentInviteUrl, '초대 링크 복사됨');
-    });
-    document.getElementById('btnStartGame').addEventListener('click', hostBeginGame);
-    document.getElementById('btnCancelWait').addEventListener('click', showLobby);
-
-    if (USE_ROOM_CODE) joinPanel.classList.remove('hidden');
-
-    const joinParam = new URLSearchParams(location.search).get('join');
-    if (joinParam) {
-      roomInput.value = joinParam;
-      lobbyLog('초대 감지 — 연결 중…');
-      startNet(false);
-    }
-
-    layoutGameFrame();
-    window.addEventListener('resize', queueLayout);
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', queueLayout);
-      window.visualViewport.addEventListener('scroll', queueLayout);
-    }
-    if (typeof ResizeObserver !== 'undefined') {
-      new ResizeObserver(queueLayout).observe(stageEl);
-      new ResizeObserver(queueLayout).observe(topBarEl);
-      new ResizeObserver(queueLayout).observe(controlsEl);
-    }
-  })();
-  </script>
-</body>
-</html>
+  return {
+    get game() { return game; },
+    set game(v) { game = v; },
+    get cameraX() { return cameraX; },
+    set cameraX(v) { cameraX = v; },
+    MarioGame,
+    win() { if (game) game.win(); },
+    initLevel() { if (game) game.initLevel(); },
+    drawBackground,
+    drawPipes,
+    drawFlag,
+    drawPopups,
+    getWorldW,
+    platforms: () => platforms,
+    setCtx(c) { ctx = c; },
+    getCtx() { return ctx || getCanvasContext(); },
+  };
+}
