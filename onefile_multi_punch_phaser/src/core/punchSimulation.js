@@ -1,4 +1,4 @@
-import { COLORS, PLAYER_DEFS, RULES, SPAWN_ANGLES } from "./constants.js";
+import { COLORS, PLAYER_DEFS, RULES, SPAWN_SPOTS, WORLD } from "./constants.js";
 import { mulberry32, randFrom, randIntFrom } from "./rng.js";
 import {
   Fighter,
@@ -10,11 +10,12 @@ function dist(x1, y1, x2, y2) {
   return Math.hypot(x2 - x1, y2 - y1);
 }
 
-function spawnPoint(angle, distFromCenter = 120) {
+function randomSpot(rng) {
+  const pad = RULES.worldMargin + 40;
   return {
-    x: RULES.arenaCx + Math.cos(angle) * distFromCenter,
-    y: RULES.arenaCy + Math.sin(angle) * distFromCenter,
-    angle: angle + Math.PI,
+    x: randFrom(rng, pad, WORLD.width - pad),
+    y: randFrom(rng, pad, WORLD.height - pad),
+    angle: randFrom(rng, 0, Math.PI * 2),
   };
 }
 
@@ -48,11 +49,10 @@ export class PunchSimulation {
   }
 
   spawnOrb() {
-    const a = randFrom(this.rng, 0, Math.PI * 2);
-    const r = randFrom(this.rng, 20, RULES.arenaRadius - 40);
+    const pad = RULES.worldMargin + RULES.orbRadius + 8;
     this.orbs.push({
-      x: RULES.arenaCx + Math.cos(a) * r,
-      y: RULES.arenaCy + Math.sin(a) * r,
+      x: randFrom(this.rng, pad, WORLD.width - pad),
+      y: randFrom(this.rng, pad, WORLD.height - pad),
       r: RULES.orbRadius,
       hue: randIntFrom(this.rng, 0, COLORS.orb.length - 1),
     });
@@ -77,7 +77,7 @@ export class PunchSimulation {
 
     const humans = this.solo ? 1 : this.playerCount;
     for (let i = 0; i < humans; i++) {
-      const spot = spawnPoint(SPAWN_ANGLES[i % SPAWN_ANGLES.length]);
+      const spot = SPAWN_SPOTS[i % SPAWN_SPOTS.length];
       this.fighters.push(
         new Fighter(spot.x, spot.y, {
           playerIndex: i,
@@ -88,8 +88,7 @@ export class PunchSimulation {
       );
     }
     for (let i = 0; i < RULES.initialAi; i++) {
-      const a = randFrom(this.rng, 0, Math.PI * 2);
-      const spot = spawnPoint(a, randFrom(this.rng, 60, 180));
+      const spot = randomSpot(this.rng);
       this.fighters.push(
         new Fighter(spot.x, spot.y, {
           color: COLORS.ai[i % COLORS.ai.length],
@@ -101,8 +100,7 @@ export class PunchSimulation {
   }
 
   spawnNewAI() {
-    const a = randFrom(this.rng, 0, Math.PI * 2);
-    const spot = spawnPoint(a, randFrom(this.rng, 80, 200));
+    const spot = randomSpot(this.rng);
     let safe = true;
     for (const f of this.fighters) {
       if (f.alive && dist(spot.x, spot.y, f.x, f.y) < 80) {
@@ -147,18 +145,15 @@ export class PunchSimulation {
   resolvePunches() {
     for (const attacker of this.fighters) {
       if (!attacker.alive || attacker.punchTimer <= 0 || attacker.punchDealt) continue;
-      const hit = attacker.punchHitPoint();
+      const glove = attacker.getPunchGlove();
       for (const target of this.fighters) {
         if (target === attacker || !target.alive) continue;
-        const d = dist(hit.x, hit.y, target.x, target.y);
-        if (d < hit.reach + target.radius) {
+        if (attacker.punchHits(target)) {
           attacker.combo += 1;
           attacker.comboTimer = RULES.comboWindowTicks;
-          const dmg =
-            RULES.punchDamage +
-            Math.min(attacker.combo - 1, 5) * RULES.comboDamageBonus;
-          const ko = target.takeHit(attacker, dmg, 1 + attacker.combo * 0.05);
-          this.onHit({ x: hit.x, y: hit.y, attacker: attacker.id, target: target.id });
+          const knockMult = 1 + Math.min(attacker.combo - 1, 5) * RULES.comboKnockbackBonus;
+          const ko = target.takeHit(attacker, knockMult);
+          this.onHit({ x: glove.x, y: glove.y, attacker: attacker.id, target: target.id });
           attacker.punchDealt = true;
           if (ko) {
             attacker.kills += 1;

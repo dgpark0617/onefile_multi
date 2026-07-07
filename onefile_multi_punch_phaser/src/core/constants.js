@@ -9,28 +9,26 @@ export const RULES = {
   tickHz: 30,
   tickMs: 1000 / 30,
   turnSpeed: 0.1,
-  baseSpeed: 2.6,
+  baseSpeed: 1.3,
   baseRadius: 14,
-  baseHp: 100,
-  punchDamage: 18,
+  baseHearts: 3,
+  heartsPerOrb: 1,
   punchKnockback: 3.8,
   punchCooldownTicks: 14,
-  punchActiveTicks: 5,
-  punchReach: 30,
-  punchSideAngle: 0.55,
+  punchActiveTicks: 6,
+  punchReach: 32,
+  punchShoulderRatio: 0.58,
+  punchConverge: 0.58,
   knockbackFriction: 0.84,
+  hitInvincibleTicks: 18,
   orbCount: 20,
   orbRadius: 7,
   scalePerOrb: 0.07,
-  hpPerOrb: 10,
-  healPerOrb: 14,
   initialAi: 2,
   aiSpawnTicks: 30 * 8,
-  arenaRadius: 255,
-  arenaCx: 450,
-  arenaCy: 300,
+  worldMargin: 24,
   comboWindowTicks: 20,
-  comboDamageBonus: 4,
+  comboKnockbackBonus: 0.08,
 };
 
 export const PLAYER_DEFS = [
@@ -43,9 +41,13 @@ export const PLAYER_DEFS = [
 export const COLORS = {
   ai: ["#f472b6", "#fb923c", "#2dd4bf", "#94a3b8"],
   bg: "#1a1030",
-  ring: "#4c1d95",
-  ringLine: "#a78bfa",
+  grid: "#23314f",
   orb: ["#f472b6", "#60a5fa", "#fbbf24", "#34d399", "#c084fc"],
 };
 
-export const SPAWN_ANGLES = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
+export const SPAWN_SPOTS = [
+  { x: 140, y: WORLD.height - 140, angle: -Math.PI / 2 },
+  { x: WORLD.width - 140, y: WORLD.height - 140, angle: Math.PI },
+  { x: WORLD.width - 140, y: 140, angle: Math.PI / 2 },
+  { x: 140, y: 140, angle: 0 },
+];

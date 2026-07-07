@@ -25,7 +25,7 @@ export class PunchArenaScene extends Phaser.Scene {
     this.paintArena(this.bgGraphics);
 
     this.graphics = this.add.graphics().setDepth(1);
-    this.hudCache = { hp: -1, kills: -1, scale: -1, fwd: null };
+    this.hudCache = { hearts: -1, kills: -1, scale: -1, fwd: null };
 
     this.keys = this.input.keyboard.addKeys({
       left: Phaser.Input.Keyboard.KeyCodes.LEFT,
@@ -81,14 +81,22 @@ export class PunchArenaScene extends Phaser.Scene {
   paintArena(g) {
     g.fillStyle(hexToPhaserColor(COLORS.bg), 1);
     g.fillRect(0, 0, WORLD.width, WORLD.height);
-    g.fillStyle(hexToPhaserColor("#2e1065"), 0.5);
-    g.fillCircle(RULES.arenaCx, RULES.arenaCy, RULES.arenaRadius + 8);
-    g.fillStyle(hexToPhaserColor("#3b0764"), 1);
-    g.fillCircle(RULES.arenaCx, RULES.arenaCy, RULES.arenaRadius);
-    g.lineStyle(4, hexToPhaserColor(COLORS.ringLine), 0.9);
-    g.strokeCircle(RULES.arenaCx, RULES.arenaCy, RULES.arenaRadius);
-    g.lineStyle(2, hexToPhaserColor("#6d28d9"), 0.35);
-    g.strokeCircle(RULES.arenaCx, RULES.arenaCy, RULES.arenaRadius * 0.55);
+    g.lineStyle(1, hexToPhaserColor(COLORS.grid), 0.45);
+    for (let x = 0; x < WORLD.width; x += 40) {
+      g.beginPath();
+      g.moveTo(x, 0);
+      g.lineTo(x, WORLD.height);
+      g.strokePath();
+    }
+    for (let y = 0; y < WORLD.height; y += 40) {
+      g.beginPath();
+      g.moveTo(0, y);
+      g.lineTo(WORLD.width, y);
+      g.strokePath();
+    }
+    const m = RULES.worldMargin;
+    g.lineStyle(3, hexToPhaserColor("#6d28d9"), 0.7);
+    g.strokeRect(m, m, WORLD.width - m * 2, WORLD.height - m * 2);
   }
 
   getPlayerInput() {
@@ -130,6 +138,20 @@ export class PunchArenaScene extends Phaser.Scene {
     this.draw();
   }
 
+  drawHearts(g, x, y, hearts, maxHearts, r) {
+    const size = Math.max(4, r * 0.22);
+    const gap = size * 2.4;
+    const startX = x - ((maxHearts - 1) * gap) / 2;
+    for (let i = 0; i < maxHearts; i++) {
+      const hx = startX + i * gap;
+      const filled = i < hearts;
+      g.fillStyle(filled ? hexToPhaserColor("#ef4444") : 0x000000, filled ? 1 : 0.35);
+      g.fillCircle(hx, y, size);
+      g.lineStyle(1, hexToPhaserColor("#fca5a5"), filled ? 0.8 : 0.3);
+      g.strokeCircle(hx, y, size);
+    }
+  }
+
   draw() {
     const sim = this.sim;
     this.graphics.clear();
@@ -146,13 +168,13 @@ export class PunchArenaScene extends Phaser.Scene {
 
     const me = sim.myFighter();
     if (me) {
-      const hpStr = `HP ${Math.max(0, Math.ceil(me.hp))}/${me.maxHp}`;
+      const heartStr = `♥ ${Math.max(0, me.hearts)}/${me.maxHearts}`;
       const killStr = `KO ${me.kills}`;
       const sizeStr = `크기 x${me.scale.toFixed(2)}`;
       const fwdStr = `전진 ${me.forwardOn ? "ON" : "off"}`;
-      if (this.hudCache.hp !== hpStr) {
-        this.hudCache.hp = hpStr;
-        this.hpText.setText(hpStr);
+      if (this.hudCache.hearts !== heartStr) {
+        this.hudCache.hearts = heartStr;
+        this.hpText.setText(heartStr);
       }
       if (this.hudCache.kills !== killStr) {
         this.hudCache.kills = killStr;
@@ -174,6 +196,11 @@ export class PunchArenaScene extends Phaser.Scene {
     const r = f.radius;
     const myIdx = this.sim.myIndex;
 
+    if (f.hitFlash > 0 && f.hitFlash % 4 < 2) {
+      this.graphics.fillStyle(0xffffff, 0.35);
+      this.graphics.fillCircle(f.x, f.y, r + 3);
+    }
+
     this.graphics.fillStyle(hexToPhaserColor(f.color), 1);
     this.graphics.fillCircle(f.x, f.y, r);
     this.graphics.lineStyle(2, 0xffffff, f.playerIndex === myIdx ? 0.55 : 0.25);
@@ -189,28 +216,14 @@ export class PunchArenaScene extends Phaser.Scene {
     this.graphics.fillCircle(ex2, ey2, Math.max(2, r * 0.18));
 
     if (f.punchTimer > 0) {
-      const side = f.punchSide === "left" ? -RULES.punchSideAngle : RULES.punchSideAngle;
-      const a = f.angle + side;
-      const reach = RULES.punchReach * f.scale;
-      const gx = f.x + Math.cos(a) * (r + reach * 0.5);
-      const gy = f.y + Math.sin(a) * (r + reach * 0.5);
-      this.graphics.fillStyle(hexToPhaserColor("#fde047"), 0.85);
-      this.graphics.fillCircle(gx, gy, r * 0.55);
-      this.graphics.lineStyle(2, 0xffffff, 0.6);
-      this.graphics.strokeCircle(gx, gy, r * 0.55);
+      const glove = f.getPunchGlove();
+      this.graphics.fillStyle(hexToPhaserColor("#fde047"), 0.9);
+      this.graphics.fillCircle(glove.x, glove.y, glove.r);
+      this.graphics.lineStyle(2, 0xffffff, 0.65);
+      this.graphics.strokeCircle(glove.x, glove.y, glove.r);
     }
 
-    if (f.isHuman() && !this.sim.solo) {
-      const tag = f.playerIndex === myIdx ? "나" : PLAYER_DEFS[f.playerIndex]?.emoji || "";
-      this.graphics.fillStyle(0xffffff, 0.9);
-    }
-
-    const hpPct = Math.max(0, f.hp / f.maxHp);
-    const barW = r * 2;
-    this.graphics.fillStyle(0x000000, 0.45);
-    this.graphics.fillRect(f.x - barW / 2, f.y - r - 10, barW, 5);
-    this.graphics.fillStyle(hexToPhaserColor(hpPct > 0.35 ? "#22c55e" : "#ef4444"), 1);
-    this.graphics.fillRect(f.x - barW / 2, f.y - r - 10, barW * hpPct, 5);
+    this.drawHearts(this.graphics, f.x, f.y - r - 12, f.hearts, f.maxHearts, r);
 
     if (f.forwardOn) {
       const fx = f.x + Math.cos(f.angle) * (r + 6);
