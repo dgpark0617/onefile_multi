@@ -1,0 +1,17 @@
+{
+  "name": "onefile-multi-chart-predict",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev-server.mjs",
+    "build": "node scripts/build-onefile.mjs",
+    "fetch-data": "python scripts/fetch_upbit_ohlcv.py"
+  },
+  "dependencies": {
+    "phaser": "^3.90.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.6"
+  }
+}

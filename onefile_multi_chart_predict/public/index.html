@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>차트 예측 — Phaser</title>
+  <link rel="stylesheet" href="../src/ui/lobby.css" />
+  <style>
+  html, body { margin: 0; height: 100%; background: #070b14; overflow: hidden; }
+  #gameShell { display: flex; flex-direction: column; height: 100dvh; width: 100vw; background: #070b14; }
+  #app { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+  #app canvas {
+    width: min(100%, 900px) !important;
+    height: auto !important;
+    aspect-ratio: 900 / 560;
+    display: block;
+    border: 1px solid #1e3a5f;
+    border-radius: 14px;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(56, 189, 248, 0.08);
+  }
+  #gameShellHeader {
+    flex-shrink: 0;
+    text-align: center;
+    padding: 8px 10px 6px;
+    border-bottom: 1px solid #1e293b;
+    background: rgba(7, 11, 20, 0.9);
+  }
+  #gameShellHeader h1 {
+    margin: 0;
+    font-size: clamp(0.9rem, 3.2vw, 1.05rem);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    background: linear-gradient(90deg, #38bdf8, #34d399);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-family: "Pretendard", "Segoe UI", system-ui, sans-serif;
+  }
+  #backBtn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 5;
+    font-size: 0.78rem;
+    padding: 7px 12px;
+    border-radius: 8px;
+  }
+  #gameWrap { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; padding: 8px; }
+  </style>
+</head>
+<body>
+  <div id="lobby">
+    <h1>📈 차트 예측</h1>
+    <p class="sub">업비트 BTC/KRW · 1시간봉 · 방향 맞추기</p>
+    <div class="hint">
+      <strong>플레이</strong> 50봉 차트 분석 → 상승/하락 선택 → 결과보기<br>
+      <strong>정답</strong> 이후 10봉 종가 방향 · 하트 5개<br>
+      <strong>키</strong> ↑ 상승 · ↓ 하락 · Enter 결과보기
+    </div>
+
+    <div class="mode-block">
+      <h2>솔로 챌린지</h2>
+      <p>실제 과거 차트로 무한 예측 · 연속 정답 콤보 보너스</p>
+      <button class="btn-green" id="btnSolo">시작하기</button>
+    </div>
+  </div>
+
+  <div id="gameShell" class="hidden">
+    <div id="gameShellHeader"><h1>CHART PREDICT</h1></div>
+    <div id="gameWrap">
+      <button type="button" id="backBtn" class="btn-ghost">← 로비</button>
+      <div id="app"></div>
+    </div>
+    <div id="controls">
+      <button id="btnLong" class="ctrl-btn long" type="button">
+        <span class="ico">▲</span>
+        <span>상승</span>
+      </button>
+      <button id="btnShort" class="ctrl-btn short" type="button">
+        <span class="ico">▼</span>
+        <span>하락</span>
+      </button>
+      <button id="btnReveal" class="ctrl-btn reveal" type="button" disabled>
+        <span class="ico">▶</span>
+        <span>결과보기</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="overlay">
+    <div id="overlayCard">
+      <h2 id="overlayTitle">게임 오버</h2>
+      <p id="overlayMsg"></p>
+      <div class="btn-row">
+        <button class="btn-yellow" id="shareBtn">결과 공유</button>
+        <button class="btn-green" id="restartBtn">다시 시작</button>
+        <button class="btn-ghost" id="toLobbyBtn">로비로</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="../src/main.js"></script>
+</body>
+</html>

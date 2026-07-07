@@ -92,6 +92,15 @@
     "downloadName": "punch.html"
   },
   {
+    "slug": "chart-predict",
+    "title": "차트 예측",
+    "subtitle": "BTC/KRW 캔들 방향 맞추기 · 솔로",
+    "category": "arcade",
+    "tags": ["차트", "비트코인", "예측", "Phaser"],
+    "source": "onefile_multi_chart_predict/onefile_multi_chart_predict.html",
+    "downloadName": "chart_predict.html"
+  },
+  {
     "slug": "flight",
     "title": "스카이 파이터",
     "subtitle": "3D 비행 슈팅 · 뱅크 선회",
