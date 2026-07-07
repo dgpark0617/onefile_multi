@@ -218,5 +218,19 @@ export class WormArenaScene extends Phaser.Scene {
     this.graphics.fillCircle(head.x, head.y, RULES.headRadius);
     this.graphics.lineStyle(2, 0xffffff, 0.35);
     this.graphics.strokeCircle(head.x, head.y, RULES.headRadius);
+
+    const eyeOff = RULES.headRadius * 0.4;
+    const ex1 = head.x + Math.cos(worm.angle - 0.5) * eyeOff;
+    const ey1 = head.y + Math.sin(worm.angle - 0.5) * eyeOff;
+    const ex2 = head.x + Math.cos(worm.angle + 0.5) * eyeOff;
+    const ey2 = head.y + Math.sin(worm.angle + 0.5) * eyeOff;
+    this.graphics.fillStyle(0xffffff, 1);
+    this.graphics.fillCircle(ex1, ey1, 3);
+    this.graphics.fillCircle(ex2, ey2, 3);
+    const pupilDx = Math.cos(worm.angle) * 1.5;
+    const pupilDy = Math.sin(worm.angle) * 1.5;
+    this.graphics.fillStyle(hexToPhaserColor("#1a1a2e"), 1);
+    this.graphics.fillCircle(ex1 + pupilDx, ey1 + pupilDy, 1.5);
+    this.graphics.fillCircle(ex2 + pupilDx, ey2 + pupilDy, 1.5);
   }
 }
