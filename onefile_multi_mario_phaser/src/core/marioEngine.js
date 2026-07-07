@@ -23,6 +23,10 @@ export function createMarioEngine(env) {
   let game = null;
   let cameraX = 0;
 
+  function getWorldW() {
+    return game && game.world === "underground" ? UNDERGROUND_W : WORLD_W;
+  }
+
 const overworldPlatforms = [
       { x: 0, y: 440, w: 730, h: 60 },
       { x: 815, y: 440, w: 370, h: 60 },
@@ -135,7 +139,7 @@ const overworldPlatforms = [
           grounded = true;
         }
       }
-      if (game && game.world === 'overworld' && inPit(player.x, player.w)) {
+      if (player.game && player.game.world === 'overworld' && inPit(player.x, player.w)) {
         const pit = pits.find(p => player.cx > p.x && player.cx < p.x + p.w);
         if (pit) player.x = pit.x + pit.w + 12;
         grounded = snapToGround(player) || grounded;
@@ -146,7 +150,7 @@ const overworldPlatforms = [
     }
 
     function isPlayerOnPipe(player) {
-      const list = pipeDefs[game?.world || 'overworld'] || [];
+      const list = pipeDefs[player.game?.world || 'overworld'] || [];
       for (const pipe of list) {
         if (player.cx > pipe.x + 6 && player.cx < pipe.x + pipe.w - 6 &&
             player.bottom >= pipe.y && player.bottom <= pipe.y + pipe.h + 6) {
@@ -299,7 +303,7 @@ const overworldPlatforms = [
         const sx = this.x - cameraX;
         if (this.invincible > 0 && Math.floor(this.invincible / 4) % 2 === 0) return;
         drawHero(sx, this.y, this.w, this.h, this.facing, this.big, this.animPhase || 0, this.onGround, this.def);
-        if (this.game && this.index === game.myIndex) {
+        if (this.game && this.index === this.game.myIndex) {
           ctx.strokeStyle = 'rgba(251,191,36,0.85)';
           ctx.lineWidth = 2;
           ctx.strokeRect(sx - 2, this.y - 2, this.w + 4, this.h + 4);
@@ -1072,6 +1076,7 @@ const overworldPlatforms = [
         this.lastFrameT = 0;
         this.disconnectedPlayers = new Set();
         this.rafId = 0;
+        this.externalDriver = !!opts.externalDriver;
       }
 
       me() { return this.players[this.myIndex] || this.players[0]; }
@@ -1564,7 +1569,9 @@ const overworldPlatforms = [
         }
 
         this.draw();
-        this.rafId = requestAnimationFrame(ts => this.loop(ts));
+        if (!this.externalDriver) {
+          this.rafId = requestAnimationFrame(ts => this.loop(ts));
+        }
       }
 
       start() {
@@ -1572,7 +1579,9 @@ const overworldPlatforms = [
         this.initLevel();
         this.lastFrameT = 0;
         cancelAnimationFrame(this.rafId);
-        this.rafId = requestAnimationFrame(ts => this.loop(ts));
+        if (!this.externalDriver) {
+          this.rafId = requestAnimationFrame(ts => this.loop(ts));
+        }
       }
 
       stop() {

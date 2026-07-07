@@ -26,8 +26,24 @@ const lobbyCss = fs.readFileSync(path.join(projectRoot, "src/ui/lobby.css"), "ut
 const shellCss = `
 html, body { margin: 0; height: 100%; background: #1a1a2e; overflow: hidden; }
 #gameShell { display: flex; flex-direction: column; height: 100dvh; width: 100vw; }
-#app { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
-#app canvas { border: 2px solid #334155; border-radius: 8px; box-shadow: 0 0 24px rgba(74, 222, 128, 0.12); }
+#app { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; position: relative; }
+#app canvas.mario-surface {
+  position: relative;
+  z-index: 1;
+  border: 2px solid #334155;
+  border-radius: 8px;
+  box-shadow: 0 0 24px rgba(74, 222, 128, 0.12);
+  max-width: 100%;
+  height: auto;
+}
+#app canvas:not(.mario-surface) {
+  position: absolute !important;
+  inset: 0;
+  margin: auto;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
+}
 #gameShellHeader { flex-shrink: 0; text-align: center; padding: 6px 10px 4px; }
 #gameShellHeader h1 {
   margin: 0; font-size: clamp(0.95rem, 3.5vw, 1.2rem);

@@ -45,6 +45,10 @@ export function createMarioEngine(env) {
   let game = null;
   let cameraX = 0;
 
+  function getWorldW() {
+    return game && game.world === "underground" ? UNDERGROUND_W : WORLD_W;
+  }
+
 `;
 
 const footer = `
@@ -74,20 +78,20 @@ body = body
   .replace(/WwNet\./g, "WwNetRef.")
   .replace(/playerTagsEl/g, "getHudEl('playerTags')")
   .replace(
-    /this\.rafId = 0;\n      \}/,
+    /this\.rafId = 0;\r?\n      \}/,
     `this.rafId = 0;
         this.externalDriver = !!opts.externalDriver;
       }`,
   )
   .replace(
-    /this\.draw\(\);\n        this\.rafId = requestAnimationFrame\(ts => this\.loop\(ts\)\);/,
+    /this\.draw\(\);\r?\n        this\.rafId = requestAnimationFrame\(ts => this\.loop\(ts\)\);/,
     `this.draw();
         if (!this.externalDriver) {
           this.rafId = requestAnimationFrame(ts => this.loop(ts));
         }`,
   )
   .replace(
-    /cancelAnimationFrame\(this\.rafId\);\n        this\.rafId = requestAnimationFrame\(ts => this\.loop\(ts\)\);\n      \}\n\n      stop\(\)/,
+    /cancelAnimationFrame\(this\.rafId\);\r?\n        this\.rafId = requestAnimationFrame\(ts => this\.loop\(ts\)\);\r?\n      \}\r?\n\r?\n      stop\(\)/,
     `cancelAnimationFrame(this.rafId);
         if (!this.externalDriver) {
           this.rafId = requestAnimationFrame(ts => this.loop(ts));
@@ -95,6 +99,18 @@ body = body
       }
 
       stop()`,
+  )
+  .replace(
+    /if \(game && game\.world === 'overworld' && inPit\(player\.x, player\.w\)\)/g,
+    "if (player.game && player.game.world === 'overworld' && inPit(player.x, player.w))",
+  )
+  .replace(
+    /pipeDefs\[game\?\.world \|\| 'overworld'\]/g,
+    "pipeDefs[player.game?.world || 'overworld']",
+  )
+  .replace(
+    /this\.index === game\.myIndex/g,
+    "this.index === this.game.myIndex",
   );
 
 fs.writeFileSync(outPath, header + body + footer, "utf8");
