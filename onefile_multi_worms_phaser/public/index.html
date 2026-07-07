@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>지렁이 게임 — Phaser</title>
+  <link rel="stylesheet" href="../src/ui/lobby.css" />
+  <style>
+  html, body { margin: 0; height: 100%; background: #1a1a2e; overflow: hidden; }
+  #gameShell { display: flex; flex-direction: column; height: 100dvh; width: 100vw; }
+  #app { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+  #app canvas { border: 2px solid #334155; border-radius: 8px; box-shadow: 0 0 24px rgba(74, 222, 128, 0.12); }
+  #gameShellHeader { flex-shrink: 0; text-align: center; padding: 6px 10px 4px; }
+  #gameShellHeader h1 {
+    margin: 0; font-size: clamp(0.95rem, 3.5vw, 1.2rem);
+    background: linear-gradient(90deg, #4ade80, #22d3ee);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    font-family: "Segoe UI", system-ui, sans-serif;
+  }
+  #backBtn { position: absolute; top: 8px; right: 10px; z-index: 5; }
+  #gameWrap { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; padding: 0 6px; }
+  </style>
+</head>
+<body>
+  <div id="lobby">
+    <h1>🐛 지렁이 게임 (Phaser)</h1>
+    <p class="sub">좌우 회전 · 사과 먹고 성장 · AI와 PvP FFA</p>
+    <div class="hint">
+      <strong>조작:</strong> ← → 방향키 또는 하단 버튼 · 5초마다 AI 지렁이 추가<br>
+      <strong>멀티:</strong> Lockstep(입력만 동기화) · 2~4인 P2P
+    </div>
+    <div id="iosFileWarn" class="hidden ios-warn">
+      <strong>아이폰 안내</strong><br>
+      다운로드한 HTML 파일에서는 멀티가 <strong>동작하지 않습니다</strong>. iOS Safari는 저장 파일에서 WebRTC를 막습니다.<br>
+      → Safari에서 <strong>웹사이트 /play/worms</strong> 로 접속해 주세요. (솔로는 파일로 가능)
+    </div>
+
+    <div class="mode-block">
+      <h2>① 솔로</h2>
+      <p>AI 지렁이와 서바이벌</p>
+      <button class="btn-green" id="btnSolo">솔로 시작</button>
+    </div>
+
+    <div class="mode-block">
+      <h2>② FFA 멀티 (2~4인)</h2>
+      <p>실시간 P2P · 가장 오래 살아남거나 최장 길이 승리</p>
+      <button class="btn-primary" id="btnHost">방 만들기</button>
+    </div>
+
+    <div class="mode-block" id="joinPanel">
+      <h2>참가</h2>
+      <input id="joinCodeInput" placeholder="방 코드 입력" autocomplete="off" spellcheck="false" />
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn-red" id="btnJoin">참가</button>
+      </div>
+    </div>
+
+    <div id="waitingBox" class="hidden">
+      <div id="waitingTitle">대기실</div>
+      <div class="invite-share-box">
+        <canvas id="inviteQr" width="176" height="176" aria-label="초대 QR 코드"></canvas>
+        <p id="inviteCodeText" class="invite-code-text"></p>
+      </div>
+      <a id="inviteLink" href="#" rel="noopener"></a>
+      <ul id="rosterList"></ul>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn-yellow" id="btnCopyLink">초대 링크 복사</button>
+        <button class="btn-green hidden" id="btnStartGame" disabled>게임 시작 (2인+)</button>
+        <button class="btn-ghost" id="btnCancelWait">나가기</button>
+      </div>
+      <p id="guestWaitHint" class="hidden guest-hint">방장이 시작할 때까지 대기…</p>
+    </div>
+
+    <input id="roomInput" type="hidden" autocomplete="off" />
+    <div id="roomBox" class="hidden">Peer: <b id="roomCode">—</b></div>
+    <div id="log"></div>
+  </div>
+
+  <div id="gameShell" class="hidden">
+    <div id="gameShellHeader"><h1>🐛 지렁이 게임</h1></div>
+    <div id="gameWrap">
+      <button type="button" id="backBtn" class="btn-ghost">← 로비</button>
+      <div id="app"></div>
+    </div>
+    <div id="controls">
+      <button id="btnLeft" class="ctrl-btn" aria-label="왼쪽">◀</button>
+      <button id="btnRight" class="ctrl-btn" aria-label="오른쪽">▶</button>
+    </div>
+  </div>
+
+  <div id="overlay">
+    <h2 id="overlayTitle">게임 오버</h2>
+    <p id="overlayMsg"></p>
+    <div class="btn-row">
+      <button class="btn-green" id="restartBtn">다시 시작</button>
+      <button class="btn-ghost" id="toLobbyBtn">로비로</button>
+    </div>
+  </div>
+
+  <script type="module" src="../src/main.js"></script>
+</body>
+</html>

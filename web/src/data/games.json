@@ -78,8 +78,8 @@
     "title": "지렁이 게임",
     "subtitle": "멀티 스네이크 FFA · P2P 최대 4인",
     "category": "arcade",
-    "tags": ["아케이드", "멀티", "PeerJS"],
-    "source": "onefile_multi_worms/onefile_multi_worms.html",
+    "tags": ["아케이드", "멀티", "PeerJS", "Phaser"],
+    "source": "onefile_multi_worms_phaser/onefile_multi_worms_phaser.html",
     "downloadName": "worms.html"
   },
   {
