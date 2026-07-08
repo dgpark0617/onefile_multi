@@ -4,8 +4,12 @@ export const gameSession = {
   isInGame: false,
   _revealPending: false,
 
-  requestReveal() {
+  pickAndReveal(direction) {
+    if (!this.quiz || this.quiz.state !== "prompt") return false;
+    if (!this.quiz.setPick(direction)) return false;
+    this.pick = direction;
     this._revealPending = true;
+    return true;
   },
 
   consumeReveal() {

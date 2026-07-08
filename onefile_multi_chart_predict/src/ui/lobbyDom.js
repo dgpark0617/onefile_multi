@@ -30,16 +30,9 @@ export function showGameOverlay({ title, msg, shareText }) {
 
 export function updateControlState(quiz) {
   const canPick = quiz && !quiz.gameOver && quiz.state === "prompt";
-  const canReveal = quiz && quiz.canReveal();
 
-  $("btnLong")?.classList.toggle("active", canPick && quiz.pick === "long");
-  $("btnShort")?.classList.toggle("active", canPick && quiz.pick === "short");
   if ($("btnLong")) $("btnLong").disabled = !canPick;
   if ($("btnShort")) $("btnShort").disabled = !canPick;
-  if ($("btnReveal")) {
-    $("btnReveal").disabled = !canReveal;
-    $("btnReveal").classList.toggle("ready", canReveal);
-  }
 }
 
 function startSolo() {
@@ -78,22 +71,26 @@ export function initLobby(opts) {
   $("shareBtn")?.addEventListener("click", copyShareText);
 
   $("btnLong")?.addEventListener("click", () => {
-    if (!gameSession.quiz || gameSession.quiz.state !== "prompt") return;
-    gameSession.pick = "long";
-    gameSession.quiz.setPick("long");
+    if (!gameSession.pickAndReveal("long")) return;
+    $("btnLong")?.classList.add("flash-pick");
+    setTimeout(() => $("btnLong")?.classList.remove("flash-pick"), 220);
     updateControlState(gameSession.quiz);
   });
 
   $("btnShort")?.addEventListener("click", () => {
-    if (!gameSession.quiz || gameSession.quiz.state !== "prompt") return;
-    gameSession.pick = "short";
-    gameSession.quiz.setPick("short");
+    if (!gameSession.pickAndReveal("short")) return;
+    $("btnShort")?.classList.add("flash-pick");
+    setTimeout(() => $("btnShort")?.classList.remove("flash-pick"), 220);
     updateControlState(gameSession.quiz);
   });
 
-  $("btnReveal")?.addEventListener("click", () => {
-    if (!gameSession.quiz?.canReveal()) return;
-    gameSession.requestReveal();
-    updateControlState(gameSession.quiz);
-  });
+  for (const id of ["btnLong", "btnShort"]) {
+    const btn = $(id);
+    if (!btn) continue;
+    btn.addEventListener("pointerdown", () => btn.classList.add("pressed"));
+    const release = () => btn.classList.remove("pressed");
+    btn.addEventListener("pointerup", release);
+    btn.addEventListener("pointerleave", release);
+    btn.addEventListener("pointercancel", release);
+  }
 }

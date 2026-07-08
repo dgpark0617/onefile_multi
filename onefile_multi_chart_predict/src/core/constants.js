@@ -13,6 +13,8 @@ export const RULES = {
   comboBonus: 20,
   maxComboBonus: 5,
   chartPad: { left: 64, right: 24, top: 92, bottom: 36 },
+  volumeSplit: 0.2,
+  volumeGap: 5,
 };
 
 export const COLORS = {
@@ -28,6 +30,11 @@ export const COLORS = {
   bear: "#f43f5e",
   bearGlow: "#fb7185",
   wick: "#64748b",
+  volumeBull: "#059669",
+  volumeBear: "#e11d48",
+  volumeGrid: "#152033",
+  scanLine: "#38bdf8",
+  vignette: "#020617",
   pickLong: "#4ade80",
   pickShort: "#fb7185",
   revealLine: "#fbbf24",

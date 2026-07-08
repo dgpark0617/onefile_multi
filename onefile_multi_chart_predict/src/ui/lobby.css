@@ -95,7 +95,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 .ctrl-btn {
   flex: 1;
-  max-width: 120px;
+  max-width: 160px;
   min-height: clamp(68px, 18vw, 88px);
   display: flex;
   flex-direction: column;
@@ -127,29 +127,21 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   color: #fda4af;
   background: linear-gradient(180deg, rgba(159, 18, 57, 0.35), rgba(15, 23, 42, 0.9));
 }
-.ctrl-btn.reveal {
-  border-color: #38bdf8;
-  color: #7dd3fc;
-  max-width: 140px;
-  background: linear-gradient(180deg, rgba(29, 78, 216, 0.3), rgba(15, 23, 42, 0.9));
+.ctrl-btn:disabled { opacity: 0.38; cursor: not-allowed; box-shadow: none; }
+.ctrl-btn.pressed:not(:disabled) {
+  transform: scale(0.94);
+  filter: brightness(1.12);
 }
-.ctrl-btn.long.active {
+.ctrl-btn.long.flash-pick:not(:disabled) {
+  box-shadow: 0 0 32px rgba(34, 197, 94, 0.55);
   background: linear-gradient(180deg, #166534, #14532d);
   color: #fff;
-  box-shadow: 0 0 24px rgba(34, 197, 94, 0.35);
 }
-.ctrl-btn.short.active {
+.ctrl-btn.short.flash-pick:not(:disabled) {
+  box-shadow: 0 0 32px rgba(244, 63, 94, 0.55);
   background: linear-gradient(180deg, #9f1239, #881337);
   color: #fff;
-  box-shadow: 0 0 24px rgba(244, 63, 94, 0.35);
 }
-.ctrl-btn.reveal.ready {
-  background: linear-gradient(180deg, #1d4ed8, #1e40af);
-  color: #fff;
-  border-color: #60a5fa;
-  box-shadow: 0 0 28px rgba(59, 130, 246, 0.45);
-}
-.ctrl-btn:disabled { opacity: 0.38; cursor: not-allowed; box-shadow: none; }
 
 #overlay {
   position: fixed;

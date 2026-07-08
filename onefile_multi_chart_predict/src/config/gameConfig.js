@@ -1,3 +1,4 @@
+import Phaser from "phaser";
 import { WORLD } from "../core/constants.js";
 import { ChartArenaScene } from "../scenes/ChartArenaScene.js";
 
