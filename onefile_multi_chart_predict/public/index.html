@@ -53,14 +53,21 @@
     <h1>📈 차트 예측</h1>
     <p class="sub">업비트 BTC/KRW · 1시간봉 · 방향 맞추기</p>
     <div class="hint">
-      <strong>플레이</strong> 50봉 차트 분석 → 상승/하락 선택 즉시 결과<br>
-      <strong>정답</strong> 이후 10봉 종가 방향 · 하트 5개<br>
+      <strong>플레이</strong> 차트 분석 → 상승/하락 선택 즉시 결과<br>
+      <strong>모드</strong> 다음 1봉 / 현재 단위 / 장기 추세<br>
       <strong>키</strong> ↑ 상승 · ↓ 하락
     </div>
 
     <div class="mode-block">
       <h2>솔로 챌린지</h2>
       <p>실제 과거 차트로 무한 예측 · 연속 정답 콤보 보너스</p>
+      <label for="modeSelect">게임 타입</label>
+      <select id="modeSelect">
+        <option value="next">다음 1봉</option>
+        <option value="current" selected>현재 단위</option>
+        <option value="trend">장기 추세</option>
+      </select>
+      <p id="modeHint">이후 10봉 단기 흐름 예측</p>
       <button class="btn-green" id="btnSolo">시작하기</button>
     </div>
   </div>

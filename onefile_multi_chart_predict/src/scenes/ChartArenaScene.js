@@ -1,4 +1,12 @@
-import { COLORS, RULES, WORLD, tierForScore } from "../core/constants.js";
+import {
+  CHART_MODES,
+  DEFAULT_MODE_KEY,
+  COLORS,
+  RULES,
+  WORLD,
+  buildPerformanceReport,
+  tierForScore,
+} from "../core/constants.js";
 import { hexToPhaserColor } from "../core/colorCache.js";
 import { loadDatasetSync } from "../core/chartData.js";
 import { ChartQuiz } from "../core/chartQuiz.js";
@@ -84,7 +92,8 @@ export class ChartArenaScene extends Phaser.Scene {
       .text(0, 0, "VOL", { fontFamily: FONT, fontSize: "9px", color: "#334155" })
       .setDepth(10);
 
-    this.quiz = new ChartQuiz();
+    const modeKey = CHART_MODES[gameSession.modeKey] ? gameSession.modeKey : DEFAULT_MODE_KEY;
+    this.quiz = new ChartQuiz(Date.now() >>> 0, modeKey);
     gameSession.quiz = this.quiz;
     this.revealTimer = 0;
     this.resultTimer = 0;
@@ -98,6 +107,7 @@ export class ChartArenaScene extends Phaser.Scene {
     this.lastScore = 0;
     this.lastCombo = 0;
     this.lastLives = RULES.lives;
+    this.hud.badge.setText(`BTC/KRW · 1H · ${this.quiz.mode.label}`);
 
     updateControlState(this.quiz);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.onShutdown, this);
@@ -236,17 +246,18 @@ export class ChartArenaScene extends Phaser.Scene {
   }
 
   drawCandle(g, cx, c, i, barW, bodyW, minP, maxP, priceRect, revealCount) {
+    const promptBars = this.quiz.mode.promptBars;
     const yHigh = this.priceToY(c.h, minP, maxP, priceRect);
     const yLow = this.priceToY(c.l, minP, maxP, priceRect);
     const yOpen = this.priceToY(c.o, minP, maxP, priceRect);
     const yClose = this.priceToY(c.c, minP, maxP, priceRect);
     const bull = c.c >= c.o;
-    const isReveal = i >= RULES.promptBars;
+    const isReveal = i >= promptBars;
     const color = bull ? COLORS.bull : COLORS.bear;
     const glow = bull ? COLORS.bullGlow : COLORS.bearGlow;
 
     let pop = 1;
-    if (isReveal && i === RULES.promptBars + revealCount - 1 && this.quiz.state === "revealing") {
+    if (isReveal && i === promptBars + revealCount - 1 && this.quiz.state === "revealing") {
       const age = this.time.now - this.revealBumpAt;
       pop = Phaser.Math.Clamp(age / 85, 0.25, 1);
     }
@@ -278,6 +289,7 @@ export class ChartArenaScene extends Phaser.Scene {
   }
 
   drawVolumeBars(g, candles, barW, bodyW, volRect, maxV, revealCount) {
+    const promptBars = this.quiz.mode.promptBars;
     g.lineStyle(1, hexToPhaserColor(COLORS.volumeGrid), 0.55);
     g.beginPath();
     g.moveTo(volRect.left, volRect.top);
@@ -289,13 +301,13 @@ export class ChartArenaScene extends Phaser.Scene {
     candles.forEach((c, i) => {
       const cx = volRect.left + i * barW + barW / 2;
       const bull = c.c >= c.o;
-      const isReveal = i >= RULES.promptBars;
+      const isReveal = i >= promptBars;
       const vol = c.v || 0;
       const h = (vol / maxV) * (volRect.height - 6);
       const color = bull ? COLORS.volumeBull : COLORS.volumeBear;
 
       let pop = 1;
-      if (isReveal && i === RULES.promptBars + revealCount - 1 && this.quiz.state === "revealing") {
+      if (isReveal && i === promptBars + revealCount - 1 && this.quiz.state === "revealing") {
         const age = this.time.now - this.revealBumpAt;
         pop = Phaser.Math.Clamp(age / 85, 0.2, 1);
       }
@@ -320,7 +332,8 @@ export class ChartArenaScene extends Phaser.Scene {
     g.lineTo(pivotX, volRect.bottom);
     g.strokePath();
 
-    const scanX = pivotX + revealCount * ((priceRect.width / (RULES.promptBars + RULES.revealBars)) || 0);
+    const slots = this.quiz.mode.promptBars + this.quiz.mode.revealBars;
+    const scanX = pivotX + revealCount * ((priceRect.width / slots) || 0);
     const flicker = 0.35 + Math.sin(this.time.now / 80) * 0.25;
     g.lineStyle(2, hexToPhaserColor(COLORS.scanLine), flicker);
     g.beginPath();
@@ -330,15 +343,17 @@ export class ChartArenaScene extends Phaser.Scene {
   }
 
   drawChart(g) {
+    const promptBars = this.quiz.mode.promptBars;
+    const revealBars = this.quiz.mode.revealBars;
     const { panel, price, volume } = this.chartLayout();
     const candles = this.visibleCandles();
-    const slots = RULES.promptBars + RULES.revealBars;
+    const slots = promptBars + revealBars;
     const barW = panel.width / slots;
     const bodyW = Math.max(3, barW * 0.52);
     const revealCount = this.quiz.visibleRevealCount();
     const { minP, maxP } = this.priceRange(candles);
     const maxV = this.maxVolume(candles);
-    const pivotX = panel.left + RULES.promptBars * barW;
+    const pivotX = panel.left + promptBars * barW;
 
     this.drawChartPanel(g, panel);
     this.drawPriceGrid(g, price, minP, maxP);
@@ -368,9 +383,9 @@ export class ChartArenaScene extends Phaser.Scene {
   onRoundResult() {
     const ok = this.quiz.lastResult?.correct;
     const layout = this.chartLayout();
-    const slots = RULES.promptBars + RULES.revealBars;
+    const slots = this.quiz.mode.promptBars + this.quiz.mode.revealBars;
     const barW = layout.panel.width / slots;
-    const cx = layout.panel.left + (RULES.promptBars + RULES.revealBars - 0.5) * barW;
+    const cx = layout.panel.left + (slots - 0.5) * barW;
     const cy = layout.panel.top + layout.panel.height * 0.42;
 
     this.flashColor = ok ? hexToPhaserColor(COLORS.bull) : hexToPhaserColor(COLORS.bear);
@@ -487,11 +502,20 @@ export class ChartArenaScene extends Phaser.Scene {
 
   endGame() {
     const tier = tierForScore(this.quiz.score);
-    const msg = `정답 ${this.quiz.correctCount}/${this.quiz.rounds} · ${tier.emoji} ${tier.label}`;
+    const report = buildPerformanceReport(this.quiz);
+    const msg = [
+      `<strong>모드</strong> ${this.quiz.mode.label}`,
+      `<strong>정확도</strong> ${report.accuracy}% (${this.quiz.correctCount}/${report.attempts})`,
+      `<strong>단타 능력</strong> ${report.shortTerm}점 · ${report.grades.shortTerm}`,
+      `<strong>추세 예측력</strong> ${report.trend}점 · ${report.grades.trend}`,
+      `<strong>리스크 관리</strong> ${report.risk}점 · ${report.grades.risk}`,
+      `<strong>경쟁 점수</strong> ${report.competitive} RP · 종합 ${report.overall}점 ${report.grades.overall}`,
+      `<strong>기존 티어</strong> ${tier.emoji} ${tier.label}`,
+    ].join("<br>");
     showGameOverlay({
       title: `게임 오버 · ${this.quiz.score}점`,
       msg,
-      shareText: `차트 예측 ${this.quiz.score}점 · ${tier.emoji}${tier.label} 달성!`,
+      shareText: `차트 예측 ${this.quiz.score}점 · RP ${report.competitive} · ${tier.emoji}${tier.label}`,
     });
   }
 
@@ -506,8 +530,9 @@ export class ChartArenaScene extends Phaser.Scene {
 
     if (this.quiz.state === "revealing") {
       this.revealTimer += delta;
-      while (this.revealTimer >= RULES.revealMsPerBar && this.quiz.state === "revealing") {
-        this.revealTimer -= RULES.revealMsPerBar;
+      const revealMsPerBar = this.quiz.mode.revealMsPerBar ?? RULES.revealMsPerBar;
+      while (this.revealTimer >= revealMsPerBar && this.quiz.state === "revealing") {
+        this.revealTimer -= revealMsPerBar;
         const done = this.quiz.tickReveal();
         this.revealBumpAt = this.time.now;
         if (done && this.quiz.state === "result") {

@@ -29,6 +29,62 @@ export function orbsNeededForGrowth(level) {
   return RULES.growthOrbsBase * RULES.growthOrbsMultiplier ** level;
 }
 
+export function resolveFighterCollisions(fighters) {
+  const slop = RULES.collisionSlop;
+  for (let pass = 0; pass < RULES.collisionPasses; pass++) {
+    for (let i = 0; i < fighters.length; i++) {
+      const a = fighters[i];
+      if (!a.alive) continue;
+      for (let j = i + 1; j < fighters.length; j++) {
+        const b = fighters[j];
+        if (!b.alive) continue;
+
+        let dx = b.x - a.x;
+        let dy = b.y - a.y;
+        let d = Math.hypot(dx, dy);
+        const minDist = a.radius + b.radius - slop;
+        if (d >= minDist) continue;
+
+        let nx;
+        let ny;
+        if (d < 0.01) {
+          const angle = ((a.id * 17 + b.id * 31) % 360) * (Math.PI / 180);
+          nx = Math.cos(angle);
+          ny = Math.sin(angle);
+          d = 0.01;
+        } else {
+          nx = dx / d;
+          ny = dy / d;
+        }
+
+        const overlap = minDist - d;
+        const totalR = a.radius + b.radius;
+        const pushA = overlap * (b.radius / totalR);
+        const pushB = overlap * (a.radius / totalR);
+        a.x -= nx * pushA;
+        a.y -= ny * pushA;
+        b.x += nx * pushB;
+        b.y += ny * pushB;
+
+        const relVx = a.vx - b.vx;
+        const relVy = a.vy - b.vy;
+        const relAlong = relVx * nx + relVy * ny;
+        if (relAlong < 0) {
+          const damp = relAlong * 0.35;
+          a.vx -= damp * (b.radius / totalR);
+          a.vy -= damp * (b.radius / totalR);
+          b.vx += damp * (a.radius / totalR);
+          b.vy += damp * (a.radius / totalR);
+        }
+      }
+    }
+  }
+
+  for (const f of fighters) {
+    if (f.alive) clampInWorld(f);
+  }
+}
+
 export class Fighter {
   static nextId = 1;
 

@@ -33,6 +33,8 @@ export const RULES = {
   worldMargin: 24,
   comboWindowTicks: 20,
   comboKnockbackBonus: 0.08,
+  collisionPasses: 2,
+  collisionSlop: 0.5,
 };
 
 export const PLAYER_DEFS = [

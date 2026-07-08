@@ -1,4 +1,5 @@
 import { gameSession } from "../core/gameSession.js";
+import { CHART_MODES, DEFAULT_MODE_KEY } from "../core/constants.js";
 
 let callbacks = {};
 
@@ -20,9 +21,16 @@ function showGameShell() {
   $("overlay")?.classList.remove("show");
 }
 
+function syncModeFromUI() {
+  const sel = $("modeSelect");
+  const key = sel?.value;
+  gameSession.modeKey = CHART_MODES[key] ? key : DEFAULT_MODE_KEY;
+  if ($("modeHint")) $("modeHint").textContent = CHART_MODES[gameSession.modeKey].hint;
+}
+
 export function showGameOverlay({ title, msg, shareText }) {
   if ($("overlayTitle")) $("overlayTitle").textContent = title;
-  if ($("overlayMsg")) $("overlayMsg").textContent = msg;
+  if ($("overlayMsg")) $("overlayMsg").innerHTML = msg;
   const overlay = $("overlay");
   if (overlay) overlay.dataset.shareText = shareText || "";
   overlay?.classList.add("show");
@@ -36,6 +44,7 @@ export function updateControlState(quiz) {
 }
 
 function startSolo() {
+  syncModeFromUI();
   showGameShell();
   gameSession.isInGame = true;
   gameSession.pick = null;
@@ -60,6 +69,12 @@ function copyShareText() {
 
 export function initLobby(opts) {
   callbacks = opts;
+
+  if ($("modeSelect")) {
+    $("modeSelect").value = CHART_MODES[gameSession.modeKey] ? gameSession.modeKey : DEFAULT_MODE_KEY;
+  }
+  syncModeFromUI();
+  $("modeSelect")?.addEventListener("change", syncModeFromUI);
 
   $("btnSolo")?.addEventListener("click", startSolo);
   $("backBtn")?.addEventListener("click", showLobby);

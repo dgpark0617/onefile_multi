@@ -1,6 +1,7 @@
 export const gameSession = {
   pick: null,
   quiz: null,
+  modeKey: "current",
   isInGame: false,
   _revealPending: false,
 

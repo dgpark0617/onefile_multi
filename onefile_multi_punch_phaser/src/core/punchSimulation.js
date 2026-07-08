@@ -3,6 +3,7 @@ import { mulberry32, randFrom, randIntFrom } from "./rng.js";
 import {
   Fighter,
   normalizeInput,
+  resolveFighterCollisions,
   spawnOrbsOnDeath,
 } from "./fighterLogic.js";
 
@@ -206,6 +207,7 @@ export class PunchSimulation {
       const inp = f.isHuman() ? normalizeInput(inputs[f.playerIndex]) : { t: 0, f: 0, p: 0 };
       f.applyInput(inp, this.fighters, this.orbs, this.rng);
     }
+    resolveFighterCollisions(this.fighters);
     this.resolvePunches();
     this.collectOrbs();
     this.checkMultiWinner();
