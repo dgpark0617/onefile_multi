@@ -114,13 +114,11 @@ export default function GeomShinClient() {
     setPhase('login');
   };
 
-  const headers = useMemo(
-    () =>
-      userId
-        ? { 'x-user-id': userId, 'Content-Type': 'application/json' }
-        : { 'Content-Type': 'application/json' },
-    [userId],
-  );
+  const headers = useMemo((): Record<string, string> => {
+    const h: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (userId) h['x-user-id'] = userId;
+    return h;
+  }, [userId]);
 
   const mergeDelta = (delta: BoardCell) => {
     setCells((prev) => {
