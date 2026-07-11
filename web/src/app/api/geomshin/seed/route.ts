@@ -1,16 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { autoSeedPixelAsync, seedPixelAsync } from '@/lib/geomshin/store';
-import { readUserId } from '@/lib/geomshin/requestUser';
+import { requireApiUser } from '@/lib/geomshin/requestUser';
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const userId = readUserId(req, body);
+  const auth = await requireApiUser(req);
+  if (!auth.ok) {
+    return NextResponse.json({ ok: false, reason: auth.reason }, { status: auth.status });
+  }
+  const body = await req.json().catch(() => ({}));
   try {
     if (body.auto) {
-      return NextResponse.json(await autoSeedPixelAsync(userId, body.color));
+      return NextResponse.json(await autoSeedPixelAsync(auth.user.id, body.color));
     }
     return NextResponse.json(
-      await seedPixelAsync(userId, Number(body.x), Number(body.y), body.color),
+      await seedPixelAsync(auth.user.id, Number(body.x), Number(body.y), body.color),
     );
   } catch (e) {
     return NextResponse.json(

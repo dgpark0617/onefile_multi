@@ -1,21 +1,22 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import '../../geomshin.css';
 import GeomShinNav from '../../GeomShinNav';
-import { encodeUserIdHeader, readStoredSession } from '@/lib/geomshin/session';
+import { getBrowserSupabase, isSupabaseBrowserReady } from '@/lib/geomshin/supabaseBrowser';
 
 const REASON_KO: Record<string, string> = {
   QR_NOT_FOUND: 'QR을 찾을 수 없습니다',
   QR_EXPIRED: '만료된 QR입니다 (7일)',
   QR_ALREADY_USED: '이미 사용한 QR입니다',
+  UNAUTHORIZED: '로그인이 필요합니다',
 };
 
 export default function QrRedeemPage() {
   const params = useParams();
   const id = String(params?.id || '');
-  const userId = useMemo(() => readStoredSession()?.id ?? '', []);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [info, setInfo] = useState<{
     shopName: string;
     inkReward: number;
@@ -26,10 +27,24 @@ export default function QrRedeemPage() {
   const [done, setDone] = useState(false);
 
   useEffect(() => {
-    if (!userId) {
-      setMsg('먼저 /geomshin 에서 아이디로 입장하세요');
+    if (!isSupabaseBrowserReady()) {
+      setMsg('먼저 /geomshin 에서 로그인해 주세요');
+      return;
     }
-  }, [userId]);
+    const sb = getBrowserSupabase();
+    let alive = true;
+    sb.auth.getSession().then(({ data }) => {
+      if (!alive) return;
+      if (data.session?.access_token) {
+        setAccessToken(data.session.access_token);
+      } else {
+        setMsg('먼저 /geomshin 에서 로그인해 주세요');
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -50,17 +65,17 @@ export default function QrRedeemPage() {
   }, [id]);
 
   const redeem = async () => {
-    if (!userId) {
-      setMsg('먼저 /geomshin 에서 아이디로 입장하세요');
+    if (!accessToken) {
+      setMsg('먼저 /geomshin 에서 로그인해 주세요');
       return;
     }
     const res = await fetch('/api/geomshin/qr', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-user-id': encodeUserIdHeader(userId),
+        Authorization: `Bearer ${accessToken}`,
       },
-      body: JSON.stringify({ action: 'redeem', id, userId }),
+      body: JSON.stringify({ action: 'redeem', id }),
     });
     const data = await res.json();
     if (!data.ok) {
@@ -82,14 +97,14 @@ export default function QrRedeemPage() {
         </div>
         <GeomShinNav current="/geomshin/shop" />
         <p className="gs-msg">{msg}</p>
-        {!userId && (
+        {!accessToken && (
           <div className="gs-actions">
             <a className="gs-link" href="/geomshin">
-              아이디로 입장
+              로그인하러 가기
             </a>
           </div>
         )}
-        {userId && info && !info.expired && !done && (
+        {accessToken && info && !info.expired && !done && (
           <div className="gs-actions">
             <button type="button" onClick={redeem}>
               잉크 +{info.inkReward} 받기

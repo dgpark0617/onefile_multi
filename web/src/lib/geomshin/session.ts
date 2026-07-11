@@ -1,41 +1,50 @@
-/** 검신 — 아이디 세션 (비밀번호 없음, 로컬 기억) */
+/** 검신 — 표시 닉네임 + Auth 세션 보조 캐시 */
 
 export const GEOM_UID_KEY = 'geomshin_uid';
 export const GEOM_NAME_KEY = 'geomshin_display';
 
-/** 허용: 한글·영문·숫자·_ . - , 2~20자 */
-const ID_RE = /^[\w가-힣.\-]{2,20}$/u;
+const NICK_RE = /^[\w가-힣.\-]{2,20}$/u;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function normalizePlayerId(raw: string): string {
   return raw.trim().replace(/\s+/g, '');
 }
 
-export function validatePlayerId(raw: string): { ok: true; id: string } | { ok: false; reason: string } {
+/** 화면용 닉네임 (소유권 아님) */
+export function validateDisplayName(
+  raw: string,
+): { ok: true; id: string } | { ok: false; reason: string } {
   const id = normalizePlayerId(raw);
-  if (id.length < 2) return { ok: false, reason: '아이디는 2자 이상' };
-  if (id.length > 20) return { ok: false, reason: '아이디는 20자 이하' };
-  if (!ID_RE.test(id)) return { ok: false, reason: '한글·영문·숫자·_ . - 만 사용' };
+  if (id.length < 2) return { ok: false, reason: '닉네임은 2자 이상' };
+  if (id.length > 20) return { ok: false, reason: '닉네임은 20자 이하' };
+  if (!NICK_RE.test(id)) return { ok: false, reason: '한글·영문·숫자·_ . - 만 사용' };
   if (/^(guest|admin|null|undefined)$/i.test(id)) {
-    return { ok: false, reason: '사용할 수 없는 아이디' };
+    return { ok: false, reason: '사용할 수 없는 닉네임' };
   }
   return { ok: true, id };
+}
+
+/** @deprecated 소유권은 Auth uid — 닉네임 검증용으로만 유지 */
+export function validatePlayerId(raw: string) {
+  return validateDisplayName(raw);
+}
+
+export function isAuthUserId(id: string): boolean {
+  return UUID_RE.test(id);
 }
 
 export function readStoredSession(): { id: string; displayName: string } | null {
   if (typeof window === 'undefined') return null;
   const id = localStorage.getItem(GEOM_UID_KEY);
-  if (!id) return null;
-  const v = validatePlayerId(id);
-  if (!v.ok) return null;
-  // 예전 자동발급 u_xxxx 는 입장 화면으로 유도
-  if (/^u_[a-z0-9]{6,}$/i.test(v.id)) return null;
-  const displayName = localStorage.getItem(GEOM_NAME_KEY) || v.id;
-  return { id: v.id, displayName };
+  if (!id || !isAuthUserId(id)) return null;
+  const displayName = localStorage.getItem(GEOM_NAME_KEY) || id.slice(0, 8);
+  return { id, displayName };
 }
 
 export function writeStoredSession(id: string, displayName?: string) {
   localStorage.setItem(GEOM_UID_KEY, id);
-  localStorage.setItem(GEOM_NAME_KEY, displayName || id);
+  localStorage.setItem(GEOM_NAME_KEY, displayName || id.slice(0, 8));
 }
 
 export function clearStoredSession() {
@@ -44,7 +53,6 @@ export function clearStoredSession() {
   localStorage.removeItem('geomshin_home');
 }
 
-/** HTTP 헤더는 ASCII만 허용 → 한글 아이디는 인코딩해서 전송 */
 export function encodeUserIdHeader(id: string): string {
   return encodeURIComponent(id);
 }

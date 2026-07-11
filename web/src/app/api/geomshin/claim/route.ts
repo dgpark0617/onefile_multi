@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { claimPixelAsync } from '@/lib/geomshin/store';
-import { readUserId } from '@/lib/geomshin/requestUser';
+import { requireApiUser } from '@/lib/geomshin/requestUser';
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const userId = readUserId(req, body);
+  const auth = await requireApiUser(req);
+  if (!auth.ok) {
+    return NextResponse.json({ ok: false, reason: auth.reason }, { status: auth.status });
+  }
+  const body = await req.json().catch(() => ({}));
   try {
     return NextResponse.json(
-      await claimPixelAsync(userId, Number(body.x), Number(body.y), body.color),
+      await claimPixelAsync(auth.user.id, Number(body.x), Number(body.y), body.color),
     );
   } catch (e) {
     return NextResponse.json(

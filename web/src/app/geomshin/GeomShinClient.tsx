@@ -9,7 +9,8 @@ import type { BoardCell, LandmarkInfo } from '@/game/geomshin/GeomShinScene';
 import type { PresenceCell } from '@/game/geomshin/PhaserMap';
 import GeomShinNav from './GeomShinNav';
 import GeomShinLogin from './GeomShinLogin';
-import { clearStoredSession, encodeUserIdHeader, readStoredSession } from '@/lib/geomshin/session';
+import { clearStoredSession, writeStoredSession } from '@/lib/geomshin/session';
+import { getBrowserSupabase, isSupabaseBrowserReady } from '@/lib/geomshin/supabaseBrowser';
 
 const PhaserMap = dynamic(() => import('@/game/geomshin/PhaserMap'), {
   ssr: false,
@@ -63,6 +64,7 @@ const REASON_KO: Record<string, string> = {
 export default function GeomShinClient() {
   const [phase, setPhase] = useState<'boot' | 'login' | 'play'>('boot');
   const [userId, setUserId] = useState<string | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [user, setUser] = useState<UserState | null>(null);
   const [landmarks] = useState<LandmarkInfo[]>(INITIAL_LANDMARKS);
   const [cells, setCells] = useState<BoardCell[]>([]);
@@ -78,19 +80,51 @@ export default function GeomShinClient() {
   const geoAsked = useRef(false);
   const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const brushRef = useRef(brush);
+  const tokenRef = useRef<string | null>(null);
   brushRef.current = brush;
+  tokenRef.current = accessToken;
 
   useEffect(() => {
-    const s = readStoredSession();
-    if (s) {
-      setUserId(s.id);
-      setPhase('play');
-    } else {
+    if (!isSupabaseBrowserReady()) {
       setPhase('login');
+      return;
     }
+    const sb = getBrowserSupabase();
+    let alive = true;
+    sb.auth.getSession().then(({ data }) => {
+      if (!alive) return;
+      const s = data.session;
+      if (s?.user) {
+        setAccessToken(s.access_token);
+        setUserId(s.user.id);
+        const nick =
+          (typeof s.user.user_metadata?.display_name === 'string' &&
+            s.user.user_metadata.display_name) ||
+          s.user.email?.split('@')[0] ||
+          '시민';
+        writeStoredSession(s.user.id, nick);
+        setPhase('play');
+      } else {
+        setPhase('login');
+      }
+    });
+    const { data: sub } = sb.auth.onAuthStateChange((_ev, session) => {
+      if (!session?.user) {
+        setAccessToken(null);
+        setUserId(null);
+        setPhase('login');
+        return;
+      }
+      setAccessToken(session.access_token);
+      setUserId(session.user.id);
+    });
+    return () => {
+      alive = false;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
-  const enterAs = (id: string) => {
+  const enterAs = (id: string, displayName: string, token: string) => {
     booted.current = false;
     geoAsked.current = false;
     setCells([]);
@@ -98,14 +132,22 @@ export default function GeomShinClient() {
     setFocus(null);
     setSelected(null);
     setMsg('내 픽셀 찍는 중…');
+    setAccessToken(token);
     setUserId(id);
+    writeStoredSession(id, displayName);
     setPhase('play');
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      if (isSupabaseBrowserReady()) await getBrowserSupabase().auth.signOut();
+    } catch {
+      /* ignore */
+    }
     clearStoredSession();
     booted.current = false;
     geoAsked.current = false;
+    setAccessToken(null);
     setUserId(null);
     setUser(null);
     setCells([]);
@@ -116,10 +158,9 @@ export default function GeomShinClient() {
 
   const headers = useMemo((): Record<string, string> => {
     const h: Record<string, string> = { 'Content-Type': 'application/json' };
-    // 한글 아이디는 헤더에 그대로 못 넣음
-    if (userId) h['x-user-id'] = encodeUserIdHeader(userId);
+    if (accessToken) h.Authorization = `Bearer ${accessToken}`;
     return h;
-  }, [userId]);
+  }, [accessToken]);
 
   const mergeDelta = (delta: BoardCell) => {
     setCells((prev) => {
@@ -152,7 +193,7 @@ export default function GeomShinClient() {
 
   /** 시작 즉시: 캐시된 내 픽셀 표시 + 시드 API 최우선 */
   useEffect(() => {
-    if (!userId || booted.current) return;
+    if (!userId || !accessToken || booted.current) return;
     booted.current = true;
     let cancelled = false;
 
@@ -178,11 +219,30 @@ export default function GeomShinClient() {
 
     (async () => {
       try {
+        // 0) 표시 닉네임·유저 행 동기화 (Auth uid 기준)
+        try {
+          const cachedName = localStorage.getItem('geomshin_display') || undefined;
+          const sessRes = await fetch('/api/geomshin/session', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ displayName: cachedName }),
+          });
+          const sessData = await sessRes.json().catch(() => ({}));
+          if (!cancelled && sessData.user) {
+            setUser(sessData.user);
+            if (sessData.user.brushColor != null) {
+              setBrush(colorToCss(sessData.user.brushColor));
+            }
+          }
+        } catch {
+          /* seed에서 재시도 */
+        }
+
         // 2) 시드 최우선 — 잉크보다 먼저 찍기
         const seedRes = await fetch('/api/geomshin/seed', {
           method: 'POST',
           headers,
-          body: JSON.stringify({ userId, auto: true, color: brushRef.current }),
+          body: JSON.stringify({ auto: true, color: brushRef.current }),
         });
         const seedData = await seedRes.json().catch(() => ({ ok: false }));
         if (cancelled) return;
@@ -219,7 +279,7 @@ export default function GeomShinClient() {
         }
 
         // 3) 잉크/유저 상태는 뒤에서 보강
-        fetch(`/api/geomshin/ink?userId=${encodeURIComponent(userId)}`, { headers })
+        fetch('/api/geomshin/ink', { headers })
           .then((r) => r.json())
           .then((inkData) => {
             if (cancelled || !inkData.user) return;
@@ -240,11 +300,11 @@ export default function GeomShinClient() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, [userId, accessToken]);
 
   /** GPS는 첫 페인트 이후 지연 — 화면 차단하지 않음 */
   useEffect(() => {
-    if (!userId || geoAsked.current) return;
+    if (!userId || !accessToken || geoAsked.current) return;
     const start = window.setTimeout(() => {
       if (geoAsked.current) return;
       geoAsked.current = true;
@@ -260,7 +320,7 @@ export default function GeomShinClient() {
             const res = await fetch('/api/geomshin/presence', {
               method: 'POST',
               headers,
-              body: JSON.stringify({ userId, lat, lng }),
+              body: JSON.stringify({ lat, lng }),
             });
             if (!res.ok) throw new Error(`presence ${res.status}`);
             const data = await res.json();
@@ -286,7 +346,7 @@ export default function GeomShinClient() {
       );
     }, 1200);
     return () => clearTimeout(start);
-  }, [headers, userId, refreshPresence]);
+  }, [headers, userId, accessToken, refreshPresence]);
 
   useEffect(() => {
     const t = setInterval(refreshPresence, 30_000);
@@ -294,6 +354,7 @@ export default function GeomShinClient() {
   }, [refreshPresence]);
 
   useEffect(() => {
+    if (!accessToken) return;
     const q = new URLSearchParams({
       x0: String(view.x0),
       y0: String(view.y0),
@@ -301,7 +362,7 @@ export default function GeomShinClient() {
       y1: String(view.y1),
     });
     let cancelled = false;
-    fetch(`/api/geomshin/pixels?${q}`)
+    fetch(`/api/geomshin/pixels?${q}`, { headers })
       .then((r) => {
         if (!r.ok) throw new Error(`pixels ${r.status}`);
         return r.json();
@@ -322,16 +383,16 @@ export default function GeomShinClient() {
     return () => {
       cancelled = true;
     };
-  }, [view]);
+  }, [view, accessToken, headers]);
 
   const pickColor = async (hex: string) => {
     setBrush(hex);
-    if (!userId) return;
+    if (!userId || !accessToken) return;
     try {
       const res = await fetch('/api/geomshin/brush', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ userId, color: hex }),
+        body: JSON.stringify({ color: hex }),
       });
       const data = await res.json();
       if (data.user) setUser(data.user);
@@ -351,7 +412,7 @@ export default function GeomShinClient() {
         const seedRes = await fetch('/api/geomshin/seed', {
           method: 'POST',
           headers,
-          body: JSON.stringify({ userId, auto: true, color: brush }),
+          body: JSON.stringify({ auto: true, color: brush }),
         });
         const seedData = await seedRes.json();
         if (seedData.user) {
@@ -408,7 +469,7 @@ export default function GeomShinClient() {
       const res = await fetch('/api/geomshin/claim', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ userId, x, y, color: brush }),
+        body: JSON.stringify({ x, y, color: brush }),
       });
       const data = await res.json();
       if (data.user) setUser(data.user);
@@ -444,7 +505,7 @@ export default function GeomShinClient() {
       const res = await fetch('/api/geomshin/reward', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ userId, amount: 5 }),
+        body: JSON.stringify({ amount: 5 }),
       });
       const data = await res.json();
       if (data.user) {
@@ -464,8 +525,10 @@ export default function GeomShinClient() {
     );
   }
 
-  if (phase === 'login' || !userId) {
-    return <GeomShinLogin onEnter={(id) => enterAs(id)} />;
+  if (phase === 'login' || !userId || !accessToken) {
+    return (
+      <GeomShinLogin onEnter={(id, name, token) => enterAs(id, name, token)} />
+    );
   }
 
   return (
@@ -545,8 +608,12 @@ export default function GeomShinClient() {
           <button type="button" onClick={reward}>
             리워드
           </button>
-          <button type="button" className="gs-logout" onClick={logout}>
-            아이디 변경
+          <button
+            type="button"
+            className="gs-logout"
+            onClick={() => void logout()}
+          >
+            로그아웃
           </button>
         </div>
         <p className="gs-msg gs-msg-one">{msg} · {geoMsg}</p>

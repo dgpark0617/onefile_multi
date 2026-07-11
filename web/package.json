@@ -6,6 +6,7 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.110.2",
     "next": "^15.3.4",
     "phaser": "^3.90.0",

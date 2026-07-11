@@ -1,27 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureUserAsync, userPublic } from '@/lib/geomshin/store';
-import { validatePlayerId } from '@/lib/geomshin/session';
-import { readUserId } from '@/lib/geomshin/requestUser';
+import { validateDisplayName } from '@/lib/geomshin/session';
+import { requireApiUser } from '@/lib/geomshin/requestUser';
 
+/** POST /api/geomshin/session — Bearer 필수, userId=auth.uid */
 export async function POST(req: NextRequest) {
-  let body: { userId?: string; displayName?: string } = {};
+  const auth = await requireApiUser(req);
+  if (!auth.ok) {
+    return NextResponse.json({ ok: false, reason: auth.reason }, { status: auth.status });
+  }
+
+  let body: { displayName?: string } = {};
   try {
     body = await req.json();
   } catch {
     body = {};
   }
-  const raw = readUserId(req, body);
-  const checked = validatePlayerId(raw === 'guest' ? '' : raw);
-  if (!checked.ok) {
-    return NextResponse.json({ ok: false, reason: checked.reason }, { status: 400 });
+
+  let displayName = auth.user.displayNameHint || '';
+  if (body.displayName) {
+    const n = validateDisplayName(String(body.displayName));
+    if (n.ok) displayName = n.id;
   }
-  const name = body.displayName ? String(body.displayName).trim().slice(0, 24) : undefined;
+  if (!displayName) {
+    displayName = auth.user.email?.split('@')[0] || `시민-${auth.user.id.slice(0, 6)}`;
+  }
+
   try {
-    const u = await ensureUserAsync(checked.id, name || checked.id);
+    const u = await ensureUserAsync(auth.user.id, displayName);
+    if (displayName && u.displayName !== displayName) {
+      u.displayName = displayName;
+    }
     return NextResponse.json({
       ok: true,
       user: userPublic(u),
-      note: '비밀번호 없음 · 같은 아이디면 같은 시민으로 이어집니다',
+      note: 'Supabase Auth · 계정에 영토가 묶입니다',
     });
   } catch (e) {
     return NextResponse.json(
@@ -29,7 +42,6 @@ export async function POST(req: NextRequest) {
         ok: false,
         reason: 'DB_NOT_READY',
         detail: e instanceof Error ? e.message : String(e),
-        hint: 'Supabase SQL Editor에서 supabase-schema.sql 실행',
       },
       { status: 503 },
     );

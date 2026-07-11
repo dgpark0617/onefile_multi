@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { applyLockCoatAsync } from '@/lib/geomshin/store';
-import { readUserId } from '@/lib/geomshin/requestUser';
+import { requireApiUser } from '@/lib/geomshin/requestUser';
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const userId = readUserId(req, body);
+  const auth = await requireApiUser(req);
+  if (!auth.ok) {
+    return NextResponse.json({ ok: false, reason: auth.reason }, { status: auth.status });
+  }
+  const body = await req.json().catch(() => ({}));
   try {
-    return NextResponse.json(await applyLockCoatAsync(userId, Number(body.x), Number(body.y)));
+    return NextResponse.json(
+      await applyLockCoatAsync(auth.user.id, Number(body.x), Number(body.y)),
+    );
   } catch (e) {
     return NextResponse.json(
       { ok: false, reason: 'DB_NOT_READY', detail: e instanceof Error ? e.message : String(e) },

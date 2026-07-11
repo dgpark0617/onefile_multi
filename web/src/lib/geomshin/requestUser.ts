@@ -1,13 +1,17 @@
 import type { NextRequest } from 'next/server';
-import { decodeUserIdHeader } from '@/lib/geomshin/session';
+import { requireAuthUser, type AuthUser } from './supabaseAuth';
 
-/** body / header / query 에서 userId 추출 (한글 헤더는 decode) */
-export function readUserId(
+/**
+ * API 진입: Bearer 토큰 필수.
+ * body.userId 는 무시(위조 방지) — 항상 auth.uid 사용.
+ */
+export async function requireApiUser(
   req: NextRequest,
-  body?: { userId?: string } | null,
-): string {
-  const fromBody = body?.userId ? String(body.userId) : '';
-  const fromHeader = decodeUserIdHeader(req.headers.get('x-user-id'));
-  const fromQuery = decodeUserIdHeader(req.nextUrl.searchParams.get('userId'));
-  return fromBody || fromHeader || fromQuery || 'guest';
+): Promise<{ ok: true; user: AuthUser } | { ok: false; status: number; reason: string }> {
+  return requireAuthUser(req);
+}
+
+/** @deprecated 인증 없는 userId 추출 — 사용 금지 */
+export function readUserId(): string {
+  return 'guest';
 }

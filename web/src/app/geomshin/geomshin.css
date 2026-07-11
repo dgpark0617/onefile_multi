@@ -460,6 +460,41 @@ body:has(.gs-root) main {
   line-height: 1.45;
 }
 
+.gs-login-tabs {
+  display: flex;
+  gap: 0;
+  margin: 0 0 16px;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.gs-login-tabs button {
+  flex: 1;
+  appearance: none;
+  border: none;
+  background: #0f172a;
+  color: #94a3b8;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.gs-login-tabs button + button {
+  border-left: 1px solid #334155;
+}
+
+.gs-login-tabs button.active {
+  background: #1e293b;
+  color: #f8fafc;
+  font-weight: 600;
+}
+
+.gs-login-tabs button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
 .gs-login-form {
   display: flex;
   flex-direction: column;
@@ -512,6 +547,13 @@ body:has(.gs-root) main {
   margin: 4px 0 0;
   color: #f87171;
   font-size: 0.85rem;
+}
+
+.gs-login-info {
+  margin: 4px 0 0;
+  color: #7dd3fc;
+  font-size: 0.85rem;
+  line-height: 1.4;
 }
 
 .gs-login-hint {

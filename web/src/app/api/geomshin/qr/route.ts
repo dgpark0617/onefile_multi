@@ -7,7 +7,7 @@ import {
   QR_TTL_MS,
 } from '@/lib/geomshin/qr';
 import { rewardInkAsync } from '@/lib/geomshin/store';
-import { readUserId } from '@/lib/geomshin/requestUser';
+import { requireApiUser } from '@/lib/geomshin/requestUser';
 
 export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id');
@@ -39,7 +39,6 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as {
     action?: string;
-    userId?: string;
     shopName?: string;
     inkReward?: number;
     kind?: 'shop' | 'rider_pickup' | 'attendance';
@@ -65,14 +64,17 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === 'redeem') {
-    const userId = readUserId(req, body);
+    const auth = await requireApiUser(req);
+    if (!auth.ok) {
+      return NextResponse.json({ ok: false, reason: auth.reason }, { status: auth.status });
+    }
     const id = body.id;
     if (!id) return NextResponse.json({ ok: false, reason: 'NO_ID' }, { status: 400 });
-    const result = redeemQr(id, userId);
+    const result = redeemQr(id, auth.user.id);
     if (!result.ok) {
       return NextResponse.json({ ok: false, reason: result.reason }, { status: 400 });
     }
-    const rewarded = await rewardInkAsync(userId, result.inkReward ?? 30);
+    const rewarded = await rewardInkAsync(auth.user.id, result.inkReward ?? 30);
     return NextResponse.json({
       ok: true,
       shopName: result.shopName,

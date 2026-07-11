@@ -12,9 +12,13 @@ import { INK_REFILL_MS_ONSITE, INK_REFILL_MS_REMOTE } from '@/lib/geomshin/geo';
 import { msUntilNextInk } from '@/lib/geomshin/ink';
 import { LANDMARKS } from '@/lib/geomshin/landmarks';
 import { getStoreBackend } from '@/lib/geomshin/backend';
-import { readUserId } from '@/lib/geomshin/requestUser';
+import { requireApiUser } from '@/lib/geomshin/requestUser';
 
 export async function GET(req: NextRequest) {
+  const auth = await requireApiUser(req);
+  if (!auth.ok) {
+    return NextResponse.json({ ok: false, reason: auth.reason }, { status: auth.status });
+  }
   try {
     await ensureGeomShinReady();
   } catch (e) {
@@ -23,13 +27,11 @@ export async function GET(req: NextRequest) {
         ok: false,
         reason: 'DB_NOT_READY',
         detail: e instanceof Error ? e.message : String(e),
-        hint: 'Supabase SQL Editor에서 web/src/lib/geomshin/supabase-schema.sql 실행',
       },
       { status: 503 },
     );
   }
-  const userId = readUserId(req);
-  const u = await ensureUserAsync(userId);
+  const u = await ensureUserAsync(auth.user.id, auth.user.displayNameHint);
   const now = Date.now();
   const pub = userPublic(u, now);
   const refillMs = refillMsFor(u, now);
