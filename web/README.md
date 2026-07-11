@@ -67,3 +67,11 @@ npx vercel --prod
 1. `onefile_multi_xxx/`에 HTML 추가
 2. `src/data/games.json` 등록
 3. `git push`
+
+## 검신 (Geom-Shin)
+
+가이아 대체 플랫폼. Next 네이티브 라우트 (원파일 HTML 아님).
+
+- 플레이: `/geomshin`
+- 코드: `src/app/geomshin`, `src/lib/geomshin`, `src/game/geomshin`, `src/app/api/geomshin`
+- 테스트: `npm run test:geomshin`

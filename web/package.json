@@ -5,6 +5,12 @@
   "engines": {
     "node": ">=20"
   },
+  "dependencies": {
+    "next": "^15.3.4",
+    "phaser": "^3.90.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
   "scripts": {
     "patch-invite": "node scripts/patch-invite-qr.mjs",
     "sync-games": "node scripts/sync-games.mjs",
@@ -13,12 +19,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
-  },
-  "dependencies": {
-    "next": "^15.3.4",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "lint": "next lint",
+    "test:geomshin": "npx --yes tsx --test src/lib/geomshin/*.test.ts"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",

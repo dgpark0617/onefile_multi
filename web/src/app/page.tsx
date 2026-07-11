@@ -49,6 +49,29 @@ export default function HomePage() {
         </p>
       </section>
 
+      <section style={{ marginBottom: 32 }}>
+        <h2 className="section-title">검단 전광판</h2>
+        <div className="game-grid">
+          <article className="game-card featured">
+            <div className="tag-row">
+              <span className="tag">커뮤니티</span>
+              <span className="tag">픽셀</span>
+              <span className="tag">Phaser</span>
+            </div>
+            <h2>검신 (Geom-Shin)</h2>
+            <p>검단신도시 실시간 픽셀 전광판 · 잉크 · 인접 확장</p>
+            <div className="card-actions">
+              <Link href="/geomshin" className="btn btn-primary">
+                플레이
+              </Link>
+              <Link href="/geomshin/terms" className="btn btn-secondary">
+                약관
+              </Link>
+            </div>
+          </article>
+        </div>
+      </section>
+
       {featured.length > 0 && (
         <section style={{ marginBottom: 32 }}>
           <h2 className="section-title">추천</h2>

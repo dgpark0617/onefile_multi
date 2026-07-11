@@ -1,0 +1,538 @@
+.gs-root {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-family: 'Pretendard', 'Noto Sans KR', system-ui, sans-serif;
+}
+
+.gs-hud {
+  flex: 0 0 auto;
+  padding: 10px 14px 8px;
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  border-bottom: 1px solid #334155;
+  z-index: 2;
+}
+
+.gs-brand {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.gs-brand strong {
+  font-size: 1.35rem;
+  letter-spacing: 0.04em;
+  color: #f8fafc;
+}
+
+.gs-brand span {
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+
+.gs-stats {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  font-size: 0.9rem;
+}
+
+.gs-stats b {
+  color: #4ade80;
+}
+
+.gs-palette {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.gs-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  border: 2px solid #475569;
+  cursor: pointer;
+  padding: 0;
+}
+
+.gs-swatch.active {
+  border-color: #f8fafc;
+  box-shadow: 0 0 0 2px #38bdf8;
+}
+
+.gs-color-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.gs-color-input input {
+  width: 36px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.gs-brush-preview {
+  width: 36px;
+  height: 28px;
+  border-radius: 4px;
+  border: 1px solid #94a3b8;
+}
+
+.gs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.gs-actions button,
+.gs-link {
+  appearance: none;
+  border: 1px solid #475569;
+  background: #1e293b;
+  color: #e2e8f0;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.gs-actions button:hover,
+.gs-link:hover {
+  border-color: #94a3b8;
+  background: #334155;
+}
+
+.gs-msg {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  color: #cbd5e1;
+  min-height: 1.2em;
+}
+
+.gs-map {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.gs-phaser-host {
+  position: absolute;
+  inset: 0;
+}
+
+.gs-phaser-host canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+body:has(.gs-root) .site-header,
+body:has(.gs-root) .site-footer {
+  display: none;
+}
+
+body:has(.gs-root) main {
+  padding: 0;
+  margin: 0;
+  max-width: none;
+}
+
+.gs-panel {
+  max-width: 720px;
+  margin: 40px auto;
+  padding: 24px;
+  color: #e2e8f0;
+  line-height: 1.6;
+}
+
+.gs-panel h1 {
+  margin-top: 0;
+}
+
+.gs-panel a {
+  color: #7dd3fc;
+}
+
+.gs-mode-onsite {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.gs-mode-remote {
+  color: #94a3b8;
+}
+
+.gs-shop {
+  overflow: auto;
+}
+
+.gs-shop-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin-top: 12px;
+}
+
+.gs-shop-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.gs-shop-form input {
+  min-width: 200px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #475569;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.gs-shop-form button {
+  appearance: none;
+  border: 1px solid #22c55e;
+  background: #14532d;
+  color: #ecfdf5;
+  border-radius: 6px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.gs-shop-result {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #1e293b;
+}
+
+.gs-shop-url {
+  word-break: break-all;
+  font-size: 0.85rem;
+}
+
+.gs-shop-url a {
+  color: #7dd3fc;
+}
+
+.gs-nav {
+  margin-top: 10px;
+  padding: 8px 0 4px;
+  border-top: 1px solid #334155;
+}
+
+.gs-nav-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.gs-nav-item {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #475569;
+  background: #1e293b;
+  color: #e2e8f0;
+  text-decoration: none;
+  font-size: 0.8rem;
+  min-width: 7rem;
+}
+
+.gs-nav-item:hover {
+  border-color: #94a3b8;
+  background: #334155;
+}
+
+.gs-nav-item.active {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 1px #38bdf8;
+}
+
+.gs-nav-label {
+  font-weight: 600;
+}
+
+.gs-nav-note {
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+.gs-nav-stubs {
+  margin: 10px 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  line-height: 1.45;
+}
+
+.gs-nav-stubs b {
+  color: #cbd5e1;
+}
+
+.gs-nav-stubs code {
+  font-size: 0.7rem;
+  color: #7dd3fc;
+}
+
+.gs-hud-slim {
+  padding: 8px 12px 6px;
+}
+
+.gs-hud-slim .gs-nav {
+  margin-top: 6px;
+  padding-top: 6px;
+}
+
+.gs-msg-one {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gs-map-skel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.gs-nav-details {
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.gs-nav-details summary {
+  cursor: pointer;
+  color: #cbd5e1;
+}
+
+.gs-nav-compact .gs-nav-item {
+  min-width: auto;
+  padding: 4px 8px;
+}
+
+
+.gs-heat-stat {
+  color: #fb923c;
+  text-decoration: none;
+}
+
+.gs-heat-stat:hover {
+  text-decoration: underline;
+}
+
+.gs-presence-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 16px 14px 24px;
+  overflow: auto;
+  flex: 1;
+}
+
+.gs-presence-map {
+  flex: 0 0 auto;
+}
+
+.gs-presence-map svg {
+  display: block;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #0f172a;
+}
+
+.gs-presence-list {
+  flex: 1;
+  min-width: 260px;
+  max-width: 480px;
+}
+
+.gs-presence-list h2 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+  color: #e2e8f0;
+}
+
+.gs-presence-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 60vh;
+  overflow: auto;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #1e293b;
+}
+
+.gs-presence-list li {
+  display: grid;
+  grid-template-columns: 1.4fr 0.9fr 1fr;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  border-bottom: 1px solid #334155;
+  color: #cbd5e1;
+}
+
+.gs-presence-list li:last-child {
+  border-bottom: none;
+}
+
+.gs-presence-meta {
+  color: #94a3b8;
+}
+
+
+.gs-heat-legend {
+  color: #fdba74 !important;
+}
+
+.gs-panel .gs-nav {
+  border-top: none;
+  margin-bottom: 16px;
+}
+
+/* —— 아이디 입장 —— */
+.gs-login-root {
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% 0%, #1e3a5f 0%, transparent 55%),
+    linear-gradient(180deg, #0f172a 0%, #020617 100%);
+  padding: 24px;
+}
+
+.gs-login-card {
+  width: min(420px, 100%);
+  padding: 28px 24px 22px;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.92);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+}
+
+.gs-login-kicker {
+  margin: 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.gs-login-title {
+  margin: 6px 0 0;
+  font-size: 2.4rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #f8fafc;
+}
+
+.gs-login-sub {
+  margin: 8px 0 20px;
+  font-size: 0.9rem;
+  color: #94a3b8;
+  line-height: 1.45;
+}
+
+.gs-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gs-login-label {
+  font-size: 0.8rem;
+  color: #cbd5e1;
+}
+
+.gs-login-input {
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid #475569;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #f1f5f9;
+  font-size: 1rem;
+}
+
+.gs-login-input:focus {
+  outline: 2px solid #38bdf8;
+  outline-offset: 1px;
+  border-color: #38bdf8;
+}
+
+.gs-login-btn {
+  margin-top: 8px;
+  height: 44px;
+  border: none;
+  border-radius: 8px;
+  background: #22c55e;
+  color: #052e16;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.gs-login-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.gs-login-btn:hover:not(:disabled) {
+  background: #4ade80;
+}
+
+.gs-login-err {
+  margin: 4px 0 0;
+  color: #f87171;
+  font-size: 0.85rem;
+}
+
+.gs-login-hint {
+  margin: 18px 0 0;
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.gs-player-id {
+  margin-left: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #7dd3fc !important;
+  font-size: 0.8rem !important;
+}
+
+.gs-logout {
+  margin-left: auto;
+  opacity: 0.85;
+}
+
