@@ -12,10 +12,7 @@ import { INK_REFILL_MS_ONSITE, INK_REFILL_MS_REMOTE } from '@/lib/geomshin/geo';
 import { msUntilNextInk } from '@/lib/geomshin/ink';
 import { LANDMARKS } from '@/lib/geomshin/landmarks';
 import { getStoreBackend } from '@/lib/geomshin/backend';
-
-function uid(req: NextRequest): string {
-  return req.headers.get('x-user-id') || req.nextUrl.searchParams.get('userId') || 'guest';
-}
+import { readUserId } from '@/lib/geomshin/requestUser';
 
 export async function GET(req: NextRequest) {
   try {
@@ -31,7 +28,7 @@ export async function GET(req: NextRequest) {
       { status: 503 },
     );
   }
-  const userId = uid(req);
+  const userId = readUserId(req);
   const u = await ensureUserAsync(userId);
   const now = Date.now();
   const pub = userPublic(u, now);

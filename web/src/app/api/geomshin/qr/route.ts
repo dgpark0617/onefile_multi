@@ -7,17 +7,8 @@ import {
   QR_TTL_MS,
 } from '@/lib/geomshin/qr';
 import { rewardInkAsync } from '@/lib/geomshin/store';
+import { readUserId } from '@/lib/geomshin/requestUser';
 
-function uid(req: NextRequest, body?: { userId?: string }): string {
-  return (
-    req.headers.get('x-user-id') ||
-    body?.userId ||
-    req.nextUrl.searchParams.get('userId') ||
-    'guest'
-  );
-}
-
-/** QR 조회 */
 export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id');
   if (!id) {
@@ -45,10 +36,6 @@ export async function GET(req: NextRequest) {
   });
 }
 
-/**
- * action=create — 사장님 결제 스텁 후 7일 QR 발급
- * action=redeem — 유저 스캔 시 잉크 충전
- */
 export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as {
     action?: string;
@@ -78,7 +65,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === 'redeem') {
-    const userId = uid(req, body);
+    const userId = readUserId(req, body);
     const id = body.id;
     if (!id) return NextResponse.json({ ok: false, reason: 'NO_ID' }, { status: 400 });
     const result = redeemQr(id, userId);

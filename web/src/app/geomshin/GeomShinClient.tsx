@@ -9,7 +9,7 @@ import type { BoardCell, LandmarkInfo } from '@/game/geomshin/GeomShinScene';
 import type { PresenceCell } from '@/game/geomshin/PhaserMap';
 import GeomShinNav from './GeomShinNav';
 import GeomShinLogin from './GeomShinLogin';
-import { clearStoredSession, readStoredSession } from '@/lib/geomshin/session';
+import { clearStoredSession, encodeUserIdHeader, readStoredSession } from '@/lib/geomshin/session';
 
 const PhaserMap = dynamic(() => import('@/game/geomshin/PhaserMap'), {
   ssr: false,
@@ -116,7 +116,8 @@ export default function GeomShinClient() {
 
   const headers = useMemo((): Record<string, string> => {
     const h: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (userId) h['x-user-id'] = userId;
+    // 한글 아이디는 헤더에 그대로 못 넣음
+    if (userId) h['x-user-id'] = encodeUserIdHeader(userId);
     return h;
   }, [userId]);
 

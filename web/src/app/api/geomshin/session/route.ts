@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureUserAsync, userPublic } from '@/lib/geomshin/store';
 import { validatePlayerId } from '@/lib/geomshin/session';
+import { readUserId } from '@/lib/geomshin/requestUser';
 
-/**
- * POST /api/geomshin/session
- * 비밀번호 없이 아이디로 입장. 없으면 생성, 있으면 기존 유저 반환.
- */
 export async function POST(req: NextRequest) {
   let body: { userId?: string; displayName?: string } = {};
   try {
@@ -13,8 +10,8 @@ export async function POST(req: NextRequest) {
   } catch {
     body = {};
   }
-  const raw = String(body.userId || req.headers.get('x-user-id') || '');
-  const checked = validatePlayerId(raw);
+  const raw = readUserId(req, body);
+  const checked = validatePlayerId(raw === 'guest' ? '' : raw);
   if (!checked.ok) {
     return NextResponse.json({ ok: false, reason: checked.reason }, { status: 400 });
   }

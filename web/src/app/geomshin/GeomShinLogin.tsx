@@ -23,22 +23,23 @@ export default function GeomShinLogin({ initialId = '', onEnter }: Props) {
     setBusy(true);
     setErr('');
     try {
+      // 한글 아이디는 헤더에 넣으면 브라우저가 fetch를 거부함 → body만 사용
       const res = await fetch('/api/geomshin/session', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': checked.id },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: checked.id, displayName: checked.id }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({ ok: false, reason: `HTTP ${res.status}` }));
       if (!data.ok) {
-        setErr(data.reason || '입장 실패');
+        setErr(data.detail || data.reason || data.hint || '입장 실패');
         setBusy(false);
         return;
       }
       const displayName = data.user?.displayName || checked.id;
       writeStoredSession(checked.id, displayName);
       onEnter(checked.id, displayName);
-    } catch {
-      setErr('서버에 연결할 수 없습니다');
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '서버에 연결할 수 없습니다');
       setBusy(false);
     }
   };
@@ -72,7 +73,7 @@ export default function GeomShinLogin({ initialId = '', onEnter }: Props) {
         <p className="gs-login-hint">
           같은 아이디로 다시 들어오면 내 영토·잉크가 이어집니다.
           <br />
-          아직 서버 메모리는 프로세스 단위라, 배포 멀티는 Supabase 연결이 필요합니다.
+          서버는 Supabase에 저장됩니다 · 멀티플레이 가능
         </p>
       </div>
     </div>

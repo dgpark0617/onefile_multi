@@ -43,3 +43,17 @@ export function clearStoredSession() {
   localStorage.removeItem(GEOM_NAME_KEY);
   localStorage.removeItem('geomshin_home');
 }
+
+/** HTTP 헤더는 ASCII만 허용 → 한글 아이디는 인코딩해서 전송 */
+export function encodeUserIdHeader(id: string): string {
+  return encodeURIComponent(id);
+}
+
+export function decodeUserIdHeader(raw: string | null | undefined): string {
+  if (!raw) return '';
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}

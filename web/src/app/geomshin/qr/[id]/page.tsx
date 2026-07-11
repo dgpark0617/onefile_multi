@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import '../../geomshin.css';
 import GeomShinNav from '../../GeomShinNav';
-import { readStoredSession } from '@/lib/geomshin/session';
+import { encodeUserIdHeader, readStoredSession } from '@/lib/geomshin/session';
 
 const REASON_KO: Record<string, string> = {
   QR_NOT_FOUND: 'QR을 찾을 수 없습니다',
@@ -56,7 +56,10 @@ export default function QrRedeemPage() {
     }
     const res = await fetch('/api/geomshin/qr', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-id': encodeUserIdHeader(userId),
+      },
       body: JSON.stringify({ action: 'redeem', id, userId }),
     });
     const data = await res.json();

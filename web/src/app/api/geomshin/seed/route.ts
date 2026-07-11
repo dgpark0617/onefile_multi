@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { autoSeedPixelAsync, seedPixelAsync } from '@/lib/geomshin/store';
+import { readUserId } from '@/lib/geomshin/requestUser';
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const userId = String(body.userId || req.headers.get('x-user-id') || 'guest');
+  const userId = readUserId(req, body);
   try {
     if (body.auto) {
-      const out = await autoSeedPixelAsync(userId, body.color);
-      return NextResponse.json(out);
+      return NextResponse.json(await autoSeedPixelAsync(userId, body.color));
     }
-    const out = await seedPixelAsync(userId, Number(body.x), Number(body.y), body.color);
-    return NextResponse.json(out);
+    return NextResponse.json(
+      await seedPixelAsync(userId, Number(body.x), Number(body.y), body.color),
+    );
   } catch (e) {
     return NextResponse.json(
       { ok: false, reason: 'DB_NOT_READY', detail: e instanceof Error ? e.message : String(e) },
