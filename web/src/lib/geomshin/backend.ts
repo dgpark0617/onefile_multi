@@ -5,16 +5,28 @@
  */
 export type StoreBackend = 'memory' | 'supabase';
 
+function envFlag(name: string): boolean {
+  const raw = process.env[name];
+  if (!raw) return false;
+  const v = raw.trim().replace(/^["']|["']$/g, '').toLowerCase();
+  return v === 'true' || v === '1' || v === 'yes';
+}
+
+function envStr(name: string): string {
+  const raw = process.env[name];
+  if (!raw) return '';
+  return raw.trim().replace(/^["']|["']$/g, '');
+}
+
 export function getStoreBackend(): StoreBackend {
-  if (process.env.GEOMSHIN_USE_SUPABASE === 'true' && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  if (envFlag('GEOMSHIN_USE_SUPABASE') && envStr('NEXT_PUBLIC_SUPABASE_URL')) {
     return 'supabase';
   }
   return 'memory';
 }
 
 export function supabaseConfigured(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-  );
+  return Boolean(envStr('NEXT_PUBLIC_SUPABASE_URL') && envStr('SUPABASE_SERVICE_ROLE_KEY'));
 }
+
+export { envStr };
