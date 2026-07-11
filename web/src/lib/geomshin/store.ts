@@ -4,6 +4,13 @@ import { refillInk, spendInk } from './ink';
 import { isAdjacentOwned } from './grid';
 import { isLandmarkLocked } from './landmarks';
 import { parseBrushColor } from './palette';
+import {
+  allocSlotFromDb,
+  hydrateGeomShinFromDb,
+  persistPixel,
+  persistUser,
+  useSupabaseStore,
+} from './persist';
 
 /** GPS 미갱신 시 현장 버프 만료 (집관으로 복귀) */
 export const ONSITE_STALE_MS = 10 * 60 * 1000;
@@ -50,6 +57,8 @@ type GeomStore = {
 declare global {
   // eslint-disable-next-line no-var
   var __geomshinStore: GeomStore | undefined;
+  // eslint-disable-next-line no-var
+  var __geomshinReady: Promise<void> | undefined;
 }
 
 function createStore(): GeomStore {
@@ -74,6 +83,45 @@ export function getStore(): GeomStore {
 
 export function resetStoreForTests(): void {
   globalThis.__geomshinStore = createStore();
+  globalThis.__geomshinReady = undefined;
+}
+
+/** API 진입 시 1회 DB 하이드레이트 */
+export async function ensureGeomShinReady(): Promise<void> {
+  if (!useSupabaseStore()) return;
+  if (!globalThis.__geomshinReady) {
+    globalThis.__geomshinReady = (async () => {
+      const store = getStore();
+      const result = await hydrateGeomShinFromDb((users, pixels, nextSlot) => {
+        store.usersById.clear();
+        store.slotToUser.clear();
+        store.owners.fill(0);
+        store.colors.fill(0);
+        store.lockUntil.fill(0);
+        store.hasAd.fill(0);
+        for (const u of users) {
+          store.usersById.set(u.id, u);
+          store.slotToUser.set(u.slot, u.id);
+        }
+        for (const p of pixels) {
+          if (p.i < 0 || p.i >= GRID_SIZE) continue;
+          store.owners[p.i] = p.owner_slot >>> 0;
+          store.colors[p.i] = p.color >>> 0;
+          store.lockUntil[p.i] = Number(p.lock_until_ms) || 0;
+          store.hasAd[p.i] = p.has_ad ? 1 : 0;
+        }
+        store.nextSlot = nextSlot;
+        store.version += 1;
+      });
+      if (!result.ok) {
+        console.error('[geomshin] hydrate failed:', result.reason);
+        // 테이블 미생성 등이면 메모리로 계속 (로컬 개발 편의)
+        globalThis.__geomshinReady = undefined;
+        throw new Error(result.reason || 'hydrate failed');
+      }
+    })();
+  }
+  await globalThis.__geomshinReady;
 }
 
 export function ensureUser(userId: string, displayName?: string): UserRecord {
@@ -87,6 +135,7 @@ export function ensureUser(userId: string, displayName?: string): UserRecord {
     if (u.geoY == null) u.geoY = -1;
     if (u.homeX == null) u.homeX = -1;
     if (u.homeY == null) u.homeY = -1;
+    if (displayName && displayName !== u.displayName) u.displayName = displayName;
     repairHomeFromBoard(u);
     return u;
   }
@@ -110,6 +159,59 @@ export function ensureUser(userId: string, displayName?: string): UserRecord {
   store.usersById.set(userId, u);
   store.slotToUser.set(slot, userId);
   return u;
+}
+
+/** Supabase 사용 시 슬롯을 DB에서 원자 발급 */
+export async function ensureUserAsync(
+  userId: string,
+  displayName?: string,
+): Promise<UserRecord> {
+  await ensureGeomShinReady();
+  const store = getStore();
+  const existing = store.usersById.get(userId);
+  if (existing) {
+    const u = ensureUser(userId, displayName);
+    await persistUser(u);
+    return u;
+  }
+  if (useSupabaseStore()) {
+    const slot = await allocSlotFromDb();
+    if (slot != null && slot > 0) {
+      const u: UserRecord = {
+        id: userId,
+        slot,
+        displayName: displayName || `시민-${slot}`,
+        ink: INK_START,
+        lastInkAtMs: Date.now(),
+        seeded: false,
+        blocked: false,
+        brushColor: 0x22c55e,
+        homeX: -1,
+        homeY: -1,
+        onsite: false,
+        lastGeoAtMs: 0,
+        geoX: -1,
+        geoY: -1,
+      };
+      store.usersById.set(userId, u);
+      store.slotToUser.set(slot, userId);
+      if (slot >= store.nextSlot) store.nextSlot = slot + 1;
+      await persistUser(u);
+      return u;
+    }
+  }
+  const u = ensureUser(userId, displayName);
+  await persistUser(u);
+  return u;
+}
+
+async function saveUserById(userId: string) {
+  const full = getStore().usersById.get(userId);
+  if (full) await persistUser(full);
+}
+
+async function saveDelta(delta?: PixelDelta | null) {
+  if (delta) await persistPixel(delta);
 }
 
 /** seeded인데 home 유실된 경우 — 보드에서 내 칸을 찾아 복구 */
@@ -406,4 +508,102 @@ export function setAdFlag(x: number, y: number, on: boolean) {
 
 export function boardMeta() {
   return { w: GRID_W, h: GRID_H, size: GRID_SIZE, version: getStore().version };
+}
+
+/** —— API용 async (하이드레이트 + 영속화) —— */
+
+export async function seedPixelAsync(
+  userId: string,
+  x: number,
+  y: number,
+  color?: unknown,
+) {
+  await ensureUserAsync(userId);
+  const out = seedPixel(userId, x, y, color);
+  await saveUserById(userId);
+  await saveDelta(out.delta);
+  return out;
+}
+
+export async function autoSeedPixelAsync(userId: string, color?: unknown) {
+  await ensureUserAsync(userId);
+  const out = autoSeedPixel(userId, color);
+  await saveUserById(userId);
+  await saveDelta(out.delta);
+  return out;
+}
+
+export async function claimPixelAsync(
+  userId: string,
+  x: number,
+  y: number,
+  color?: unknown,
+) {
+  await ensureUserAsync(userId);
+  const out = claimPixel(userId, x, y, color);
+  await saveUserById(userId);
+  await saveDelta(out.delta);
+  return out;
+}
+
+export async function rewardInkAsync(userId: string, amount = 5) {
+  await ensureUserAsync(userId);
+  const out = rewardInk(userId, amount);
+  await saveUserById(userId);
+  return out;
+}
+
+export async function setBrushColorAsync(userId: string, color: unknown) {
+  await ensureUserAsync(userId);
+  const out = setBrushColor(userId, color);
+  await saveUserById(userId);
+  return out;
+}
+
+export async function applyGeoPresenceAsync(
+  userId: string,
+  opts: { lng: number; lat: number; x: number | null; y: number | null; onsite: boolean },
+) {
+  await ensureUserAsync(userId);
+  const u = applyGeoPresence(userId, opts);
+  await persistUser(u);
+  return u;
+}
+
+export async function applyLockCoatAsync(userId: string, x: number, y: number) {
+  await ensureUserAsync(userId);
+  const out = applyLockCoat(userId, x, y);
+  if (out.ok && out.delta) await saveDelta(out.delta);
+  return out;
+}
+
+export async function adminBlockUserAsync(userId: string, blocked = true) {
+  await ensureUserAsync(userId);
+  const out = adminBlockUser(userId, blocked);
+  await saveUserById(userId);
+  return out;
+}
+
+export async function adminClearCellAsync(x: number, y: number) {
+  await ensureGeomShinReady();
+  const out = adminClearCell(x, y);
+  await saveDelta(out.delta);
+  return out;
+}
+
+export async function setAdFlagAsync(x: number, y: number, on: boolean) {
+  await ensureGeomShinReady();
+  const out = setAdFlag(x, y, on);
+  await saveDelta(out.delta);
+  return out;
+}
+
+export async function getViewportDeltaAsync(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+) {
+  await ensureGeomShinReady();
+  return getViewportDelta(x0, y0, x1, y1);
 }

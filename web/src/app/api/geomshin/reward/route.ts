@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { rewardInk } from '@/lib/geomshin/store';
+import { rewardInkAsync } from '@/lib/geomshin/store';
 
-/** 리워드 광고 시청 스텁 — 즉시 잉크 충전 */
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({}));
+  const body = await req.json();
   const userId = String(body.userId || req.headers.get('x-user-id') || 'guest');
   const amount = Number(body.amount ?? 5);
-  const out = rewardInk(userId, amount);
-  return NextResponse.json(out);
+  try {
+    const out = await rewardInkAsync(userId, amount);
+    return NextResponse.json(out);
+  } catch (e) {
+    return NextResponse.json(
+      { ok: false, reason: 'DB_NOT_READY', detail: e instanceof Error ? e.message : String(e) },
+      { status: 503 },
+    );
+  }
 }

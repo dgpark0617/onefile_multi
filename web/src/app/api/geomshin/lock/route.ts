@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { applyLockCoat } from '@/lib/geomshin/store';
+import { applyLockCoatAsync } from '@/lib/geomshin/store';
 
-/** 24시간 수정 잠금 코팅 스텁 */
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({}));
+  const body = await req.json();
   const userId = String(body.userId || req.headers.get('x-user-id') || 'guest');
   const x = Number(body.x);
   const y = Number(body.y);
-  const out = applyLockCoat(userId, x, y);
-  return NextResponse.json(out, { status: out.ok ? 200 : 400 });
+  try {
+    const out = await applyLockCoatAsync(userId, x, y);
+    return NextResponse.json(out);
+  } catch (e) {
+    return NextResponse.json(
+      { ok: false, reason: 'DB_NOT_READY', detail: e instanceof Error ? e.message : String(e) },
+      { status: 503 },
+    );
+  }
 }

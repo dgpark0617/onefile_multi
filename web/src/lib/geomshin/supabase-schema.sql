@@ -1,7 +1,6 @@
--- 검신 멀티플레이용 Supabase 스키마 초안 (아직 연결 전)
--- 사용 시점: Vercel 배포 후 보드/유저가 인스턴스 간에 공유되어야 할 때
+-- 검신 멀티플레이용 Supabase 스키마
+-- Supabase SQL Editor에서 한 번 실행
 
--- 시민 (아이디 = PK, 비밀번호 없음 단계)
 create table if not exists geomshin_users (
   id text primary key,
   slot integer not null unique,
@@ -21,12 +20,12 @@ create table if not exists geomshin_users (
   updated_at timestamptz not null default now()
 );
 
--- 픽셀 (500×500 → i = y*500+x). 희소 저장: 소유된 칸만
+-- 희소 픽셀 (소유된 칸만). LWW 덮어쓰기 위해 owner_slot FK 없음
 create table if not exists geomshin_pixels (
   i integer primary key check (i >= 0 and i < 250000),
   x integer not null,
   y integer not null,
-  owner_slot integer not null references geomshin_users(slot),
+  owner_slot integer not null,
   color integer not null,
   lock_until_ms bigint not null default 0,
   has_ad boolean not null default false,
@@ -36,12 +35,31 @@ create table if not exists geomshin_pixels (
 create index if not exists geomshin_pixels_owner on geomshin_pixels(owner_slot);
 create index if not exists geomshin_pixels_xy on geomshin_pixels(x, y);
 
--- 슬롯 발급 카운터
 create table if not exists geomshin_meta (
   key text primary key,
   value bigint not null
 );
+
 insert into geomshin_meta(key, value) values ('next_slot', 1)
   on conflict (key) do nothing;
 
--- Realtime: geomshin_pixels UPDATE/INSERT 구독 → 클라 뷰포트 갱신
+-- 원자적 슬롯 발급: 현재 값을 쓰고 +1
+create or replace function geomshin_alloc_slot()
+returns integer
+language plpgsql
+as $$
+declare
+  n bigint;
+begin
+  update geomshin_meta
+  set value = value + 1
+  where key = 'next_slot'
+  returning value - 1 into n;
+  if n is null then
+    insert into geomshin_meta(key, value) values ('next_slot', 2)
+    on conflict (key) do update set value = geomshin_meta.value + 1
+    returning value - 1 into n;
+  end if;
+  return n::integer;
+end;
+$$;

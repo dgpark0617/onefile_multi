@@ -1,18 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminBlockUser, adminClearCell, setAdFlag } from '@/lib/geomshin/store';
+import {
+  adminBlockUserAsync,
+  adminClearCellAsync,
+  setAdFlagAsync,
+} from '@/lib/geomshin/store';
 
-/** 관리자 스텁 — 좌표 초기화·유저 차단·광고 플래그 */
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({}));
-  const action = String(body.action || '');
-  if (action === 'clear') {
-    return NextResponse.json(adminClearCell(Number(body.x), Number(body.y)));
+  const body = await req.json();
+  try {
+    if (body.action === 'block') {
+      return NextResponse.json(
+        await adminBlockUserAsync(String(body.userId), body.blocked !== false),
+      );
+    }
+    if (body.action === 'clear') {
+      return NextResponse.json(await adminClearCellAsync(Number(body.x), Number(body.y)));
+    }
+    if (body.action === 'ad') {
+      return NextResponse.json(
+        await setAdFlagAsync(Number(body.x), Number(body.y), Boolean(body.on)),
+      );
+    }
+    return NextResponse.json({ ok: false, reason: 'UNKNOWN_ACTION' }, { status: 400 });
+  } catch (e) {
+    return NextResponse.json(
+      { ok: false, reason: 'DB_NOT_READY', detail: e instanceof Error ? e.message : String(e) },
+      { status: 503 },
+    );
   }
-  if (action === 'block') {
-    return NextResponse.json(adminBlockUser(String(body.userId), body.blocked !== false));
-  }
-  if (action === 'ad') {
-    return NextResponse.json(setAdFlag(Number(body.x), Number(body.y), !!body.on));
-  }
-  return NextResponse.json({ ok: false, reason: 'UNKNOWN_ACTION' }, { status: 400 });
 }

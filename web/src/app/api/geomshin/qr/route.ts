@@ -6,7 +6,7 @@ import {
   QR_PRICE_KRW_STUB,
   QR_TTL_MS,
 } from '@/lib/geomshin/qr';
-import { rewardInk, ensureUser } from '@/lib/geomshin/store';
+import { rewardInkAsync } from '@/lib/geomshin/store';
 
 function uid(req: NextRequest, body?: { userId?: string }): string {
   return (
@@ -85,8 +85,7 @@ export async function POST(req: NextRequest) {
     if (!result.ok) {
       return NextResponse.json({ ok: false, reason: result.reason }, { status: 400 });
     }
-    ensureUser(userId);
-    const rewarded = rewardInk(userId, result.inkReward ?? 30);
+    const rewarded = await rewardInkAsync(userId, result.inkReward ?? 30);
     return NextResponse.json({
       ok: true,
       shopName: result.shopName,

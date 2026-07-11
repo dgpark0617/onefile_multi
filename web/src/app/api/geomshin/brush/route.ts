@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { setBrushColor } from '@/lib/geomshin/store';
-import { PALETTE } from '@/lib/geomshin/palette';
-
-export async function GET() {
-  return NextResponse.json({ palette: PALETTE });
-}
+import { setBrushColorAsync } from '@/lib/geomshin/store';
 
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({}));
+  const body = await req.json();
   const userId = String(body.userId || req.headers.get('x-user-id') || 'guest');
-  const out = setBrushColor(userId, body.color);
-  return NextResponse.json(out);
+  try {
+    const out = await setBrushColorAsync(userId, body.color);
+    return NextResponse.json(out);
+  } catch (e) {
+    return NextResponse.json(
+      { ok: false, reason: 'DB_NOT_READY', detail: e instanceof Error ? e.message : String(e) },
+      { status: 503 },
+    );
+  }
 }

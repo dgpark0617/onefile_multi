@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getViewportDelta, boardMeta } from '@/lib/geomshin/store';
+import { getViewportDeltaAsync, boardMeta, ensureGeomShinReady } from '@/lib/geomshin/store';
 import { LANDMARKS } from '@/lib/geomshin/landmarks';
 
 export async function GET(req: NextRequest) {
@@ -8,6 +8,14 @@ export async function GET(req: NextRequest) {
   const y0 = Number(sp.get('y0') ?? 0);
   const x1 = Number(sp.get('x1') ?? 64);
   const y1 = Number(sp.get('y1') ?? 64);
-  const data = getViewportDelta(x0, y0, x1, y1);
-  return NextResponse.json({ ...data, meta: boardMeta(), landmarks: LANDMARKS });
+  try {
+    await ensureGeomShinReady();
+    const data = await getViewportDeltaAsync(x0, y0, x1, y1);
+    return NextResponse.json({ ...data, meta: boardMeta(), landmarks: LANDMARKS });
+  } catch (e) {
+    return NextResponse.json(
+      { ok: false, reason: 'DB_NOT_READY', detail: e instanceof Error ? e.message : String(e) },
+      { status: 503 },
+    );
+  }
 }

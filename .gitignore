@@ -5,6 +5,9 @@ web/out/
 web/public/games/
 web/*.tsbuildinfo
 web/next-env.d.ts
+web/.env
+web/.env.local
+web/.env.*.local
 
 # 로컬
 .DS_Store
