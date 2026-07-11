@@ -88,6 +88,7 @@ export class GeomShinScene extends Phaser.Scene {
 
     if (this.textures.exists('gs-board')) this.textures.remove('gs-board');
     const tex = this.textures.addCanvas('gs-board', this.mapCanvas);
+    if (!tex) throw new Error('gs-board texture failed');
     tex.setFilter(Phaser.Textures.FilterMode.NEAREST);
 
     const scale = CELL_PX / DETAIL;
