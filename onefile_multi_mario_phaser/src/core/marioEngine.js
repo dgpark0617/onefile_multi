@@ -4,6 +4,7 @@ import {
   FEATHER_DURATION,
   FRICTION,
   GRAVITY,
+  JUMP_CUT,
   JUMP_FORCE,
   MAX_SPEED,
   MOVE_SPEED,
@@ -36,33 +37,45 @@ const overworldPlatforms = [
       { x: 2635, y: 440, w: 330, h: 60 },
       { x: 3135, y: 440, w: 420, h: 60 },
       { x: 3645, y: 440, w: 1155, h: 60 },
-      { x: 200, y: 340, w: 100, h: 18 },
-      { x: 500, y: 280, w: 90, h: 18 },
-      { x: 900, y: 330, w: 110, h: 18 },
-      { x: 1200, y: 260, w: 90, h: 18 },
-      { x: 1500, y: 310, w: 100, h: 18 },
-      { x: 1800, y: 250, w: 90, h: 18 },
-      { x: 2100, y: 330, w: 110, h: 18 },
-      { x: 2500, y: 290, w: 100, h: 18 },
-      { x: 2900, y: 240, w: 90, h: 18 },
-      { x: 3200, y: 310, w: 100, h: 18 },
-      { x: 3500, y: 260, w: 90, h: 18 },
-      { x: 4000, y: 340, w: 200, h: 18 },
-      { x: 4300, y: 280, w: 180, h: 18 }
+      // 계단형 공중 발판: 한 단 차이 ~40~100 (1~2단 점프 도달)
+      { x: 200, y: 350, w: 100, h: 18 },
+      { x: 380, y: 310, w: 80, h: 18 },
+      { x: 500, y: 300, w: 90, h: 18 },
+      { x: 700, y: 340, w: 80, h: 18 },
+      { x: 900, y: 340, w: 110, h: 18 },
+      { x: 1080, y: 300, w: 80, h: 18 },
+      { x: 1200, y: 290, w: 90, h: 18 },
+      { x: 1500, y: 320, w: 100, h: 18 },
+      { x: 1650, y: 290, w: 80, h: 18 },
+      { x: 1800, y: 290, w: 90, h: 18 },
+      { x: 2100, y: 340, w: 110, h: 18 },
+      { x: 2350, y: 310, w: 80, h: 18 },
+      { x: 2500, y: 300, w: 100, h: 18 },
+      { x: 2750, y: 340, w: 80, h: 18 },
+      { x: 2900, y: 300, w: 90, h: 18 },
+      { x: 3200, y: 320, w: 100, h: 18 },
+      { x: 3350, y: 290, w: 80, h: 18 },
+      { x: 3500, y: 290, w: 90, h: 18 },
+      { x: 4000, y: 350, w: 200, h: 18 },
+      { x: 4200, y: 320, w: 80, h: 18 },
+      { x: 4300, y: 300, w: 180, h: 18 }
     ];
 
     const undergroundPlatforms = [
       { x: 0, y: 440, w: UNDERGROUND_W, h: 60 },
-      { x: 80, y: 340, w: 140, h: 18 },
-      { x: 320, y: 280, w: 120, h: 18 },
-      { x: 520, y: 340, w: 100, h: 18 },
-      { x: 700, y: 260, w: 130, h: 18 },
-      { x: 920, y: 320, w: 110, h: 18 },
-      { x: 1100, y: 280, w: 140, h: 18 },
-      { x: 1240, y: 300, w: 120, h: 18 }
+      { x: 80, y: 350, w: 140, h: 18 },
+      { x: 220, y: 310, w: 90, h: 18 },
+      { x: 320, y: 300, w: 120, h: 18 },
+      { x: 520, y: 350, w: 100, h: 18 },
+      { x: 620, y: 310, w: 90, h: 18 },
+      { x: 700, y: 300, w: 130, h: 18 },
+      { x: 920, y: 330, w: 110, h: 18 },
+      { x: 1100, y: 300, w: 140, h: 18 },
+      { x: 1240, y: 310, w: 120, h: 18 }
     ];
 
     let platforms = overworldPlatforms;
+    const PIPE_LIP = 10;
 
     const pipeDefs = {
       overworld: [
@@ -74,6 +87,27 @@ const overworldPlatforms = [
         { id: 'ug2', x: 880, y: 388, w: 52, h: 64, to: 'ow2', toWorld: 'overworld' }
       ]
     };
+
+    function pipeTopY(pipe) {
+      return pipe.y - PIPE_LIP;
+    }
+
+    function pipeSolid(pipe) {
+      return {
+        x: pipe.x - 4,
+        y: pipeTopY(pipe),
+        w: pipe.w + 8,
+        h: pipe.h + PIPE_LIP,
+        pipeId: pipe.id,
+      };
+    }
+
+    function rebuildPlatforms(world) {
+      const base = world === 'underground' ? undergroundPlatforms : overworldPlatforms;
+      const solids = (pipeDefs[world] || []).map(pipeSolid);
+      platforms = base.concat(solids);
+    }
+    rebuildPlatforms('overworld');
 
     const pits = [
       { x: 730, w: 85 },
@@ -152,8 +186,10 @@ const overworldPlatforms = [
     function isPlayerOnPipe(player) {
       const list = pipeDefs[player.game?.world || 'overworld'] || [];
       for (const pipe of list) {
-        if (player.cx > pipe.x + 6 && player.cx < pipe.x + pipe.w - 6 &&
-            player.bottom >= pipe.y && player.bottom <= pipe.y + pipe.h + 6) {
+        const top = pipeTopY(pipe);
+        // 파이프 '윗면'에 서 있을 때만 인정 (옆에서 몸만 스쳤을 때는 제외)
+        if (player.cx > pipe.x + 4 && player.cx < pipe.x + pipe.w - 4 &&
+            Math.abs(player.bottom - top) <= 8) {
           return true;
         }
       }
@@ -182,6 +218,7 @@ const overworldPlatforms = [
         this.w = 28;
         this.h = 32;
         this.jumpsLeft = 2;
+        this.jumpCutApplied = false;
         this.alive = true;
         this.fireCooldown = 0;
         this.featherTimer = 0;
@@ -244,12 +281,17 @@ const overworldPlatforms = [
           this.vy = this.jumpsLeft === 2 ? JUMP_FORCE : DOUBLE_JUMP_FORCE;
           this.jumpsLeft--;
           this.onGround = false;
+          this.jumpCutApplied = false;
+        }
+        if (!input.jumpHeld && this.vy < 0 && !this.jumpCutApplied) {
+          this.vy *= JUMP_CUT;
+          this.jumpCutApplied = true;
         }
         input.jumpPressed = false;
 
         this.vx *= FRICTION;
         this.vx = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, this.vx));
-        this.vy += GRAVITY;
+        this.vy += this.vy > 0 ? GRAVITY * 1.12 : GRAVITY;
 
         this.x += this.vx;
         this.y += this.vy;
@@ -272,6 +314,7 @@ const overworldPlatforms = [
               this.vy = 0;
               this.onGround = true;
               this.jumpsLeft = 2;
+              this.jumpCutApplied = false;
               break;
             } else if (minOverlap === overlapB && this.vy < 0) {
               this.y = p.y + p.h;
@@ -1102,7 +1145,7 @@ const overworldPlatforms = [
         this.bossMinions = [];
         this.world = 'overworld';
         this.pipeCooldown = 0;
-        platforms = overworldPlatforms;
+        rebuildPlatforms('overworld');
 
         const rng = this.rng;
         this.coins = [
@@ -1165,8 +1208,10 @@ const overworldPlatforms = [
         if (this.pipeCooldown > 0 || !player.onGround || !player.input.downPressed) return;
         const list = pipeDefs[this.world] || [];
         for (const pipe of list) {
+          const top = pipeTopY(pipe);
+          // 반드시 파이프 위에 착지한 상태에서 ↓
           if (player.cx > pipe.x + 6 && player.cx < pipe.x + pipe.w - 6 &&
-              player.bottom >= pipe.y && player.bottom <= pipe.y + pipe.h + 6) {
+              Math.abs(player.bottom - top) <= 8) {
             this.usePipe(pipe, player);
             player.input.downPressed = false;
             return;
@@ -1179,7 +1224,7 @@ const overworldPlatforms = [
         const dest = destList.find(p => p.id === pipe.to);
         if (!dest) return;
         this.world = pipe.toWorld;
-        platforms = this.world === 'underground' ? undergroundPlatforms : overworldPlatforms;
+        rebuildPlatforms(this.world);
         let slot = 0;
         for (const p of this.players) {
           if (!p.alive) continue;
@@ -1275,6 +1320,7 @@ const overworldPlatforms = [
         this.gameOver = true;
         getHudEl('overlayTitle').textContent = won ? '🎉 클리어!' : '💀 게임 오버';
         getHudEl('overlayMsg').textContent = msg;
+        if (typeof window.refreshEndgameAd === 'function') window.refreshEndgameAd();
         getHudEl('overlay').classList.add('show');
         if (!this.solo && this.isHost) {
           netBroadcast({ type: 'END', proto: 1, won, msg });
@@ -1672,6 +1718,7 @@ const overworldPlatforms = [
       }
 
       for (const p of platforms) {
+        if (p.pipeId) continue; // 파이프 솔리드는 drawPipes에서만 그린다
         const sx = p.x - cameraX;
         if (sx + p.w < 0 || sx > VW) continue;
         if (underground) {

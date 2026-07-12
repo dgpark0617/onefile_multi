@@ -96,3 +96,20 @@ input {
 #overlay h2 { font-size: clamp(1.3rem, 5vw, 1.8rem); margin-bottom: 10px; }
 #overlay p { color: #94a3b8; margin-bottom: 16px; font-size: 0.9rem; line-height: 1.5; }
 #overlay .btn-row { justify-content: center; }
+.ad-slot {
+  display: none;
+  position: relative;
+  margin: 0 auto 16px;
+  width: min(100%, 320px);
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: #0b1220;
+}
+.ad-slot.show { display: block; }
+.ad-slot-label {
+  position: absolute; top: 8px; left: 8px; z-index: 1;
+  font-size: 10px; letter-spacing: 0.08em; color: #cbd5e1;
+  background: rgba(15, 23, 42, 0.72); border-radius: 999px; padding: 2px 7px;
+}
+.ad-slot-img { display: block; width: 100%; height: auto; aspect-ratio: 320 / 100; object-fit: cover; }

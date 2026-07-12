@@ -3,9 +3,11 @@ import { gameConfig } from "./config/gameConfig.js";
 import { gameSession } from "./core/gameSession.js";
 import { initLobby } from "./ui/lobbyDom.js";
 import { initMarioInput, setMarioGameRef } from "./ui/marioInput.js";
+import { refreshEndgameAd } from "./ui/dummyAd.js";
 
 window.Phaser = Phaser;
 window.__MARIO_BUILD_MODE__ = "modular";
+window.refreshEndgameAd = refreshEndgameAd;
 
 const app = document.getElementById("app");
 if (!app) throw new Error("#app root element is missing");

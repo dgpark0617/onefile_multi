@@ -40,6 +40,10 @@
   .ctrl-btn.active { background: #fbbf24; color: #1a1a2e; }
   #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.82); display: none; align-items: center; justify-content: center; flex-direction: column; z-index: 40; text-align: center; padding: 20px; }
   #overlay.show { display: flex; }
+  .ad-slot { display: none; position: relative; margin: 0 auto 16px; width: min(100%, 320px); border-radius: 14px; overflow: hidden; border: 1px solid rgba(148,163,184,0.35); background: #0b1220; }
+  .ad-slot.show { display: block; }
+  .ad-slot-label { position: absolute; top: 8px; left: 8px; z-index: 1; font-size: 10px; letter-spacing: 0.08em; color: #cbd5e1; background: rgba(15,23,42,0.72); border-radius: 999px; padding: 2px 7px; }
+  .ad-slot-img { display: block; width: 100%; height: auto; aspect-ratio: 320 / 100; object-fit: cover; }
   #restartBtn { margin-top: 12px; padding: 10px 24px; background: #fbbf24; color: #1a1a2e; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
   .lobby-btn { border: none; border-radius: 8px; padding: 10px 14px; font-size: 0.85rem; cursor: pointer; }
   .btn-primary { background: #2563eb; color: #fff; }
@@ -132,6 +136,10 @@
     <div id="overlay">
       <h2 id="overlayTitle">게임 오버</h2>
       <p id="overlayMsg"></p>
+      <div class="ad-slot" aria-label="광고">
+        <span class="ad-slot-label">AD</span>
+        <img class="ad-slot-img" alt="더미 광고" />
+      </div>
       <button id="restartBtn">다시 시작</button>
       <button id="btnToLobby" class="lobby-btn btn-ghost" style="margin-top:10px">로비로</button>
     </div>

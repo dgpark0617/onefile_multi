@@ -3,6 +3,7 @@ import { gameSession } from "../core/gameSession.js";
 import { setupHost } from "../net/inviteShare.js";
 import { WwNet } from "../net/WwNet.js";
 import { setMarioGameRef } from "./marioInput.js";
+import { refreshEndgameAd } from "./dummyAd.js";
 
 const IS_FILE = location.protocol === "file:";
 
@@ -104,6 +105,7 @@ export function showLobby() {
 export function showGameOverlay({ title, msg }) {
   if ($("overlayTitle")) $("overlayTitle").textContent = title;
   if ($("overlayMsg")) $("overlayMsg").textContent = msg;
+  refreshEndgameAd();
   $("overlay")?.classList.add("show");
 }
 
