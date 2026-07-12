@@ -7,39 +7,53 @@ import {
 } from './types';
 
 /**
- * 발화 목록 → 만화 칸.
- * 짧은 시간·다른 화자·같은 배경이면 한 칸에 합침 (원작 합연출).
+ * 발화 → 만화 칸.
+ * 원작처럼: 짧은 대화는 한 무대에 여러 캐릭터, 배경은 칸이 유지.
  */
 export function layoutPanels(messages: ComicMsg[]): ComicPanelModel[] {
   const panels: ComicPanelModel[] = [];
 
   for (const msg of messages) {
     const last = panels[panels.length - 1];
-    if (last && canMerge(last, msg)) {
+    if (!last) {
+      panels.push(newPanel(msg));
+      continue;
+    }
+
+    const lastLine = last.lines[last.lines.length - 1];
+    const fresh = msg.at - lastLine.at <= MERGE_WINDOW_MS;
+    const idx = last.lines.findIndex((l) => l.peerId === msg.peerId);
+
+    // 이미 칸에 있는 사람이 다시 말함 + 상대가 있음 → 그 사람 말풍선만 갱신 (같은 컷 유지)
+    if (fresh && idx >= 0 && last.lines.length >= 2) {
+      last.lines[idx] = msg;
+      last.shot = msg.shot;
+      continue;
+    }
+
+    // 새 화자가 끼어듦 → 같은 컷에 합류
+    if (
+      fresh &&
+      idx < 0 &&
+      last.lines.length < MAX_PANEL_ACTORS &&
+      lastLine.peerId !== msg.peerId
+    ) {
       last.lines.push(msg);
       last.shot = msg.shot;
       continue;
     }
-    panels.push({
-      id: `p-${msg.id}`,
-      bg: msg.bg,
-      shot: msg.shot,
-      lines: [msg],
-    });
+
+    panels.push(newPanel(msg));
   }
 
   return panels.slice(-MAX_PANELS);
 }
 
-function canMerge(panel: ComicPanelModel, msg: ComicMsg): boolean {
-  if (panel.lines.length >= MAX_PANEL_ACTORS) return false;
-  if (panel.bg !== msg.bg) return false;
-  const last = panel.lines[panel.lines.length - 1];
-  if (!last) return false;
-  if (msg.at - last.at > MERGE_WINDOW_MS) return false;
-  // 같은 사람이 연속으로만 말하면 칸을 나눔 (원작도 턴이 바뀌면 새 칸)
-  if (last.peerId === msg.peerId) return false;
-  const peers = new Set(panel.lines.map((l) => l.peerId));
-  if (peers.has(msg.peerId)) return false;
-  return true;
+function newPanel(msg: ComicMsg): ComicPanelModel {
+  return {
+    id: `p-${msg.id}`,
+    bg: msg.bg,
+    shot: msg.shot,
+    lines: [msg],
+  };
 }

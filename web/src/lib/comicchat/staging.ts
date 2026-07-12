@@ -7,6 +7,8 @@ export type StagingInput = {
   prevPeerId?: string;
   peerId: string;
   panelIndex: number;
+  /** 직전 칸/발화 배경 — 장면 키워드 없으면 유지 (합연출용) */
+  prevBg?: BgId;
 };
 
 export type Staging = {
@@ -41,7 +43,7 @@ const EMOTION_POSE: Record<Emotion, Pose> = {
   think: 'think',
 };
 
-function pickBg(emotion: Emotion, text: string, index: number): BgId {
+function pickExplicitBg(text: string): BgId | null {
   const t = text.toLowerCase();
   if (/비|우산|젖/.test(t)) return 'rain';
   if (/밤|달|야경|심야/.test(t)) return 'night';
@@ -50,6 +52,14 @@ function pickBg(emotion: Emotion, text: string, index: number): BgId {
   if (/회사|회의|일하|야근/.test(t)) return 'office';
   if (/무대|공연|노래|쇼/.test(t)) return 'stage';
   if (/집|방|침대|집콕/.test(t)) return 'room';
+  return null;
+}
+
+function pickBg(emotion: Emotion, text: string, index: number, prevBg?: BgId): BgId {
+  const explicit = pickExplicitBg(text);
+  if (explicit) return explicit;
+  // 감정만으로 배경을 매번 바꾸면 합연출이 깨짐 → 직전 장면 유지
+  if (prevBg) return prevBg;
   const list = EMOTION_BG[emotion];
   return list[index % list.length];
 }
@@ -97,7 +107,7 @@ export function stagePanel(
   poseMode: Pose | 'auto' = 'auto',
 ): Staging {
   return {
-    bg: pickBg(input.emotion, input.text, input.panelIndex),
+    bg: pickBg(input.emotion, input.text, input.panelIndex, input.prevBg),
     shot: pickShot(input.emotion, input.text, input.bubble),
     pose: pickPose(input.emotion, input.text, poseMode),
   };

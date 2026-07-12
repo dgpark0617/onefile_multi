@@ -186,6 +186,7 @@ export default function ComicChatApp() {
       peerId,
       prevPeerId: prev?.peerId,
       panelIndex: messages.length,
+      prevBg: prev?.bg,
     });
     const msg: ComicMsg = {
       id: uid(),

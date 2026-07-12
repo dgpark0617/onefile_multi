@@ -221,7 +221,8 @@ export type WireMsg =
   | { type: 'ping' };
 
 export const MAX_PANEL_ACTORS = 3;
-export const MERGE_WINDOW_MS = 12000;
+/** 대화 한 호흡 — 이 안이면 같은 컷에 합연출 */
+export const MERGE_WINDOW_MS = 45000;
 export const MAX_PANELS = 12;
 export const PEER_PREFIX = 'cuttok-';
 export const LOOK_STORAGE_KEY = 'cuttok-char-look-v1';

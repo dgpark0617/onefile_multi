@@ -31,6 +31,18 @@ describe('comicchat staging', () => {
     assert.equal(s.bg, 'rain');
   });
 
+  it('keeps sticky bg without scene keyword', () => {
+    const s = stagePanel({
+      text: 'ㅋㅋㅋ',
+      emotion: 'laugh',
+      bubble: 'speech',
+      peerId: 'b',
+      panelIndex: 2,
+      prevBg: 'cafe',
+    });
+    assert.equal(s.bg, 'cafe');
+  });
+
   it('maps love to heart pose', () => {
     const emo = inferEmotion('사랑해 ❤');
     const s = stagePanel({
@@ -50,16 +62,28 @@ describe('comicchat staging', () => {
 });
 
 describe('layoutPanels', () => {
-  it('merges different speakers in window', () => {
+  it('merges different speakers even if bg differs', () => {
     const panels = layoutPanels([
       msg({ id: '1', peerId: 'a', text: 'hi', at: 1000, bg: 'cafe' }),
-      msg({ id: '2', peerId: 'b', text: 'yo', at: 2000, bg: 'cafe' }),
+      msg({ id: '2', peerId: 'b', text: 'yo', at: 2000, bg: 'park' }),
     ]);
     assert.equal(panels.length, 1);
     assert.equal(panels[0].lines.length, 2);
+    assert.equal(panels[0].bg, 'cafe');
   });
 
-  it('splits same speaker', () => {
+  it('updates existing actor bubble in conversation', () => {
+    const panels = layoutPanels([
+      msg({ id: '1', peerId: 'a', text: 'hi', at: 1000, bg: 'cafe' }),
+      msg({ id: '2', peerId: 'b', text: 'yo', at: 2000, bg: 'cafe' }),
+      msg({ id: '3', peerId: 'a', text: 'again', at: 3000, bg: 'cafe' }),
+    ]);
+    assert.equal(panels.length, 1);
+    assert.equal(panels[0].lines.length, 2);
+    assert.equal(panels[0].lines.find((l) => l.peerId === 'a')?.text, 'again');
+  });
+
+  it('splits same speaker when alone', () => {
     const panels = layoutPanels([
       msg({ id: '1', peerId: 'a', text: 'hi', at: 1000, bg: 'cafe' }),
       msg({ id: '2', peerId: 'a', text: 'again', at: 2000, bg: 'cafe' }),
