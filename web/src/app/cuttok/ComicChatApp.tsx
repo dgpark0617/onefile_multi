@@ -31,6 +31,11 @@ import {
   type PresetCharacterId,
   type RoomMember,
 } from '@/lib/comicchat/types';
+import {
+  applyKeyboardChromeVars,
+  clearKeyboardChromeVars,
+  computeKeyboardChrome,
+} from '@/lib/comicchat/keyboardChrome';
 
 function uid(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -45,25 +50,22 @@ function useKeyboardChrome(
   useEffect(() => {
     if (!active || typeof window === 'undefined') return;
     const body = document.body;
-    const vv = window.visualViewport;
 
     const sync = () => {
       const el = appRef.current;
       if (!el) return;
+      // 매번 최신 visualViewport 읽기 (시뮬/교체 객체 대응)
+      const vv = window.visualViewport;
       const layoutH = window.innerHeight;
-      const height = vv?.height ?? layoutH;
-      const offsetTop = vv?.offsetTop ?? 0;
-      // iOS: 레이아웃은 안 줄고 키보드가 오버레이 → 보이는 높이만 무대에 씀
-      const kb = Math.max(0, Math.round(layoutH - height - offsetTop));
-      const dockH = Math.round(dockRef.current?.offsetHeight ?? 72);
-
-      // .cc-root 자체에 써야 함 — html에 쓰면 .cc-root 기본값이 가려서 무효화됨
-      el.style.setProperty('--cc-vv-height', `${Math.round(height)}px`);
-      el.style.setProperty('--cc-vv-top', `${Math.round(offsetTop)}px`);
-      el.style.setProperty('--cc-kb', `${kb}px`);
-      el.style.setProperty('--cc-dock-space', `${dockH}px`);
-      el.style.setProperty('--cc-stage-height', `${Math.max(120, Math.round(height - dockH))}px`);
-
+      const vars = computeKeyboardChrome(
+        {
+          layoutHeight: layoutH,
+          visualHeight: vv?.height ?? layoutH,
+          offsetTop: vv?.offsetTop ?? 0,
+        },
+        dockRef.current?.offsetHeight ?? 72,
+      );
+      applyKeyboardChromeVars(el, vars);
       if (window.scrollY || window.scrollX) window.scrollTo(0, 0);
       onChange?.();
     };
@@ -77,6 +79,7 @@ function useKeyboardChrome(
         : null;
     if (dockRef.current && ro) ro.observe(dockRef.current);
 
+    const vv = window.visualViewport;
     vv?.addEventListener('resize', sync);
     vv?.addEventListener('scroll', sync);
     window.addEventListener('resize', sync);
@@ -99,16 +102,55 @@ function useKeyboardChrome(
       window.removeEventListener('scroll', sync);
       document.removeEventListener('focusin', onFocus);
       document.removeEventListener('focusout', onFocus);
-      const el = appRef.current;
-      if (el) {
-        el.style.removeProperty('--cc-vv-height');
-        el.style.removeProperty('--cc-vv-top');
-        el.style.removeProperty('--cc-kb');
-        el.style.removeProperty('--cc-dock-space');
-        el.style.removeProperty('--cc-stage-height');
-      }
+      if (appRef.current) clearKeyboardChromeVars(appRef.current);
     };
   }, [active, appRef, dockRef, onChange]);
+}
+
+/** DevTools/검증용: iOS처럼 visualViewport만 줄임 (layout은 유지) */
+function installIosKeyboardSim(kbPx: number): () => void {
+  if (typeof window === 'undefined' || kbPx <= 0) return () => {};
+  const layoutH = window.innerHeight;
+  const layoutW = window.innerWidth;
+  const height = Math.max(120, layoutH - kbPx);
+  const listeners = new Map<string, Set<EventListener>>();
+  const mock = {
+    get height() {
+      return height;
+    },
+    get width() {
+      return layoutW;
+    },
+    offsetTop: 0,
+    offsetLeft: 0,
+    scale: 1,
+    pageTop: 0,
+    pageLeft: 0,
+    addEventListener(type: string, fn: EventListener) {
+      if (!listeners.has(type)) listeners.set(type, new Set());
+      listeners.get(type)!.add(fn);
+    },
+    removeEventListener(type: string, fn: EventListener) {
+      listeners.get(type)?.delete(fn);
+    },
+    dispatchEvent(ev: Event) {
+      listeners.get(ev.type)?.forEach((fn) => fn(ev));
+      return true;
+    },
+  };
+  Object.defineProperty(window, 'visualViewport', {
+    configurable: true,
+    get: () => mock,
+  });
+  window.dispatchEvent(new Event('resize'));
+  mock.dispatchEvent(new Event('resize'));
+  return () => {
+    // restore is best-effort; reload clears sim
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      get: () => undefined,
+    });
+  };
 }
 
 function useIsDesktop(minWidth = 900) {
@@ -126,17 +168,56 @@ function useIsDesktop(minWidth = 900) {
 export default function ComicChatApp() {
   const search = useSearchParams();
   const joinParam = search.get('join') || '';
+  const demoMode = search.get('demo') === '1';
+  const simKbPx = Number(search.get('simKb') || 0);
 
-  const [nick, setNick] = useState('');
+  const [nick, setNick] = useState(demoMode ? '데모' : '');
   const [characterId, setCharacterId] = useState<CharacterId>('ink');
   const [customLook, setCustomLook] = useState<CharLook>(DEFAULT_LOOK);
   const [showEditor, setShowEditor] = useState(false);
-  const [phase, setPhase] = useState<'lobby' | 'room'>('lobby');
-  const [roomCode, setRoomCode] = useState(joinParam);
+  const [phase, setPhase] = useState<'lobby' | 'room'>(demoMode ? 'room' : 'lobby');
+  const [roomCode, setRoomCode] = useState(demoMode ? 'demo' : joinParam);
   const [status, setStatus] = useState('닉네임과 캐릭터를 고른 뒤 방을 만드세요');
   const [toast, setToast] = useState('');
-  const [messages, setMessages] = useState<ComicMsg[]>([]);
-  const [members, setMembers] = useState<RoomMember[]>([]);
+  const [messages, setMessages] = useState<ComicMsg[]>(() =>
+    demoMode
+      ? [
+          {
+            id: 'd1',
+            peerId: 'demo',
+            nick: '데모',
+            characterId: 'ink',
+            look: DEFAULT_LOOK,
+            text: '사파리 키보드 테스트 컷 1',
+            emotion: 'happy',
+            pose: 'idle',
+            bubble: 'speech',
+            bg: 'park',
+            shot: 'medium',
+            at: Date.now() - 3000,
+          },
+          {
+            id: 'd2',
+            peerId: 'demo',
+            nick: '데모',
+            characterId: 'ink',
+            look: DEFAULT_LOOK,
+            text: '최신 컷이 키보드 위에 보여야 함',
+            emotion: 'cool',
+            pose: 'idle',
+            bubble: 'speech',
+            bg: 'cafe',
+            shot: 'medium',
+            at: Date.now() - 1000,
+          },
+        ]
+      : [],
+  );
+  const [members, setMembers] = useState<RoomMember[]>(() =>
+    demoMode
+      ? [{ peerId: 'demo', nick: '데모', look: DEFAULT_LOOK, characterId: 'ink' }]
+      : [],
+  );
   const [text, setText] = useState('');
   const [emotion, setEmotion] = useState<Emotion>('happy');
   const [emotionAuto, setEmotionAuto] = useState(true);
@@ -144,7 +225,7 @@ export default function ComicChatApp() {
   const [showMood, setShowMood] = useState(false);
   const [composing, setComposing] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [myPeerId, setMyPeerId] = useState('');
+  const [myPeerId, setMyPeerId] = useState(demoMode ? 'demo' : '');
   const [roomSheet, setRoomSheet] = useState(false);
   const roomRef = useRef<ComicRoom | null>(null);
   const appRef = useRef<HTMLDivElement>(null);
@@ -180,6 +261,17 @@ export default function ComicChatApp() {
       });
     }, [scrollToLatest]),
   );
+
+  // ?simKb=300 — iOS 키보드 오버레이 시뮬 (검증/DevTools용)
+  useEffect(() => {
+    if (phase !== 'room' || !(simKbPx > 0)) return;
+    const undo = installIosKeyboardSim(simKbPx);
+    const t = window.setTimeout(() => scrollToLatest(false), 100);
+    return () => {
+      window.clearTimeout(t);
+      undo();
+    };
+  }, [phase, simKbPx, scrollToLatest]);
 
   useEffect(() => {
     const saved = loadSavedLook();
@@ -304,7 +396,8 @@ export default function ComicChatApp() {
 
   const send = () => {
     const body = text.trim();
-    if (!body || !roomRef.current) return;
+    if (!body) return;
+    if (!demoMode && !roomRef.current) return;
     const emo = emotionAuto ? inferEmotion(body) : emotion;
     const bub = bubble === 'auto' ? inferBubble(body, emo) : bubble;
     const peerId = myPeerId || 'me';
@@ -318,10 +411,10 @@ export default function ComicChatApp() {
       panelIndex: messages.length,
       prevBg: prev?.bg,
     });
-    roomRef.current.sendMessage({
+    const msg: ComicMsg = {
       id: uid(),
       peerId,
-      nick: nick.trim(),
+      nick: nick.trim() || '나',
       characterId,
       look: activeLook,
       text: body.slice(0, 120),
@@ -331,7 +424,12 @@ export default function ComicChatApp() {
       bg: staged.bg,
       shot: staged.shot,
       at: Date.now(),
-    });
+    };
+    if (demoMode) {
+      setMessages((m) => [...m, msg]);
+    } else {
+      roomRef.current!.sendMessage(msg);
+    }
     setText('');
     // 키보드 유지 — blur 하지 않음
     requestAnimationFrame(() => {

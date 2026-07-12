@@ -23,12 +23,15 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:geomshin": "npx --yes tsx --test src/lib/geomshin/*.test.ts"
+    "test:geomshin": "npx --yes tsx --test src/lib/geomshin/*.test.ts",
+    "test:cuttok-kb": "npx --yes tsx --test src/lib/comicchat/keyboardChrome.test.ts",
+    "verify:cuttok-ios-kb": "node scripts/verify-cuttok-ios-kb.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
+    "playwright": "^1.61.1",
     "typescript": "^5.8.3"
   }
 }
