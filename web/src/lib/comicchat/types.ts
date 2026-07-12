@@ -1,4 +1,7 @@
-/** 컷톡 — Comic Chat 계승 (오리지널 아트·이름) */
+/** 컷톡 — Comic Chat 계승 (오리지널 아트·이름)
+ *
+ * 향후: 인형 꾸미기·감정팩 판매는 `@/lib/comicchat/roadmap` 참고 (Storage + packId).
+ */
 
 export const EMOTIONS = [
   'neutral',

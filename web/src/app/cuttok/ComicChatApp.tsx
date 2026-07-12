@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import ComicPanel from './ComicPanel';
-import EmotionWheel from './EmotionWheel';
 import ComicAvatar from './ComicAvatar';
 import CharacterEditor from './CharacterEditor';
 import { inferEmotion } from '@/lib/comicchat/emotions';
@@ -21,6 +20,8 @@ import {
   BUBBLE_TYPES,
   CHARACTERS,
   DEFAULT_LOOK,
+  EMOTION_LABEL,
+  WHEEL_CLOCK,
   lookFromPreset,
   type BubbleType,
   type CharacterId,
@@ -33,6 +34,31 @@ import {
 
 function uid(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function useVisualViewport(active: boolean) {
+  useEffect(() => {
+    if (!active || typeof window === 'undefined') return;
+    const root = document.documentElement;
+    const vv = window.visualViewport;
+    const sync = () => {
+      const h = vv?.height ?? window.innerHeight;
+      const top = vv?.offsetTop ?? 0;
+      root.style.setProperty('--cc-vv-height', `${Math.round(h)}px`);
+      root.style.setProperty('--cc-vv-top', `${Math.round(top)}px`);
+    };
+    sync();
+    vv?.addEventListener('resize', sync);
+    vv?.addEventListener('scroll', sync);
+    window.addEventListener('resize', sync);
+    return () => {
+      vv?.removeEventListener('resize', sync);
+      vv?.removeEventListener('scroll', sync);
+      window.removeEventListener('resize', sync);
+      root.style.removeProperty('--cc-vv-height');
+      root.style.removeProperty('--cc-vv-top');
+    };
+  }, [active]);
 }
 
 export default function ComicChatApp() {
@@ -54,8 +80,11 @@ export default function ComicChatApp() {
   const [bubble, setBubble] = useState<BubbleType | 'auto'>('auto');
   const [busy, setBusy] = useState(false);
   const [myPeerId, setMyPeerId] = useState('');
+  const [roomSheet, setRoomSheet] = useState(false);
   const roomRef = useRef<ComicRoom | null>(null);
   const stripRef = useRef<HTMLDivElement>(null);
+
+  useVisualViewport(phase === 'room' || phase === 'lobby');
 
   useEffect(() => {
     const saved = loadSavedLook();
@@ -211,6 +240,7 @@ export default function ComicChatApp() {
     roomRef.current = null;
     setMessages([]);
     setMembers([]);
+    setRoomSheet(false);
     setPhase('lobby');
     setStatus('로비로 돌아왔습니다');
   };
@@ -229,7 +259,7 @@ export default function ComicChatApp() {
     if (!roomCode) return;
     try {
       await navigator.clipboard.writeText(roomCode);
-      setStatus(`방 코드 복사됨: ${roomCode} (상대는 로비에서 코드만 입력)`);
+      setStatus(`방 코드 복사됨: ${roomCode}`);
     } catch {
       setStatus(`방 코드: ${roomCode}`);
     }
@@ -241,15 +271,129 @@ export default function ComicChatApp() {
     saveLook(look);
   };
 
+  const composer = (
+    <footer className="cc-composer">
+      <div className="cc-bubble-toggles" role="group" aria-label="말풍선">
+        <button
+          type="button"
+          className={`cc-bubble-tog${bubble === 'auto' ? ' active' : ''}`}
+          onClick={() => setBubble('auto')}
+        >
+          자동
+        </button>
+        {BUBBLE_TYPES.map((b) => (
+          <button
+            key={b}
+            type="button"
+            className={`cc-bubble-tog${bubble === b ? ' active' : ''}`}
+            onClick={() => setBubble(b)}
+          >
+            {BUBBLE_LABEL[b]}
+          </button>
+        ))}
+      </div>
+      <div className="cc-emo-chips" role="group" aria-label="기분">
+        <button
+          type="button"
+          className={`cc-emo-chip${emotionAuto ? ' active' : ''}`}
+          onClick={() => setEmotionAuto(true)}
+        >
+          기분자동
+        </button>
+        {WHEEL_CLOCK.map((e) => (
+          <button
+            key={e}
+            type="button"
+            className={`cc-emo-chip${!emotionAuto && emotion === e ? ' active' : ''}`}
+            onClick={() => {
+              setEmotionAuto(false);
+              setEmotion(e);
+            }}
+          >
+            {EMOTION_LABEL[e]}
+          </button>
+        ))}
+      </div>
+      <div className="cc-input-row">
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              send();
+            }
+          }}
+          placeholder="대사…"
+          maxLength={120}
+          enterKeyHint="send"
+        />
+        <button type="button" className="cc-btn" onClick={send}>
+          보내기
+        </button>
+      </div>
+    </footer>
+  );
+
+  const roomInfoBody = (
+    <>
+      <div className="cc-side-block">
+        <h3>참가자</h3>
+        <ul className="cc-member-list">
+          {(members.length ? members : [selfMember()]).map((m) => (
+            <li key={m.peerId}>
+              <ComicAvatar
+                look={m.look}
+                emotion="neutral"
+                nick={m.nick}
+                size={36}
+                fullBody={false}
+              />
+              <span>{m.nick}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="cc-side-block cc-side-preview">
+        <h3>내 캐릭터</h3>
+        <ComicAvatar
+          look={activeLook}
+          emotion={previewEmotion}
+          pose="idle"
+          nick={nick}
+          size={120}
+          fullBody
+        />
+        <p className="cc-preview-name">{nick || activeLook.name}</p>
+      </div>
+      <div className="cc-side-block cc-side-code">
+        <h3>입장 코드</h3>
+        <p className="cc-code-big">{roomCode}</p>
+        <button type="button" className="cc-btn" onClick={copyRoomCode}>
+          코드만 복사
+        </button>
+        <button type="button" className="cc-btn cc-btn-ghost" onClick={copyInvite}>
+          링크 복사
+        </button>
+      </div>
+      {qrSrc && (
+        <details className="cc-invite">
+          <summary>초대 QR (선택)</summary>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={qrSrc} alt="방 초대 QR" width={140} height={140} />
+        </details>
+      )}
+    </>
+  );
+
   if (phase === 'lobby') {
     return (
-      <div className="cc-root">
-        <header className="cc-hud">
+      <div className="cc-root cc-lobby-root">
+        <header className="cc-hud cc-hud-slim">
           <div className="cc-brand">
             <strong>컷톡</strong>
-            <span>만화칸 채팅 · Comic Chat 계승</span>
             <Link href="/" className="cc-home-link">
-              ← 아카이브
+              ← 홈
             </Link>
           </div>
           <p className="cc-status">{status}</p>
@@ -349,7 +493,6 @@ export default function ComicChatApp() {
                   입장
                 </button>
               </div>
-              <p className="cc-join-hint">방장에게 받은 6자리 코드만 입력하면 됩니다.</p>
             </div>
           </div>
         </main>
@@ -359,33 +502,29 @@ export default function ComicChatApp() {
 
   return (
     <div className="cc-root cc-room-layout">
-      <header className="cc-hud">
+      <header className="cc-hud cc-hud-slim">
         <div className="cc-brand">
           <strong>컷톡</strong>
-          <span>
-            방 코드 <b className="cc-room-code">{roomCode}</b>
-          </span>
-          <button type="button" className="cc-btn cc-btn-ghost cc-hud-btn" onClick={copyRoomCode}>
-            코드 복사
-          </button>
-          <button type="button" className="cc-btn cc-btn-ghost cc-hud-btn" onClick={copyInvite}>
-            링크 복사
+          <span className="cc-room-code">{roomCode}</span>
+          <button
+            type="button"
+            className="cc-btn cc-btn-ghost cc-hud-btn"
+            onClick={() => setRoomSheet(true)}
+          >
+            방 정보
           </button>
           <button type="button" className="cc-btn cc-btn-ghost cc-hud-btn" onClick={leave}>
             나가기
           </button>
-          <Link href="/" className="cc-home-link">
-            ← 홈
-          </Link>
         </div>
-        <p className="cc-status">{status}</p>
+        {status ? <p className="cc-status cc-status-one">{status}</p> : null}
       </header>
 
       <div className="cc-main">
         <section className="cc-comic-col">
           <div className="cc-strip" ref={stripRef}>
             {panels.length === 0 ? (
-              <p className="cc-empty">아직 칸이 없습니다. 한마디 던져 보세요.</p>
+              <p className="cc-empty">아직 칸이 없습니다.</p>
             ) : (
               <div className="cc-panel-grid">
                 {panels.map((p) => (
@@ -394,110 +533,30 @@ export default function ComicChatApp() {
               </div>
             )}
           </div>
-
-          <footer className="cc-composer">
-            <div className="cc-bubble-toggles" role="group" aria-label="말풍선 종류">
-              <button
-                type="button"
-                className={`cc-bubble-tog${bubble === 'auto' ? ' active' : ''}`}
-                onClick={() => setBubble('auto')}
-                title="자동"
-              >
-                자동
-              </button>
-              {BUBBLE_TYPES.map((b) => (
-                <button
-                  key={b}
-                  type="button"
-                  className={`cc-bubble-tog cc-bubble-tog-${b}${bubble === b ? ' active' : ''}`}
-                  onClick={() => setBubble(b)}
-                  title={BUBBLE_LABEL[b]}
-                >
-                  {b === 'speech' ? '💬' : b === 'thought' ? '💭' : '❗'}
-                  <span>{BUBBLE_LABEL[b]}</span>
-                </button>
-              ))}
-            </div>
-            <div className="cc-input-row">
-              <input
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
-                    e.preventDefault();
-                    send();
-                  }
-                }}
-                placeholder="대사…"
-                maxLength={120}
-              />
-              <button type="button" className="cc-btn" onClick={send}>
-                보내기
-              </button>
-            </div>
-          </footer>
+          {composer}
         </section>
 
-        <aside className="cc-sidebar">
-          <div className="cc-side-block">
-            <h3>참가자</h3>
-            <ul className="cc-member-list">
-              {(members.length ? members : [selfMember()]).map((m) => (
-                <li key={m.peerId}>
-                  <ComicAvatar
-                    look={m.look}
-                    emotion="neutral"
-                    nick={m.nick}
-                    size={36}
-                    fullBody={false}
-                  />
-                  <span>{m.nick}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="cc-side-block cc-side-preview">
-            <h3>내 캐릭터</h3>
-            <ComicAvatar
-              look={activeLook}
-              emotion={previewEmotion}
-              pose="idle"
-              nick={nick}
-              size={140}
-              fullBody
-            />
-            <p className="cc-preview-name">{nick || activeLook.name}</p>
-          </div>
-
-          <div className="cc-side-block">
-            <h3>감정 휠</h3>
-            <EmotionWheel
-              value={emotion}
-              onChange={setEmotion}
-              auto={emotionAuto}
-              onAutoChange={setEmotionAuto}
-            />
-          </div>
-
-          <div className="cc-side-block cc-side-code">
-            <h3>입장 코드</h3>
-            <p className="cc-code-big">{roomCode}</p>
-            <button type="button" className="cc-btn" onClick={copyRoomCode}>
-              코드만 복사
-            </button>
-            <p className="cc-join-hint">상대는 /cuttok 로비에 이 코드만 입력하면 됩니다.</p>
-          </div>
-
-          {qrSrc && (
-            <details className="cc-invite">
-              <summary>초대 QR (선택)</summary>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={qrSrc} alt="방 초대 QR" width={140} height={140} />
-            </details>
-          )}
-        </aside>
+        <aside className="cc-sidebar cc-sidebar-desktop">{roomInfoBody}</aside>
       </div>
+
+      {roomSheet && (
+        <div className="cc-sheet" role="dialog" aria-label="방 정보">
+          <div className="cc-sheet-backdrop" onClick={() => setRoomSheet(false)} />
+          <div className="cc-sheet-panel">
+            <div className="cc-sheet-head">
+              <strong>방 정보</strong>
+              <button
+                type="button"
+                className="cc-btn cc-btn-ghost cc-hud-btn"
+                onClick={() => setRoomSheet(false)}
+              >
+                닫기
+              </button>
+            </div>
+            <div className="cc-sheet-body">{roomInfoBody}</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,0 +1,12 @@
+/* /cuttok 전용: 글로벌 크롬 숨김 */
+body:has(.cc-shell) > .site-header,
+body:has(.cc-shell) > .site-footer {
+  display: none !important;
+}
+
+body:has(.cc-shell) > main {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  max-width: none;
+}

@@ -1,25 +1,46 @@
-/* 컷톡 — Comic Chat 스타일 만화 뷰어 */
+/* 컷톡 — Comic Chat 스타일 만화 뷰어 (키보드 위 영역 최대화) */
 
 .cc-root {
   --cc-ink: #1a1a1a;
   --cc-panel: #fffdf8;
   --cc-rule: #1a1a1a;
   --cc-paper: #e8e0d0;
+  --cc-vv-height: 100dvh;
+  --cc-vv-top: 0px;
   position: fixed;
-  inset: 0;
+  left: 0;
+  right: 0;
+  top: var(--cc-vv-top);
+  height: var(--cc-vv-height);
   display: flex;
   flex-direction: column;
   color: #e2e8f0;
   font-family: 'Pretendard', 'Noto Sans KR', system-ui, sans-serif;
   background: #1a1520;
+  overflow: hidden;
 }
 
 .cc-hud {
   flex-shrink: 0;
-  padding: 8px 12px;
+  padding: 6px 10px;
   background: #252030;
   border-bottom: 1px solid #3f3a4a;
   z-index: 3;
+}
+
+.cc-hud-slim {
+  padding: 4px 8px;
+}
+
+.cc-hud-slim .cc-brand strong {
+  font-size: 1rem;
+}
+
+.cc-status-one {
+  margin: 2px 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .cc-brand {
@@ -285,15 +306,179 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 10px;
+  padding: 6px;
   -webkit-overflow-scrolling: touch;
 }
 
 .cc-panel-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
+  gap: 8px;
   align-content: start;
+}
+
+.cc-emo-chips {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
+}
+
+.cc-emo-chip {
+  flex: 0 0 auto;
+  border: 1px solid #475569;
+  background: #1e293b;
+  color: #e2e8f0;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 0.68rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cc-emo-chip.active {
+  border-color: #fbbf24;
+  background: #422006;
+}
+
+.cc-composer {
+  flex-shrink: 0;
+  padding: 6px 8px 8px;
+  background: #2a2435;
+  border-top: 2px solid #1a1a1a;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  /* 키보드 바로 위 — visualViewport로 root가 이미 줄어듦 */
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+}
+
+.cc-bubble-toggles {
+  display: flex;
+  gap: 4px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.cc-bubble-tog {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid #475569;
+  background: #1e293b;
+  color: #e2e8f0;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.cc-bubble-tog.active {
+  border-color: #fbbf24;
+  background: #422006;
+}
+
+.cc-input-row {
+  display: flex;
+  gap: 6px;
+}
+
+.cc-input-row input {
+  flex: 1;
+  padding: 8px 10px;
+  font-size: 16px; /* iOS 줌 방지 */
+}
+
+.cc-sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+}
+
+.cc-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: #0008;
+}
+
+.cc-sheet-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 75%;
+  background: #221c2c;
+  border-radius: 12px 12px 0 0;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 -8px 24px #0008;
+}
+
+.cc-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid #3f3a4a;
+}
+
+.cc-sheet-body {
+  overflow-y: auto;
+  padding: 10px 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 모바일: 사이드바 숨김, 컷 1열·압축 */
+@media (max-width: 860px) {
+  .cc-room-layout .cc-main {
+    grid-template-columns: 1fr;
+  }
+
+  .cc-sidebar-desktop {
+    display: none;
+  }
+
+  .cc-comic-col {
+    border-right: none;
+  }
+
+  .cc-panel-grid {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .cc-panel {
+    min-height: 140px;
+  }
+
+  .cc-panel-stage {
+    min-height: 140px;
+    padding: 4px 4px 4px;
+  }
+
+  .cc-bubble-text {
+    font-size: 0.85rem;
+  }
+
+  .cc-status {
+    font-size: 0.7rem;
+  }
+}
+
+@media (min-width: 861px) {
+  .cc-sheet {
+    display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .cc-char-row {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 .cc-empty {
@@ -533,50 +718,6 @@
 .cc-shot-high .cc-actor-body {
   transform: perspective(200px) rotateX(8deg) scale(0.92);
   transform-origin: bottom center;
-}
-
-/* 입력 */
-.cc-composer {
-  flex-shrink: 0;
-  padding: 8px 10px 10px;
-  background: #2a2435;
-  border-top: 2px solid #1a1a1a;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.cc-bubble-toggles {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.cc-bubble-tog {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border: 1px solid #475569;
-  background: #1e293b;
-  color: #e2e8f0;
-  border-radius: 6px;
-  padding: 4px 8px;
-  font-size: 0.72rem;
-  cursor: pointer;
-}
-
-.cc-bubble-tog.active {
-  border-color: #fbbf24;
-  background: #422006;
-}
-
-.cc-input-row {
-  display: flex;
-  gap: 8px;
-}
-
-.cc-input-row input {
-  flex: 1;
 }
 
 /* 사이드바 */
@@ -857,35 +998,4 @@
 @keyframes cc-bounce {
   from { transform: translateY(0); }
   to { transform: translateY(-4px); }
-}
-
-@media (max-width: 860px) {
-  .cc-room-layout .cc-main {
-    grid-template-columns: 1fr;
-    grid-template-rows: 1fr auto;
-  }
-  .cc-sidebar {
-    flex-direction: row;
-    flex-wrap: wrap;
-    max-height: 42vh;
-    border-top: 2px solid #1a1a1a;
-  }
-  .cc-side-block {
-    flex: 1 1 140px;
-  }
-  .cc-side-preview {
-    flex: 0 0 auto;
-  }
-  .cc-panel-grid {
-    grid-template-columns: 1fr;
-  }
-  .cc-comic-col {
-    border-right: none;
-  }
-}
-
-@media (max-width: 520px) {
-  .cc-char-row {
-    grid-template-columns: repeat(3, 1fr);
-  }
 }

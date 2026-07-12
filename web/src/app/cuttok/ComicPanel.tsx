@@ -33,7 +33,7 @@ export default function ComicPanel({ panel }: Props) {
                   emotion={line.emotion}
                   pose={line.pose}
                   nick={line.nick}
-                  size={n >= 3 ? 72 : n === 2 ? 88 : 110}
+                  size={n >= 3 ? 56 : n === 2 ? 72 : 88}
                   fullBody
                 />
                 <span className="cc-actor-name">{line.nick}</span>
