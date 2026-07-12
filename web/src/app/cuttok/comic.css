@@ -173,7 +173,28 @@
 .cc-lobby-actions {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
+}
+
+.cc-join-box {
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 12px;
+  background: #1e293b88;
+}
+
+.cc-join-title {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.cc-join-hint {
+  margin: 8px 0 0;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  line-height: 1.4;
 }
 
 .cc-join-row {
@@ -183,6 +204,26 @@
 
 .cc-join-row input {
   flex: 1;
+  font-family: ui-monospace, monospace;
+  letter-spacing: 0.08em;
+}
+
+.cc-room-code,
+.cc-code-big {
+  font-family: ui-monospace, monospace;
+  letter-spacing: 0.12em;
+}
+
+.cc-code-big {
+  margin: 0 0 10px;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #fbbf24;
+  text-align: center;
+}
+
+.cc-side-code .cc-btn {
+  width: 100%;
 }
 
 .cc-btn {

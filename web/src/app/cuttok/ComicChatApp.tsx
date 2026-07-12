@@ -225,6 +225,16 @@ export default function ComicChatApp() {
     }
   };
 
+  const copyRoomCode = async () => {
+    if (!roomCode) return;
+    try {
+      await navigator.clipboard.writeText(roomCode);
+      setStatus(`방 코드 복사됨: ${roomCode} (상대는 로비에서 코드만 입력)`);
+    } catch {
+      setStatus(`방 코드: ${roomCode}`);
+    }
+  };
+
   const onCustomChange = (look: CharLook) => {
     setCustomLook(look);
     setCharacterId('custom');
@@ -308,21 +318,38 @@ export default function ComicChatApp() {
             <button type="button" className="cc-btn" disabled={busy} onClick={startHost}>
               방 만들기
             </button>
-            <div className="cc-join-row">
-              <input
-                value={roomCode}
-                onChange={(e) => setRoomCode(e.target.value.trim())}
-                placeholder="방 코드"
-                maxLength={12}
-              />
-              <button
-                type="button"
-                className="cc-btn cc-btn-ghost"
-                disabled={busy}
-                onClick={() => startJoin()}
-              >
-                입장
-              </button>
+            <div className="cc-join-box">
+              <p className="cc-join-title">방 코드로 입장 (QR·링크 불필요)</p>
+              <div className="cc-join-row">
+                <input
+                  value={roomCode}
+                  onChange={(e) =>
+                    setRoomCode(e.target.value.replace(/\s+/g, '').toLowerCase())
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                      e.preventDefault();
+                      startJoin();
+                    }
+                  }}
+                  placeholder="예: a3k9mp"
+                  maxLength={12}
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  inputMode="text"
+                  aria-label="방 입장 코드"
+                />
+                <button
+                  type="button"
+                  className="cc-btn"
+                  disabled={busy || !roomCode.trim()}
+                  onClick={() => startJoin()}
+                >
+                  입장
+                </button>
+              </div>
+              <p className="cc-join-hint">방장에게 받은 6자리 코드만 입력하면 됩니다.</p>
             </div>
           </div>
         </main>
@@ -336,10 +363,13 @@ export default function ComicChatApp() {
         <div className="cc-brand">
           <strong>컷톡</strong>
           <span>
-            방 <b>{roomCode}</b>
+            방 코드 <b className="cc-room-code">{roomCode}</b>
           </span>
+          <button type="button" className="cc-btn cc-btn-ghost cc-hud-btn" onClick={copyRoomCode}>
+            코드 복사
+          </button>
           <button type="button" className="cc-btn cc-btn-ghost cc-hud-btn" onClick={copyInvite}>
-            초대
+            링크 복사
           </button>
           <button type="button" className="cc-btn cc-btn-ghost cc-hud-btn" onClick={leave}>
             나가기
@@ -450,9 +480,18 @@ export default function ComicChatApp() {
             />
           </div>
 
+          <div className="cc-side-block cc-side-code">
+            <h3>입장 코드</h3>
+            <p className="cc-code-big">{roomCode}</p>
+            <button type="button" className="cc-btn" onClick={copyRoomCode}>
+              코드만 복사
+            </button>
+            <p className="cc-join-hint">상대는 /cuttok 로비에 이 코드만 입력하면 됩니다.</p>
+          </div>
+
           {qrSrc && (
             <details className="cc-invite">
-              <summary>초대 QR</summary>
+              <summary>초대 QR (선택)</summary>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={qrSrc} alt="방 초대 QR" width={140} height={140} />
             </details>
