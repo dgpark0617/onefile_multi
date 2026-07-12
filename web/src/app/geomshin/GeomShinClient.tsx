@@ -6,7 +6,7 @@ import { TERMS } from '@/lib/geomshin/terms';
 import { PALETTE, colorToCss, parseBrushColor } from '@/lib/geomshin/palette';
 import { LANDMARKS } from '@/lib/geomshin/landmarks';
 import type { BoardCell, LandmarkInfo } from '@/game/geomshin/GeomShinScene';
-import type { PresenceCell } from '@/game/geomshin/PhaserMap';
+import type { PresenceCell, PhaserMapApi } from '@/game/geomshin/PhaserMap';
 import GeomShinNav from './GeomShinNav';
 import GeomShinLogin from './GeomShinLogin';
 import { clearStoredSession, writeStoredSession } from '@/lib/geomshin/session';
@@ -81,6 +81,7 @@ export default function GeomShinClient() {
   const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const brushRef = useRef(brush);
   const tokenRef = useRef<string | null>(null);
+  const mapApiRef = useRef<PhaserMapApi | null>(null);
   brushRef.current = brush;
   tokenRef.current = accessToken;
 
@@ -599,6 +600,22 @@ export default function GeomShinClient() {
           >
             내 픽셀
           </button>
+          <button
+            type="button"
+            className="gs-zoom-btn"
+            aria-label="축소"
+            onClick={() => mapApiRef.current?.adjustZoom(0.8)}
+          >
+            −
+          </button>
+          <button
+            type="button"
+            className="gs-zoom-btn"
+            aria-label="확대"
+            onClick={() => mapApiRef.current?.adjustZoom(1.25)}
+          >
+            +
+          </button>
           <a className="gs-link" href="/geomshin/presence">
             B2B
           </a>
@@ -629,6 +646,7 @@ export default function GeomShinClient() {
           pan={pan}
           presence={[]}
           showHeat={false}
+          mapApiRef={mapApiRef}
         />
       </div>
     </div>

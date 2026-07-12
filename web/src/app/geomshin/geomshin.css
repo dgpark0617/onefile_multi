@@ -111,6 +111,13 @@
   text-decoration: none;
 }
 
+.gs-zoom-btn {
+  min-width: 36px;
+  font-size: 1.1rem !important;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .gs-actions button:hover,
 .gs-link:hover {
   border-color: #94a3b8;
@@ -135,12 +142,19 @@
   inset: 0;
 }
 
+.gs-phaser-host {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .gs-phaser-host canvas {
   display: block;
   width: 100% !important;
   height: 100% !important;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
+  touch-action: none;
 }
 
 body:has(.gs-root) .site-header,

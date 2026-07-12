@@ -1,9 +1,14 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import type { MutableRefObject } from 'react';
 import type { BoardCell, LandmarkInfo, GeomShinCallbacks } from './GeomShinScene';
 
 export type PresenceCell = { x: number; y: number; hits: number };
+
+export type PhaserMapApi = {
+  adjustZoom: (factor: number) => void;
+};
 
 type Props = {
   landmarks: LandmarkInfo[];
@@ -16,6 +21,7 @@ type Props = {
   pan?: { x: number; y: number } | null;
   presence?: PresenceCell[];
   showHeat?: boolean;
+  mapApiRef?: MutableRefObject<PhaserMapApi | null>;
 };
 
 type SceneApi = {
@@ -25,6 +31,7 @@ type SceneApi = {
   panTo: (x: number, y: number, zoom?: number) => void;
   applyPresence: (c: PresenceCell[], visible?: boolean) => void;
   setHeatVisible: (v: boolean) => void;
+  adjustZoom: (factor: number) => void;
 };
 
 export default function PhaserMap({
@@ -37,6 +44,7 @@ export default function PhaserMap({
   pan,
   presence = [],
   showHeat = true,
+  mapApiRef,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<{ destroy: (remove: boolean) => void } | null>(null);
@@ -78,6 +86,11 @@ export default function PhaserMap({
         const scene = game.scene.getScene('GeomShin') as unknown as SceneApi | null;
         if (scene && typeof scene.applyCells === 'function') {
           sceneRef.current = scene;
+          if (mapApiRef) {
+            mapApiRef.current = {
+              adjustZoom: (factor: number) => scene.adjustZoom?.(factor),
+            };
+          }
           // 마운트 시점 클로저(0)가 아니라 최신 slot
           scene.setMySlot?.(mySlotRef.current);
           if (pendingRef.current.length) {
@@ -107,6 +120,7 @@ export default function PhaserMap({
       gameRef.current?.destroy(true);
       gameRef.current = null;
       sceneRef.current = null;
+      if (mapApiRef) mapApiRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

@@ -49,6 +49,11 @@ export class GeomShinScene extends Phaser.Scene {
   private drag = false;
   private lastX = 0;
   private lastY = 0;
+  /** 두 손가락 핀치 줌 (모바일) */
+  private pinching = false;
+  private pinchStartDist = 0;
+  private pinchStartZoom = 1;
+  private suppressPick = false;
   private callbacks!: GeomShinCallbacks;
   private landmarks: LandmarkInfo[] = [];
   private viewEmitAt = 0;
@@ -149,17 +154,40 @@ export class GeomShinScene extends Phaser.Scene {
     this.cameras.main.centerOn(80 * CELL_PX, 80 * CELL_PX);
     this.cameras.main.setZoom(1);
 
+    // 기본 1개 + 2개 → 핀치용 멀티터치
+    this.input.addPointer(2);
+
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      if (this.downPointerCount() >= 2) {
+        this.beginPinch();
+        return;
+      }
       this.drag = true;
       this.lastX = p.x;
       this.lastY = p.y;
     });
     this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
+      if (this.pinching || this.suppressPick) {
+        if (this.downPointerCount() < 2) {
+          this.pinching = false;
+          this.pinchStartDist = 0;
+        }
+        if (this.downPointerCount() === 0) {
+          this.suppressPick = false;
+          this.drag = false;
+        }
+        return;
+      }
       const moved = Math.hypot(p.x - this.lastX, p.y - this.lastY);
       this.drag = false;
       if (moved < 8) this.pick(p);
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+      if (this.downPointerCount() >= 2) {
+        if (!this.pinching) this.beginPinch();
+        this.updatePinch();
+        return;
+      }
       if (!this.drag || !p.isDown) return;
       this.cameras.main.scrollX -= (p.x - p.prevPosition.x) / this.cameras.main.zoom;
       this.cameras.main.scrollY -= (p.y - p.prevPosition.y) / this.cameras.main.zoom;
@@ -172,13 +200,71 @@ export class GeomShinScene extends Phaser.Scene {
         _dx: number,
         dy: number,
       ) => {
+        const mid = { x: _p.x, y: _p.y };
         const z = Phaser.Math.Clamp(this.cameras.main.zoom * (dy > 0 ? 0.9 : 1.1), 0.2, 6);
-        this.cameras.main.setZoom(z);
+        this.zoomAtScreen(mid.x, mid.y, z);
       },
     );
 
     this.cursors = this.input.keyboard?.createCursorKeys();
     this.emitView(true);
+  }
+
+  private downPointerCount(): number {
+    let n = 0;
+    for (const ptr of this.input.manager.pointers) {
+      if (ptr.active && ptr.isDown) n += 1;
+    }
+    return n;
+  }
+
+  private twoFingerPointers(): [Phaser.Input.Pointer, Phaser.Input.Pointer] | null {
+    const down: Phaser.Input.Pointer[] = [];
+    for (const ptr of this.input.manager.pointers) {
+      if (ptr.active && ptr.isDown) down.push(ptr);
+      if (down.length >= 2) break;
+    }
+    if (down.length < 2) return null;
+    return [down[0], down[1]];
+  }
+
+  private beginPinch() {
+    this.pinching = true;
+    this.suppressPick = true;
+    this.drag = false;
+    const pair = this.twoFingerPointers();
+    if (!pair) return;
+    this.pinchStartDist = Phaser.Math.Distance.Between(pair[0].x, pair[0].y, pair[1].x, pair[1].y);
+    this.pinchStartZoom = this.cameras.main.zoom;
+  }
+
+  private updatePinch() {
+    const pair = this.twoFingerPointers();
+    if (!pair || this.pinchStartDist <= 0) return;
+    const dist = Phaser.Math.Distance.Between(pair[0].x, pair[0].y, pair[1].x, pair[1].y);
+    if (dist <= 0) return;
+    const midX = (pair[0].x + pair[1].x) / 2;
+    const midY = (pair[0].y + pair[1].y) / 2;
+    const z = Phaser.Math.Clamp(this.pinchStartZoom * (dist / this.pinchStartDist), 0.2, 6);
+    this.zoomAtScreen(midX, midY, z);
+  }
+
+  /** 화면 좌표(sx,sy) 아래 월드 지점을 고정한 채 줌 */
+  private zoomAtScreen(sx: number, sy: number, zoom: number) {
+    const cam = this.cameras.main;
+    const before = cam.getWorldPoint(sx, sy);
+    cam.setZoom(zoom);
+    const after = cam.getWorldPoint(sx, sy);
+    cam.scrollX += before.x - after.x;
+    cam.scrollY += before.y - after.y;
+    this.emitView(false);
+  }
+
+  /** HUD 등에서 호출 — 화면 중앙 기준 줌 */
+  adjustZoom(factor: number) {
+    const cam = this.cameras.main;
+    const z = Phaser.Math.Clamp(cam.zoom * factor, 0.2, 6);
+    this.zoomAtScreen(cam.width / 2, cam.height / 2, z);
   }
 
   setMySlot(slot: number) {
@@ -454,6 +540,9 @@ export function createGeomShinGame(
     backgroundColor: '#334155',
     antialias: false,
     roundPixels: true,
+    input: {
+      activePointers: 3,
+    },
     render: {
       antialias: false,
       pixelArt: true,
