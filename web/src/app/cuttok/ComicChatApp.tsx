@@ -38,7 +38,7 @@ function uid(): string {
 
 function useKeyboardChrome(
   active: boolean,
-  dockRef: React.RefObject<HTMLFooterElement | null>,
+  dockRef: React.RefObject<HTMLElement | null>,
   onChange?: () => void,
 ) {
   useEffect(() => {
@@ -142,7 +142,7 @@ export default function ComicChatApp() {
   const [roomSheet, setRoomSheet] = useState(false);
   const roomRef = useRef<ComicRoom | null>(null);
   const stripRef = useRef<HTMLDivElement>(null);
-  const dockRef = useRef<HTMLFooterElement | null>(null);
+  const dockRef = useRef<HTMLElement | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const isDesktop = useIsDesktop(900);
 
