@@ -40,25 +40,49 @@ function useVisualViewport(active: boolean) {
   useEffect(() => {
     if (!active || typeof window === 'undefined') return;
     const root = document.documentElement;
+    const body = document.body;
     const vv = window.visualViewport;
+
     const sync = () => {
       const h = vv?.height ?? window.innerHeight;
       const top = vv?.offsetTop ?? 0;
       root.style.setProperty('--cc-vv-height', `${Math.round(h)}px`);
       root.style.setProperty('--cc-vv-top', `${Math.round(top)}px`);
+      // iOS가 입력 포커스 시 페이지를 밀어 올리는 것 상쇄
+      if (window.scrollY !== 0 || window.scrollX !== 0) {
+        window.scrollTo(0, 0);
+      }
     };
+
+    body.classList.add('cc-lock-scroll');
     sync();
     vv?.addEventListener('resize', sync);
     vv?.addEventListener('scroll', sync);
     window.addEventListener('resize', sync);
+    window.addEventListener('scroll', sync, { passive: true });
+
     return () => {
+      body.classList.remove('cc-lock-scroll');
       vv?.removeEventListener('resize', sync);
       vv?.removeEventListener('scroll', sync);
       window.removeEventListener('resize', sync);
+      window.removeEventListener('scroll', sync);
       root.style.removeProperty('--cc-vv-height');
       root.style.removeProperty('--cc-vv-top');
     };
   }, [active]);
+}
+
+function useIsDesktop(minWidth = 900) {
+  const [desktop, setDesktop] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(`(min-width: ${minWidth}px)`);
+    const apply = () => setDesktop(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, [minWidth]);
+  return desktop;
 }
 
 export default function ComicChatApp() {
@@ -83,8 +107,9 @@ export default function ComicChatApp() {
   const [roomSheet, setRoomSheet] = useState(false);
   const roomRef = useRef<ComicRoom | null>(null);
   const stripRef = useRef<HTMLDivElement>(null);
+  const isDesktop = useIsDesktop(900);
 
-  useVisualViewport(phase === 'room' || phase === 'lobby');
+  useVisualViewport(phase === 'room');
 
   useEffect(() => {
     const saved = loadSavedLook();
@@ -318,6 +343,16 @@ export default function ComicChatApp() {
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onFocus={() => {
+            setRoomSheet(false);
+            requestAnimationFrame(() => {
+              window.scrollTo(0, 0);
+              stripRef.current?.scrollTo({
+                top: stripRef.current.scrollHeight,
+                behavior: 'smooth',
+              });
+            });
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
               e.preventDefault();
@@ -327,6 +362,7 @@ export default function ComicChatApp() {
           placeholder="대사…"
           maxLength={120}
           enterKeyHint="send"
+          autoComplete="off"
         />
         <button type="button" className="cc-btn" onClick={send}>
           보내기
@@ -536,10 +572,12 @@ export default function ComicChatApp() {
           {composer}
         </section>
 
-        <aside className="cc-sidebar cc-sidebar-desktop">{roomInfoBody}</aside>
+        {isDesktop ? (
+          <aside className="cc-sidebar cc-sidebar-desktop">{roomInfoBody}</aside>
+        ) : null}
       </div>
 
-      {roomSheet && (
+      {!isDesktop && roomSheet && (
         <div className="cc-sheet" role="dialog" aria-label="방 정보">
           <div className="cc-sheet-backdrop" onClick={() => setRoomSheet(false)} />
           <div className="cc-sheet-panel">

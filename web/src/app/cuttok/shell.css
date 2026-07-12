@@ -9,4 +9,13 @@ body:has(.cc-shell) > main {
   padding: 0;
   min-height: 100%;
   max-width: none;
+  overflow: hidden;
+}
+
+body.cc-lock-scroll {
+  overflow: hidden !important;
+  position: fixed !important;
+  inset: 0;
+  width: 100%;
+  height: var(--cc-vv-height, 100%);
 }

@@ -284,37 +284,43 @@
   box-shadow: 0 0 0 1px #38bdf8;
 }
 
-/* —— 방: 만화 | 사이드바 —— */
+/* —— 방: 기본(모바일) 만화만 / PC에서만 사이드바 —— */
 .cc-room-layout .cc-main {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: 1fr minmax(220px, 280px);
+  display: flex;
+  flex-direction: column;
   gap: 0;
 }
 
 .cc-comic-col {
   display: flex;
   flex-direction: column;
+  flex: 1;
   min-width: 0;
   min-height: 0;
   background: var(--cc-paper);
-  border-right: 3px solid #1a1a1a;
 }
 
 .cc-strip {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 6px;
   -webkit-overflow-scrolling: touch;
 }
 
 .cc-panel-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
+  grid-template-columns: 1fr;
+  gap: 6px;
   align-content: start;
+}
+
+/* 사이드바: 모바일 DOM에 있어도 절대 안 보임 (아래 .cc-sidebar display:flex 에 덮이지 않게) */
+.cc-sidebar-desktop {
+  display: none !important;
 }
 
 .cc-emo-chips {
@@ -351,7 +357,6 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
-  /* 키보드 바로 위 — visualViewport로 root가 이미 줄어듦 */
   padding-bottom: max(8px, env(safe-area-inset-bottom));
 }
 
@@ -388,7 +393,7 @@
 .cc-input-row input {
   flex: 1;
   padding: 8px 10px;
-  font-size: 16px; /* iOS 줌 방지 */
+  font-size: 16px;
 }
 
 .cc-sheet {
@@ -408,7 +413,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  max-height: 75%;
+  max-height: min(70%, calc(var(--cc-vv-height) * 0.7));
   background: #221c2c;
   border-radius: 12px 12px 0 0;
   display: flex;
@@ -432,44 +437,51 @@
   gap: 10px;
 }
 
-/* 모바일: 사이드바 숨김, 컷 1열·압축 */
-@media (max-width: 860px) {
+.cc-panel {
+  min-height: 140px;
+}
+
+.cc-panel-stage {
+  min-height: 140px;
+  padding: 4px;
+}
+
+.cc-bubble-text {
+  font-size: 0.85rem;
+}
+
+@media (min-width: 900px) {
   .cc-room-layout .cc-main {
-    grid-template-columns: 1fr;
+    display: grid;
+    grid-template-columns: 1fr minmax(220px, 280px);
   }
 
   .cc-sidebar-desktop {
-    display: none;
+    display: flex !important;
   }
 
   .cc-comic-col {
-    border-right: none;
+    border-right: 3px solid #1a1a1a;
   }
 
   .cc-panel-grid {
-    grid-template-columns: 1fr;
-    gap: 6px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
   }
 
   .cc-panel {
-    min-height: 140px;
+    min-height: 200px;
   }
 
   .cc-panel-stage {
-    min-height: 140px;
-    padding: 4px 4px 4px;
+    min-height: 200px;
+    padding: 8px 6px 6px;
   }
 
   .cc-bubble-text {
-    font-size: 0.85rem;
+    font-size: 0.92rem;
   }
 
-  .cc-status {
-    font-size: 0.7rem;
-  }
-}
-
-@media (min-width: 861px) {
   .cc-sheet {
     display: none;
   }
@@ -720,9 +732,8 @@
   transform-origin: bottom center;
 }
 
-/* 사이드바 */
+/* 사이드바 (PC에서만 .cc-sidebar-desktop 이 display:flex) */
 .cc-sidebar {
-  display: flex;
   flex-direction: column;
   gap: 10px;
   padding: 10px;
