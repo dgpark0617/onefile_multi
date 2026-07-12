@@ -36,9 +36,10 @@ function uid(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function useVisualViewport(
+function useKeyboardChrome(
   active: boolean,
-  onResize?: () => void,
+  dockRef: React.RefObject<HTMLFooterElement | null>,
+  onChange?: () => void,
 ) {
   useEffect(() => {
     if (!active || typeof window === 'undefined') return;
@@ -47,31 +48,61 @@ function useVisualViewport(
     const vv = window.visualViewport;
 
     const sync = () => {
-      const h = vv?.height ?? window.innerHeight;
-      const top = vv?.offsetTop ?? 0;
-      root.style.setProperty('--cc-vv-height', `${Math.round(h)}px`);
-      root.style.setProperty('--cc-vv-top', `${Math.round(top)}px`);
+      const layoutH = window.innerHeight;
+      const height = vv?.height ?? layoutH;
+      const offsetTop = vv?.offsetTop ?? 0;
+      // iOS: 키보드는 레이아웃을 안 줄이고 오버레이 → 아래 가려진 높이
+      const kb = Math.max(0, Math.round(layoutH - height - offsetTop));
+      const dockH = Math.round(dockRef.current?.offsetHeight ?? 72);
+
+      root.style.setProperty('--cc-vv-height', `${Math.round(height)}px`);
+      root.style.setProperty('--cc-vv-top', `${Math.round(offsetTop)}px`);
+      root.style.setProperty('--cc-kb', `${kb}px`);
+      root.style.setProperty('--cc-dock-space', `${dockH}px`);
+      root.style.setProperty('--cc-stage-height', `${Math.max(120, Math.round(height - dockH))}px`);
+
       if (window.scrollY || window.scrollX) window.scrollTo(0, 0);
-      onResize?.();
+      onChange?.();
     };
 
     body.classList.add('cc-lock-scroll');
     sync();
+
+    const ro =
+      typeof ResizeObserver !== 'undefined' && dockRef.current
+        ? new ResizeObserver(() => sync())
+        : null;
+    if (dockRef.current && ro) ro.observe(dockRef.current);
+
     vv?.addEventListener('resize', sync);
     vv?.addEventListener('scroll', sync);
     window.addEventListener('resize', sync);
     window.addEventListener('scroll', sync, { passive: true });
+    // iOS 키보드 애니메이션 중 지연 재측정
+    const onFocusIn = () => {
+      window.setTimeout(sync, 50);
+      window.setTimeout(sync, 300);
+      window.setTimeout(sync, 600);
+    };
+    document.addEventListener('focusin', onFocusIn);
+    document.addEventListener('focusout', onFocusIn);
 
     return () => {
       body.classList.remove('cc-lock-scroll');
+      ro?.disconnect();
       vv?.removeEventListener('resize', sync);
       vv?.removeEventListener('scroll', sync);
       window.removeEventListener('resize', sync);
       window.removeEventListener('scroll', sync);
+      document.removeEventListener('focusin', onFocusIn);
+      document.removeEventListener('focusout', onFocusIn);
       root.style.removeProperty('--cc-vv-height');
       root.style.removeProperty('--cc-vv-top');
+      root.style.removeProperty('--cc-kb');
+      root.style.removeProperty('--cc-dock-space');
+      root.style.removeProperty('--cc-stage-height');
     };
-  }, [active, onResize]);
+  }, [active, dockRef, onChange]);
 }
 
 function useIsDesktop(minWidth = 900) {
@@ -111,6 +142,7 @@ export default function ComicChatApp() {
   const [roomSheet, setRoomSheet] = useState(false);
   const roomRef = useRef<ComicRoom | null>(null);
   const stripRef = useRef<HTMLDivElement>(null);
+  const dockRef = useRef<HTMLFooterElement | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const isDesktop = useIsDesktop(900);
 
@@ -127,8 +159,9 @@ export default function ComicChatApp() {
     setStatus(msg);
   }, []);
 
-  useVisualViewport(
+  useKeyboardChrome(
     phase === 'room',
+    dockRef,
     useCallback(() => {
       requestAnimationFrame(() => scrollToLatest(false));
     }, [scrollToLatest]),
@@ -497,9 +530,9 @@ export default function ComicChatApp() {
 
   return (
     <div
-      className={`cc-root cc-room-layout${composing ? ' cc-composing' : ''}${!isDesktop ? ' cc-mobile-main' : ''}`}
+      className={`cc-root cc-room-layout${!isDesktop ? ' cc-mobile-main' : ''}${composing ? ' cc-composing' : ''}`}
     >
-      <header className="cc-topbar">
+      <header className={`cc-topbar${composing && !isDesktop ? ' cc-topbar-hidden' : ''}`}>
         <button type="button" className="cc-top-code" onClick={copyRoomCode} title="코드 복사">
           {roomCode}
         </button>
@@ -509,6 +542,8 @@ export default function ComicChatApp() {
             className="cc-icon-btn"
             onClick={() => {
               setComposing(false);
+              setShowMood(false);
+              inputRef.current?.blur();
               setRoomSheet(true);
             }}
             aria-label="방 정보"
@@ -538,36 +573,45 @@ export default function ComicChatApp() {
             )}
           </div>
 
-          <footer className="cc-dock">
-            <div className="cc-dock-tools">
-              <div className="cc-bubble-toggles" role="group" aria-label="말풍선">
-                {BUBBLE_TYPES.map((b) => (
+          <footer className="cc-dock" ref={dockRef}>
+            {!composing || isDesktop ? (
+              <div className="cc-dock-tools">
+                <div className="cc-bubble-toggles" role="group" aria-label="말풍선">
+                  {BUBBLE_TYPES.map((b) => (
+                    <button
+                      key={b}
+                      type="button"
+                      className={`cc-bubble-tog${bubble === b ? ' active' : ''}`}
+                      onClick={() => setBubble(b)}
+                    >
+                      {BUBBLE_LABEL[b]}
+                    </button>
+                  ))}
                   <button
-                    key={b}
                     type="button"
-                    className={`cc-bubble-tog${bubble === b ? ' active' : ''}`}
-                    onClick={() => setBubble(b)}
+                    className={`cc-bubble-tog${bubble === 'auto' ? ' active' : ''}`}
+                    onClick={() => setBubble('auto')}
                   >
-                    {BUBBLE_LABEL[b]}
+                    자동
                   </button>
-                ))}
-                <button
-                  type="button"
-                  className={`cc-bubble-tog${bubble === 'auto' ? ' active' : ''}`}
-                  onClick={() => setBubble('auto')}
-                >
-                  자동
-                </button>
-                <button
-                  type="button"
-                  className={`cc-bubble-tog${showMood ? ' active' : ''}`}
-                  onClick={() => setShowMood((v) => !v)}
-                >
-                  기분
-                </button>
+                  <button
+                    type="button"
+                    className={`cc-bubble-tog${showMood ? ' active' : ''}`}
+                    onClick={() => setShowMood((v) => !v)}
+                  >
+                    기분
+                  </button>
+                </div>
               </div>
-            </div>
-            {showMood && (
+            ) : (
+              <div className="cc-dock-tools cc-dock-tools-mini">
+                <span className="cc-dock-hint">
+                  {bubble === 'auto' ? '자동' : BUBBLE_LABEL[bubble as BubbleType]}
+                  {!emotionAuto ? ` · ${EMOTION_LABEL[emotion]}` : ''}
+                </span>
+              </div>
+            )}
+            {showMood && !composing && (
               <div className="cc-emo-chips" role="group" aria-label="기분">
                 <button
                   type="button"
@@ -598,13 +642,21 @@ export default function ComicChatApp() {
                 onChange={(e) => setText(e.target.value)}
                 onFocus={() => {
                   setRoomSheet(false);
+                  setShowMood(false);
                   setComposing(true);
                   requestAnimationFrame(() => {
                     window.scrollTo(0, 0);
                     scrollToLatest(false);
                   });
                 }}
-                onBlur={() => setComposing(false)}
+                onBlur={() => {
+                  // iOS에서 전송 버튼 탭 시 blur 먼저 옴 → 짧게 지연
+                  window.setTimeout(() => {
+                    if (document.activeElement !== inputRef.current) {
+                      setComposing(false);
+                    }
+                  }, 180);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
                     e.preventDefault();

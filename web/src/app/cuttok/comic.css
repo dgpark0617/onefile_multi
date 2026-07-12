@@ -7,6 +7,8 @@
   --cc-paper: #e8e0d0;
   --cc-vv-height: 100dvh;
   --cc-vv-top: 0px;
+  --cc-kb: 0px;
+  --cc-dock-space: 72px;
   position: fixed;
   left: 0;
   right: 0;
@@ -395,6 +397,10 @@
   display: none !important;
 }
 
+.cc-topbar-hidden {
+  display: none !important;
+}
+
 .cc-dock {
   flex-shrink: 0;
   padding: 4px 6px max(6px, env(safe-area-inset-bottom));
@@ -403,7 +409,36 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  z-index: 6;
+  z-index: 20;
+}
+
+/* iOS Safari: 키보드 오버레이 위로 독을 고정 */
+.cc-mobile-main .cc-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--cc-kb, 0px);
+  padding-bottom: max(6px, env(safe-area-inset-bottom));
+}
+
+.cc-mobile-main .cc-strip {
+  /* 독 + 키보드가 가리는 만큼 스크롤 여백 */
+  padding-bottom: calc(var(--cc-dock-space, 72px) + 8px);
+}
+
+.cc-mobile-main.cc-composing .cc-strip {
+  /* 포커스 중엔 VV 높이 기준 무대 */
+  max-height: none;
+}
+
+.cc-dock-tools-mini {
+  min-height: 18px;
+}
+
+.cc-dock-hint {
+  font-size: 0.65rem;
+  color: #94a3b8;
+  padding: 0 2px;
 }
 
 .cc-dock-tools {
