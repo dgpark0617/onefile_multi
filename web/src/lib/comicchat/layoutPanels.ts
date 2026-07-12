@@ -1,48 +1,34 @@
 import {
   MAX_PANEL_ACTORS,
   MAX_PANELS,
-  MERGE_WINDOW_MS,
   type ComicMsg,
   type ComicPanelModel,
 } from './types';
 
+/** 말풍선이 물리적으로 더 안 들어갈 때 (원작 PlaceBalloons 실패 근사) */
+const MAX_BALLOONS_PER_PANEL = 5;
+const MAX_PANEL_TEXT_CHARS = 220;
+/** 첫 대사가 이보다 길면 15% 확률로 솔로 컷 유도 (SIGGRAPH) */
+const LONG_UTTERANCE_CHARS = 40;
+
 /**
- * 발화 → 만화 칸.
- * 원작처럼: 짧은 대화는 한 무대에 여러 캐릭터, 배경은 칸이 유지.
+ * SIGGRAPH ’96 / Interaction ’98 Comic Chat panel breaks:
+ * - 새 발화는 가능하면 마지막 컷에 **추가** (덮어쓰기 없음)
+ * - 같은 화자가 그 컷에서 이미 말했으면 → 새 컷
+ * - 인원/풍선/텍스트가 너무 많으면 → 새 컷
+ * - (부가) 긴 첫 대사면 가끔 솔로 컷 유지
+ * - 시간 윈도우로 끊지 않음
  */
 export function layoutPanels(messages: ComicMsg[]): ComicPanelModel[] {
   const panels: ComicPanelModel[] = [];
 
   for (const msg of messages) {
     const last = panels[panels.length - 1];
-    if (!last) {
-      panels.push(newPanel(msg));
-      continue;
-    }
-
-    const lastLine = last.lines[last.lines.length - 1];
-    const fresh = msg.at - lastLine.at <= MERGE_WINDOW_MS;
-    const idx = last.lines.findIndex((l) => l.peerId === msg.peerId);
-
-    // 이미 칸에 있는 사람이 다시 말함 + 상대가 있음 → 그 사람 말풍선만 갱신 (같은 컷 유지)
-    if (fresh && idx >= 0 && last.lines.length >= 2) {
-      last.lines[idx] = msg;
-      last.shot = msg.shot;
-      continue;
-    }
-
-    // 새 화자가 끼어듦 → 같은 컷에 합류
-    if (
-      fresh &&
-      idx < 0 &&
-      last.lines.length < MAX_PANEL_ACTORS &&
-      lastLine.peerId !== msg.peerId
-    ) {
+    if (last && canAddToPanel(last, msg)) {
       last.lines.push(msg);
       last.shot = msg.shot;
       continue;
     }
-
     panels.push(newPanel(msg));
   }
 
@@ -56,4 +42,40 @@ function newPanel(msg: ComicMsg): ComicPanelModel {
     shot: msg.shot,
     lines: [msg],
   };
+}
+
+function canAddToPanel(panel: ComicPanelModel, msg: ComicMsg): boolean {
+  // 한 컷·한 캐릭터당 말풍선 1개 — 같은 화자 재발화면 새 컷
+  if (panel.lines.some((l) => l.peerId === msg.peerId)) {
+    return false;
+  }
+
+  if (panel.lines.length >= MAX_PANEL_ACTORS) return false;
+  if (panel.lines.length >= MAX_BALLOONS_PER_PANEL) return false;
+
+  const textLen =
+    panel.lines.reduce((n, l) => n + l.text.length, 0) + msg.text.length;
+  if (textLen > MAX_PANEL_TEXT_CHARS) return false;
+
+  // 긴 첫 대사 후 다음 말을 가끔 새 컷으로 (시각적 변화, ~15%)
+  if (panel.lines.length === 1) {
+    const first = panel.lines[0];
+    if (
+      first.text.length > LONG_UTTERANCE_CHARS &&
+      deterministicPct(msg.id) < 15
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/** 테스트 안정용 결정적 퍼센트 0–99 */
+function deterministicPct(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) {
+    h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  }
+  return h % 100;
 }

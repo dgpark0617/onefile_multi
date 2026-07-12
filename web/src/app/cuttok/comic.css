@@ -352,6 +352,24 @@
   align-items: center;
 }
 
+.cc-actors-2 .cc-actor,
+.cc-actors-3 .cc-actor,
+.cc-actors-4 .cc-actor,
+.cc-actors-5 .cc-actor {
+  max-width: 48%;
+}
+
+.cc-actors-4 .cc-panel-stage,
+.cc-actors-5 .cc-panel-stage {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.cc-actors-4 .cc-actor,
+.cc-actors-5 .cc-actor {
+  max-width: 32%;
+}
+
 .cc-actor-body {
   display: flex;
   flex-direction: column;

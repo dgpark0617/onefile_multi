@@ -61,33 +61,49 @@ describe('comicchat staging', () => {
   });
 });
 
-describe('layoutPanels', () => {
-  it('merges different speakers even if bg differs', () => {
+describe('layoutPanels (Comic Chat rules)', () => {
+  it('adds different speakers to same panel without overwriting', () => {
     const panels = layoutPanels([
       msg({ id: '1', peerId: 'a', text: 'hi', at: 1000, bg: 'cafe' }),
       msg({ id: '2', peerId: 'b', text: 'yo', at: 2000, bg: 'park' }),
     ]);
     assert.equal(panels.length, 1);
     assert.equal(panels[0].lines.length, 2);
+    assert.equal(panels[0].lines[0].text, 'hi');
+    assert.equal(panels[0].lines[1].text, 'yo');
     assert.equal(panels[0].bg, 'cafe');
   });
 
-  it('updates existing actor bubble in conversation', () => {
+  it('starts new panel when same speaker talks again (no overwrite)', () => {
     const panels = layoutPanels([
       msg({ id: '1', peerId: 'a', text: 'hi', at: 1000, bg: 'cafe' }),
       msg({ id: '2', peerId: 'b', text: 'yo', at: 2000, bg: 'cafe' }),
       msg({ id: '3', peerId: 'a', text: 'again', at: 3000, bg: 'cafe' }),
     ]);
-    assert.equal(panels.length, 1);
+    assert.equal(panels.length, 2);
     assert.equal(panels[0].lines.length, 2);
-    assert.equal(panels[0].lines.find((l) => l.peerId === 'a')?.text, 'again');
+    assert.equal(panels[0].lines.find((l) => l.peerId === 'a')?.text, 'hi');
+    assert.equal(panels[1].lines.length, 1);
+    assert.equal(panels[1].lines[0].text, 'again');
   });
 
-  it('splits same speaker when alone', () => {
+  it('splits consecutive same speaker into panels', () => {
     const panels = layoutPanels([
       msg({ id: '1', peerId: 'a', text: 'hi', at: 1000, bg: 'cafe' }),
       msg({ id: '2', peerId: 'a', text: 'again', at: 2000, bg: 'cafe' }),
     ]);
     assert.equal(panels.length, 2);
+  });
+
+  it('keeps history of prior panels', () => {
+    const panels = layoutPanels([
+      msg({ id: '1', peerId: 'a', text: 'one', at: 1000 }),
+      msg({ id: '2', peerId: 'a', text: 'two', at: 2000 }),
+      msg({ id: '3', peerId: 'b', text: 'three', at: 3000 }),
+    ]);
+    assert.equal(panels.length, 2);
+    assert.equal(panels[0].lines[0].text, 'one');
+    assert.equal(panels[1].lines[0].text, 'two');
+    assert.equal(panels[1].lines[1].text, 'three');
   });
 });
