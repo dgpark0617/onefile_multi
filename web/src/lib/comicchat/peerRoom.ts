@@ -3,18 +3,21 @@ import {
   MAX_PANELS,
   PEER_PREFIX,
   type ComicMsg,
+  type RoomMember,
   type WireMsg,
 } from './types';
 
 function trimMessages(list: ComicMsg[]): ComicMsg[] {
-  if (list.length <= MAX_PANELS * 3) return list;
-  return list.slice(-(MAX_PANELS * 3));
+  const keep = MAX_PANELS * 4;
+  if (list.length <= keep) return list;
+  return list.slice(-keep);
 }
 
 export type RoomHandlers = {
   onStatus: (s: string) => void;
   onMessages: (msgs: ComicMsg[]) => void;
   onPeerId: (id: string) => void;
+  onMembers: (members: RoomMember[]) => void;
 };
 
 export type ComicRoom = {
@@ -38,12 +41,26 @@ export function makeRoomCode(): string {
   return s;
 }
 
-export async function createHostRoom(handlers: RoomHandlers): Promise<ComicRoom> {
+export async function createHostRoom(
+  self: RoomMember,
+  handlers: RoomHandlers,
+): Promise<ComicRoom> {
   const code = makeRoomCode();
   const id = roomPeerId(code);
   const peer = new Peer(id, { debug: 0 });
   const conns = new Map<string, DataConnection>();
   let messages: ComicMsg[] = [];
+  const members = new Map<string, RoomMember>();
+  members.set(self.peerId || 'host', { ...self, peerId: self.peerId || 'host' });
+
+  const publishMembers = () => {
+    const list = Array.from(members.values());
+    handlers.onMembers(list);
+    const wire: WireMsg = { type: 'roster', members: list };
+    for (const c of conns.values()) {
+      if (c.open) c.send(wire);
+    }
+  };
 
   const broadcast = (wire: WireMsg, except?: string) => {
     for (const [cid, c] of conns) {
@@ -59,7 +76,11 @@ export async function createHostRoom(handlers: RoomHandlers): Promise<ComicRoom>
 
   await new Promise<void>((resolve, reject) => {
     peer.on('open', () => {
+      const hostMember = { ...self, peerId: code };
+      members.clear();
+      members.set(code, hostMember);
       handlers.onPeerId(code);
+      handlers.onMembers(Array.from(members.values()));
       handlers.onStatus('방 열림 — QR/코드로 초대하세요');
       resolve();
     });
@@ -71,10 +92,14 @@ export async function createHostRoom(handlers: RoomHandlers): Promise<ComicRoom>
 
   peer.on('connection', (conn) => {
     conns.set(conn.peer, conn);
-    handlers.onStatus(`접속 ${conns.size}명`);
+    handlers.onStatus(`접속 ${conns.size + 1}명`);
 
     conn.on('open', () => {
-      conn.send({ type: 'sync', messages } satisfies WireMsg);
+      conn.send({
+        type: 'sync',
+        messages,
+        members: Array.from(members.values()),
+      } satisfies WireMsg);
     });
 
     conn.on('data', (raw) => {
@@ -83,13 +108,22 @@ export async function createHostRoom(handlers: RoomHandlers): Promise<ComicRoom>
         pushLocal(data.payload);
         broadcast({ type: 'msg', payload: data.payload }, conn.peer);
       } else if (data.type === 'hello') {
-        handlers.onStatus(`${data.nick} 입장 (${conns.size}명)`);
+        members.set(data.peerId, {
+          peerId: data.peerId,
+          nick: data.nick,
+          look: data.look,
+          characterId: data.characterId,
+        });
+        publishMembers();
+        handlers.onStatus(`${data.nick} 입장`);
       }
     });
 
     conn.on('close', () => {
       conns.delete(conn.peer);
-      handlers.onStatus(`접속 ${conns.size}명`);
+      members.delete(conn.peer);
+      publishMembers();
+      handlers.onStatus(`접속 ${conns.size + 1}명`);
     });
   });
 
@@ -109,11 +143,7 @@ export async function createHostRoom(handlers: RoomHandlers): Promise<ComicRoom>
 
 export async function joinGuestRoom(
   code: string,
-  hello: {
-    nick: string;
-    characterId: ComicMsg['characterId'];
-    look: ComicMsg['look'];
-  },
+  hello: RoomMember,
   handlers: RoomHandlers,
 ): Promise<ComicRoom> {
   const hostId = roomPeerId(code);
@@ -145,9 +175,12 @@ export async function joinGuestRoom(
         if (data.type === 'sync') {
           messages = trimMessages(data.messages);
           handlers.onMessages(messages);
+          handlers.onMembers(data.members || []);
         } else if (data.type === 'msg') {
           messages = trimMessages([...messages, data.payload]);
           handlers.onMessages(messages);
+        } else if (data.type === 'roster') {
+          handlers.onMembers(data.members);
         }
       });
       conn.on('close', () => {

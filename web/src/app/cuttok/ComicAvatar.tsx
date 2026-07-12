@@ -8,108 +8,144 @@ type Props = {
   pose?: Pose;
   nick: string;
   size?: number;
+  /** 패널용 전신 / 사이드 프리뷰 */
+  fullBody?: boolean;
 };
 
 function bodyRx(body: CharLook['body']): number {
-  if (body === 'wide') return 30;
-  if (body === 'tall') return 22;
-  return 26;
+  if (body === 'wide') return 28;
+  if (body === 'tall') return 20;
+  return 24;
 }
 function bodyRy(body: CharLook['body']): number {
-  if (body === 'tall') return 32;
-  if (body === 'wide') return 24;
-  return 28;
+  if (body === 'tall') return 36;
+  if (body === 'wide') return 26;
+  return 30;
 }
 
-/** 오리지널 심플 아바타 — 룩·감정·포즈 */
+/** 전신 만화 아바타 (오리지널) */
 export default function ComicAvatar({
   look,
   emotion,
   pose = 'idle',
   nick,
-  size = 88,
+  size = 120,
+  fullBody = true,
 }: Props) {
+  const vbH = fullBody ? 140 : 100;
+  const faceY = fullBody ? 36 : 38;
+  const bodyY = fullBody ? 78 : 62;
   const rx = bodyRx(look.body);
   const ry = bodyRy(look.body);
 
   return (
     <div
-      className={`cc-avatar cc-emo-${emotion} cc-pose-${pose}`}
-      style={{ width: size, height: size, ['--cc-hue' as string]: String(look.hue) }}
+      className={`cc-avatar cc-emo-${emotion} cc-pose-${pose}${fullBody ? ' cc-avatar-full' : ''}`}
+      style={{ width: size, height: size * (vbH / 100), ['--cc-hue' as string]: String(look.hue) }}
       title={`${nick} · ${look.name}`}
       aria-hidden
     >
-      <svg viewBox="0 0 100 100" width={size} height={size}>
-        {/* arms / pose props */}
+      <svg viewBox={`0 0 100 ${vbH}`} width={size} height={size * (vbH / 100)}>
         <g className="cc-arms">
-          <path className="cc-arm-l" d="M28 58 Q18 68 16 78" fill="none" strokeWidth="4" />
-          <path className="cc-arm-r" d="M72 58 Q82 68 84 78" fill="none" strokeWidth="4" />
-          <circle className="cc-hand-l" cx="16" cy="80" r="4" />
-          <circle className="cc-hand-r" cx="84" cy="80" r="4" />
+          <path className="cc-arm-l" d={`M${50 - rx + 4} ${bodyY - 8} Q18 ${bodyY + 10} 14 ${bodyY + 28}`} fill="none" strokeWidth="4" />
+          <path className="cc-arm-r" d={`M${50 + rx - 4} ${bodyY - 8} Q82 ${bodyY + 10} 86 ${bodyY + 28}`} fill="none" strokeWidth="4" />
+          <circle className="cc-hand-l" cx="14" cy={bodyY + 30} r="4.5" />
+          <circle className="cc-hand-r" cx="86" cy={bodyY + 30} r="4.5" />
         </g>
 
-        <ellipse className="cc-body" cx="50" cy="62" rx={rx} ry={ry} />
-        <circle className="cc-face" cx="50" cy="38" r="22" />
+        <ellipse className="cc-body" cx="50" cy={bodyY} rx={rx} ry={ry} />
 
-        {/* hair */}
+        {fullBody && (
+          <g className="cc-legs">
+            <path d={`M${50 - 10} ${bodyY + ry - 4} L${44} ${vbH - 6}`} className="cc-leg" />
+            <path d={`M${50 + 10} ${bodyY + ry - 4} L${56} ${vbH - 6}`} className="cc-leg" />
+            <ellipse cx="44" cy={vbH - 4} rx="7" ry="3" className="cc-foot" />
+            <ellipse cx="56" cy={vbH - 4} rx="7" ry="3" className="cc-foot" />
+          </g>
+        )}
+
+        <circle className="cc-face" cx="50" cy={faceY} r="22" />
+
         {look.hair === 'bob' && (
           <path
             className="cc-hair"
-            d="M28 36 Q30 18 50 16 Q70 18 72 36 L68 34 Q50 22 32 34 Z"
+            d={`M28 ${faceY - 2} Q30 ${faceY - 20} 50 ${faceY - 22} Q70 ${faceY - 20} 72 ${faceY - 2} L68 ${faceY - 4} Q50 ${faceY - 16} 32 ${faceY - 4} Z`}
           />
         )}
         {look.hair === 'spike' && (
           <path
             className="cc-hair"
-            d="M30 30 L36 12 L42 28 L50 10 L58 28 L64 12 L70 30 Q50 20 30 30 Z"
+            d={`M30 ${faceY - 6} L36 ${faceY - 24} L42 ${faceY - 8} L50 ${faceY - 26} L58 ${faceY - 8} L64 ${faceY - 24} L70 ${faceY - 6} Q50 ${faceY - 16} 30 ${faceY - 6} Z`}
           />
         )}
         {look.hair === 'ponytail' && (
           <>
-            <path className="cc-hair" d="M30 34 Q32 18 50 16 Q68 18 70 34 Q50 24 30 34 Z" />
-            <ellipse className="cc-hair" cx="72" cy="42" rx="8" ry="14" />
+            <path
+              className="cc-hair"
+              d={`M30 ${faceY - 4} Q32 ${faceY - 20} 50 ${faceY - 22} Q68 ${faceY - 20} 70 ${faceY - 4} Q50 ${faceY - 14} 30 ${faceY - 4} Z`}
+            />
+            <ellipse className="cc-hair" cx="72" cy={faceY + 6} rx="8" ry="14" />
           </>
         )}
         {look.hair === 'cap' && (
-          <path className="cc-hair cc-cap" d="M26 34 Q50 10 74 34 L70 36 Q50 20 30 36 Z" />
+          <path
+            className="cc-hair cc-cap"
+            d={`M26 ${faceY - 4} Q50 ${faceY - 26} 74 ${faceY - 4} L70 ${faceY - 2} Q50 ${faceY - 18} 30 ${faceY - 2} Z`}
+          />
         )}
 
         <g className="cc-eyes">
-          <ellipse className="cc-eye-l" cx="42" cy="36" rx="4" ry="5" />
-          <ellipse className="cc-eye-r" cx="58" cy="36" rx="4" ry="5" />
+          <ellipse className="cc-eye-l" cx="42" cy={faceY - 2} rx="4" ry="5" />
+          <ellipse className="cc-eye-r" cx="58" cy={faceY - 2} rx="4" ry="5" />
         </g>
-        <path className="cc-mouth" d="M40 46 Q50 52 60 46" fill="none" strokeWidth="2.5" />
-        <path className="cc-brow-l" d="M36 28 L46 30" fill="none" strokeWidth="2" />
-        <path className="cc-brow-r" d="M64 28 L54 30" fill="none" strokeWidth="2" />
+        <path
+          className="cc-mouth"
+          d={`M40 ${faceY + 8} Q50 ${faceY + 14} 60 ${faceY + 8}`}
+          fill="none"
+          strokeWidth="2.5"
+        />
+        <path
+          className="cc-brow-l"
+          d={`M36 ${faceY - 10} L46 ${faceY - 8}`}
+          fill="none"
+          strokeWidth="2"
+        />
+        <path
+          className="cc-brow-r"
+          d={`M64 ${faceY - 10} L54 ${faceY - 8}`}
+          fill="none"
+          strokeWidth="2"
+        />
 
-        {/* accessories */}
         {look.accessory === 'glasses' && (
           <g className="cc-acc" fill="none" strokeWidth="2">
-            <circle cx="42" cy="36" r="7" />
-            <circle cx="58" cy="36" r="7" />
-            <path d="M49 36 H51" />
+            <circle cx="42" cy={faceY - 2} r="7" />
+            <circle cx="58" cy={faceY - 2} r="7" />
+            <path d={`M49 ${faceY - 2} H51`} />
           </g>
         )}
         {look.accessory === 'scarf' && (
-          <path className="cc-acc cc-scarf" d="M34 52 Q50 62 66 52 L64 70 Q50 58 36 70 Z" />
+          <path
+            className="cc-acc cc-scarf"
+            d={`M34 ${faceY + 16} Q50 ${faceY + 26} 66 ${faceY + 16} L64 ${faceY + 34} Q50 ${faceY + 22} 36 ${faceY + 34} Z`}
+          />
         )}
         {look.accessory === 'star' && (
           <path
             className="cc-acc cc-star"
-            d="M72 22 L74 28 L80 28 L75 32 L77 38 L72 34 L67 38 L69 32 L64 28 L70 28 Z"
+            d="M72 18 L74 24 L80 24 L75 28 L77 34 L72 30 L67 34 L69 28 L64 24 L70 24 Z"
           />
         )}
         {look.accessory === 'bow' && (
           <path
             className="cc-acc cc-bow"
-            d="M44 18 Q40 12 36 18 Q40 22 44 18 M56 18 Q60 12 64 18 Q60 22 56 18 M48 18 H52 V22 H48 Z"
+            d="M44 14 Q40 8 36 14 Q40 18 44 14 M56 14 Q60 8 64 14 Q60 18 56 14 M48 14 H52 V18 H48 Z"
           />
         )}
 
-        {/* pose extras */}
         <g className="cc-pose-fx">
-          <path className="cc-heart-fx" d="M70 70 Q74 64 78 70 Q74 76 70 70" />
-          <text className="cc-spark" x="78" y="24" fontSize="10">
+          <path className="cc-heart-fx" d="M70 88 Q74 82 78 88 Q74 94 70 88" />
+          <text className="cc-spark" x="78" y="20" fontSize="12">
             !
           </text>
         </g>

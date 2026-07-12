@@ -5,11 +5,11 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import ComicPanel from './ComicPanel';
 import EmotionWheel from './EmotionWheel';
-import PoseWheel from './PoseWheel';
 import ComicAvatar from './ComicAvatar';
 import CharacterEditor from './CharacterEditor';
 import { inferEmotion } from '@/lib/comicchat/emotions';
-import { stagePanel } from '@/lib/comicchat/staging';
+import { inferBubble, stagePanel } from '@/lib/comicchat/staging';
+import { layoutPanels } from '@/lib/comicchat/layoutPanels';
 import { loadSavedLook, saveLook } from '@/lib/comicchat/lookStorage';
 import {
   createHostRoom,
@@ -17,16 +17,18 @@ import {
   type ComicRoom,
 } from '@/lib/comicchat/peerRoom';
 import {
+  BUBBLE_LABEL,
+  BUBBLE_TYPES,
   CHARACTERS,
   DEFAULT_LOOK,
-  MAX_PANELS,
   lookFromPreset,
+  type BubbleType,
   type CharacterId,
   type CharLook,
   type ComicMsg,
   type Emotion,
-  type Pose,
   type PresetCharacterId,
+  type RoomMember,
 } from '@/lib/comicchat/types';
 
 function uid(): string {
@@ -45,9 +47,11 @@ export default function ComicChatApp() {
   const [roomCode, setRoomCode] = useState(joinParam);
   const [status, setStatus] = useState('닉네임과 캐릭터를 고른 뒤 방을 만드세요');
   const [messages, setMessages] = useState<ComicMsg[]>([]);
+  const [members, setMembers] = useState<RoomMember[]>([]);
   const [text, setText] = useState('');
-  const [emotionMode, setEmotionMode] = useState<Emotion | 'auto'>('auto');
-  const [poseMode, setPoseMode] = useState<Pose | 'auto'>('auto');
+  const [emotion, setEmotion] = useState<Emotion>('happy');
+  const [emotionAuto, setEmotionAuto] = useState(true);
+  const [bubble, setBubble] = useState<BubbleType | 'auto'>('auto');
   const [busy, setBusy] = useState(false);
   const [myPeerId, setMyPeerId] = useState('');
   const roomRef = useRef<ComicRoom | null>(null);
@@ -66,7 +70,13 @@ export default function ComicChatApp() {
     return lookFromPreset(characterId);
   }, [characterId, customLook]);
 
-  const visible = useMemo(() => messages.slice(-MAX_PANELS), [messages]);
+  const panels = useMemo(() => layoutPanels(messages), [messages]);
+
+  const previewEmotion = emotionAuto
+    ? text.trim()
+      ? inferEmotion(text)
+      : emotion
+    : emotion;
 
   const inviteUrl = useMemo(() => {
     if (typeof window === 'undefined' || !roomCode || phase !== 'room') return '';
@@ -76,13 +86,13 @@ export default function ComicChatApp() {
   }, [roomCode, phase]);
 
   const qrSrc = inviteUrl
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(inviteUrl)}`
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(inviteUrl)}`
     : '';
 
   useEffect(() => {
     const el = stripRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [visible.length]);
+  }, [panels.length, messages.length]);
 
   useEffect(() => {
     return () => {
@@ -90,6 +100,13 @@ export default function ComicChatApp() {
       roomRef.current = null;
     };
   }, []);
+
+  const selfMember = (): RoomMember => ({
+    peerId: myPeerId || 'me',
+    nick: nick.trim() || '나',
+    look: activeLook,
+    characterId,
+  });
 
   const startHost = async () => {
     if (!nick.trim()) {
@@ -100,14 +117,18 @@ export default function ComicChatApp() {
     setStatus('방 여는 중…');
     try {
       roomRef.current?.destroy();
-      const room = await createHostRoom({
-        onStatus: setStatus,
-        onMessages: setMessages,
-        onPeerId: (code) => {
-          setRoomCode(code);
-          setMyPeerId(code);
+      const room = await createHostRoom(
+        { peerId: 'host', nick: nick.trim(), look: activeLook, characterId },
+        {
+          onStatus: setStatus,
+          onMessages: setMessages,
+          onMembers: setMembers,
+          onPeerId: (code) => {
+            setRoomCode(code);
+            setMyPeerId(code);
+          },
         },
-      });
+      );
       roomRef.current = room;
       setPhase('room');
     } catch {
@@ -133,14 +154,11 @@ export default function ComicChatApp() {
       roomRef.current?.destroy();
       const room = await joinGuestRoom(
         clean,
-        {
-          nick: nick.trim(),
-          characterId,
-          look: activeLook,
-        },
+        { peerId: '', nick: nick.trim(), look: activeLook, characterId },
         {
           onStatus: setStatus,
           onMessages: setMessages,
+          onMembers: setMembers,
           onPeerId: setMyPeerId,
         },
       );
@@ -157,20 +175,18 @@ export default function ComicChatApp() {
   const send = () => {
     const body = text.trim();
     if (!body || !roomRef.current) return;
-    const emotion =
-      emotionMode === 'auto' ? inferEmotion(body) : emotionMode;
+    const emo = emotionAuto ? inferEmotion(body) : emotion;
+    const bub = bubble === 'auto' ? inferBubble(body, emo) : bubble;
     const peerId = myPeerId || 'me';
     const prev = messages[messages.length - 1];
-    const staged = stagePanel(
-      {
-        text: body,
-        emotion,
-        peerId,
-        prevPeerId: prev?.peerId,
-        panelIndex: messages.length,
-      },
-      poseMode,
-    );
+    const staged = stagePanel({
+      text: body,
+      emotion: emo,
+      bubble: bub,
+      peerId,
+      prevPeerId: prev?.peerId,
+      panelIndex: messages.length,
+    });
     const msg: ComicMsg = {
       id: uid(),
       peerId,
@@ -178,8 +194,9 @@ export default function ComicChatApp() {
       characterId,
       look: activeLook,
       text: body.slice(0, 120),
-      emotion,
+      emotion: emo,
       pose: staged.pose,
+      bubble: bub,
       bg: staged.bg,
       shot: staged.shot,
       at: Date.now(),
@@ -192,6 +209,7 @@ export default function ComicChatApp() {
     roomRef.current?.destroy();
     roomRef.current = null;
     setMessages([]);
+    setMembers([]);
     setPhase('lobby');
     setStatus('로비로 돌아왔습니다');
   };
@@ -212,20 +230,19 @@ export default function ComicChatApp() {
     saveLook(look);
   };
 
-  return (
-    <div className="cc-root">
-      <header className="cc-hud">
-        <div className="cc-brand">
-          <strong>컷톡</strong>
-          <span>만화칸 채팅 · PeerJS · Comic Chat 계승</span>
-          <Link href="/" className="cc-home-link">
-            ← 아카이브
-          </Link>
-        </div>
-        <p className="cc-status">{status}</p>
-      </header>
-
-      {phase === 'lobby' ? (
+  if (phase === 'lobby') {
+    return (
+      <div className="cc-root">
+        <header className="cc-hud">
+          <div className="cc-brand">
+            <strong>컷톡</strong>
+            <span>만화칸 채팅 · Comic Chat 계승</span>
+            <Link href="/" className="cc-home-link">
+              ← 아카이브
+            </Link>
+          </div>
+          <p className="cc-status">{status}</p>
+        </header>
         <main className="cc-lobby">
           <label className="cc-field">
             닉네임
@@ -237,7 +254,6 @@ export default function ComicChatApp() {
               autoComplete="nickname"
             />
           </label>
-
           <fieldset className="cc-chars">
             <legend>캐릭터</legend>
             <div className="cc-char-row">
@@ -253,7 +269,7 @@ export default function ComicChatApp() {
                     emotion="happy"
                     pose="wave"
                     nick={c.name}
-                    size={64}
+                    size={56}
                   />
                   <span>{c.name}</span>
                 </button>
@@ -271,7 +287,7 @@ export default function ComicChatApp() {
                   emotion="love"
                   pose="heart"
                   nick={customLook.name}
-                  size={64}
+                  size={56}
                 />
                 <span>커스텀</span>
               </button>
@@ -287,7 +303,6 @@ export default function ComicChatApp() {
               <CharacterEditor look={customLook} onChange={onCustomChange} />
             )}
           </fieldset>
-
           <div className="cc-lobby-actions">
             <button type="button" className="cc-btn" disabled={busy} onClick={startHost}>
               방 만들기
@@ -309,47 +324,69 @@ export default function ComicChatApp() {
               </button>
             </div>
           </div>
-          <p className="cc-hint">
-            감정·포즈·배경·구도가 문장에 맞춰 자동으로 바뀝니다. 휠로 직접 고정할 수도 있습니다.
-            커스텀 룩은 이 기기에 저장되고, 메시지와 함께 상대에게 전달됩니다.
-          </p>
         </main>
-      ) : (
-        <main className="cc-room">
-          <div className="cc-room-bar">
-            <span>
-              방 <b>{roomCode}</b>
-            </span>
-            <button type="button" className="cc-btn cc-btn-ghost" onClick={copyInvite}>
-              링크 복사
-            </button>
-            <button type="button" className="cc-btn cc-btn-ghost" onClick={leave}>
-              나가기
-            </button>
-          </div>
+      </div>
+    );
+  }
 
-          {qrSrc && (
-            <details className="cc-invite">
-              <summary>초대 QR</summary>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={qrSrc} alt="방 초대 QR" width={160} height={160} />
-              <code className="cc-invite-url">{inviteUrl}</code>
-            </details>
-          )}
+  return (
+    <div className="cc-root cc-room-layout">
+      <header className="cc-hud">
+        <div className="cc-brand">
+          <strong>컷톡</strong>
+          <span>
+            방 <b>{roomCode}</b>
+          </span>
+          <button type="button" className="cc-btn cc-btn-ghost cc-hud-btn" onClick={copyInvite}>
+            초대
+          </button>
+          <button type="button" className="cc-btn cc-btn-ghost cc-hud-btn" onClick={leave}>
+            나가기
+          </button>
+          <Link href="/" className="cc-home-link">
+            ← 홈
+          </Link>
+        </div>
+        <p className="cc-status">{status}</p>
+      </header>
 
+      <div className="cc-main">
+        <section className="cc-comic-col">
           <div className="cc-strip" ref={stripRef}>
-            {visible.length === 0 ? (
+            {panels.length === 0 ? (
               <p className="cc-empty">아직 칸이 없습니다. 한마디 던져 보세요.</p>
             ) : (
-              visible.map((m, i) => (
-                <ComicPanel key={m.id} msg={m} mirror={i % 2 === 1} />
-              ))
+              <div className="cc-panel-grid">
+                {panels.map((p) => (
+                  <ComicPanel key={p.id} panel={p} />
+                ))}
+              </div>
             )}
           </div>
 
           <footer className="cc-composer">
-            <EmotionWheel value={emotionMode} onChange={setEmotionMode} />
-            <PoseWheel value={poseMode} onChange={setPoseMode} />
+            <div className="cc-bubble-toggles" role="group" aria-label="말풍선 종류">
+              <button
+                type="button"
+                className={`cc-bubble-tog${bubble === 'auto' ? ' active' : ''}`}
+                onClick={() => setBubble('auto')}
+                title="자동"
+              >
+                자동
+              </button>
+              {BUBBLE_TYPES.map((b) => (
+                <button
+                  key={b}
+                  type="button"
+                  className={`cc-bubble-tog cc-bubble-tog-${b}${bubble === b ? ' active' : ''}`}
+                  onClick={() => setBubble(b)}
+                  title={BUBBLE_LABEL[b]}
+                >
+                  {b === 'speech' ? '💬' : b === 'thought' ? '💭' : '❗'}
+                  <span>{BUBBLE_LABEL[b]}</span>
+                </button>
+              ))}
+            </div>
             <div className="cc-input-row">
               <input
                 value={text}
@@ -360,16 +397,67 @@ export default function ComicChatApp() {
                     send();
                   }
                 }}
-                placeholder="대사 (최대 120자)"
+                placeholder="대사…"
                 maxLength={120}
               />
               <button type="button" className="cc-btn" onClick={send}>
-                칸 추가
+                보내기
               </button>
             </div>
           </footer>
-        </main>
-      )}
+        </section>
+
+        <aside className="cc-sidebar">
+          <div className="cc-side-block">
+            <h3>참가자</h3>
+            <ul className="cc-member-list">
+              {(members.length ? members : [selfMember()]).map((m) => (
+                <li key={m.peerId}>
+                  <ComicAvatar
+                    look={m.look}
+                    emotion="neutral"
+                    nick={m.nick}
+                    size={36}
+                    fullBody={false}
+                  />
+                  <span>{m.nick}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="cc-side-block cc-side-preview">
+            <h3>내 캐릭터</h3>
+            <ComicAvatar
+              look={activeLook}
+              emotion={previewEmotion}
+              pose="idle"
+              nick={nick}
+              size={140}
+              fullBody
+            />
+            <p className="cc-preview-name">{nick || activeLook.name}</p>
+          </div>
+
+          <div className="cc-side-block">
+            <h3>감정 휠</h3>
+            <EmotionWheel
+              value={emotion}
+              onChange={setEmotion}
+              auto={emotionAuto}
+              onAutoChange={setEmotionAuto}
+            />
+          </div>
+
+          {qrSrc && (
+            <details className="cc-invite">
+              <summary>초대 QR</summary>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={qrSrc} alt="방 초대 QR" width={140} height={140} />
+            </details>
+          )}
+        </aside>
+      </div>
     </div>
   );
 }

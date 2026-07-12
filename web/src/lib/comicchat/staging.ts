@@ -1,8 +1,9 @@
-import type { BgId, Emotion, Pose, Shot } from './types';
+import type { BgId, BubbleType, Emotion, Pose, Shot } from './types';
 
 export type StagingInput = {
   text: string;
   emotion: Emotion;
+  bubble: BubbleType;
   prevPeerId?: string;
   peerId: string;
   panelIndex: number;
@@ -12,7 +13,6 @@ export type Staging = {
   bg: BgId;
   shot: Shot;
   pose: Pose;
-  mirror: boolean;
 };
 
 const EMOTION_BG: Record<Emotion, BgId[]> = {
@@ -54,7 +54,9 @@ function pickBg(emotion: Emotion, text: string, index: number): BgId {
   return list[index % list.length];
 }
 
-function pickShot(emotion: Emotion, text: string): Shot {
+function pickShot(emotion: Emotion, text: string, bubble: BubbleType): Shot {
+  if (bubble === 'shout') return 'close';
+  if (bubble === 'thought') return 'high';
   const len = text.trim().length;
   if (emotion === 'surprise' || emotion === 'angry') return 'close';
   if (emotion === 'think' || emotion === 'shy') return 'high';
@@ -78,20 +80,25 @@ function pickPose(emotion: Emotion, text: string, manual?: Pose | 'auto'): Pose 
   return EMOTION_POSE[emotion];
 }
 
-/** 문장·감정·대화 흐름으로 배경·구도·포즈 자동 연출 */
+export function inferBubble(text: string, emotion: Emotion): BubbleType {
+  const t = text.trim();
+  if (/!{2,}|아+|으아|야+|헐/.test(t) || emotion === 'angry' || emotion === 'surprise') {
+    return 'shout';
+  }
+  if (/\?{2,}|음+|생각|어쩌면|만약|…|\.\.\./.test(t) || emotion === 'think') {
+    return 'thought';
+  }
+  return 'speech';
+}
+
+/** 문장·감정·풍선으로 배경·구도·포즈 자동 연출 */
 export function stagePanel(
   input: StagingInput,
   poseMode: Pose | 'auto' = 'auto',
 ): Staging {
-  const sameSpeaker = Boolean(input.prevPeerId && input.prevPeerId === input.peerId);
-  const mirror = input.panelIndex % 2 === 1;
-
   return {
     bg: pickBg(input.emotion, input.text, input.panelIndex),
-    shot: sameSpeaker && input.emotion === 'neutral'
-      ? 'medium'
-      : pickShot(input.emotion, input.text),
+    shot: pickShot(input.emotion, input.text, input.bubble),
     pose: pickPose(input.emotion, input.text, poseMode),
-    mirror,
   };
 }
