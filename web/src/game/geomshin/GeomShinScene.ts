@@ -53,7 +53,11 @@ export class GeomShinScene extends Phaser.Scene {
   private pinching = false;
   private pinchStartDist = 0;
   private pinchStartZoom = 1;
+  /** 핀치 시작 시 손가락 중점 아래 월드 좌표 — 확대 기준점 */
+  private pinchWorldX = 0;
+  private pinchWorldY = 0;
   private suppressPick = false;
+  private readonly maxZoom = 8;
   private callbacks!: GeomShinCallbacks;
   private landmarks: LandmarkInfo[] = [];
   private viewEmitAt = 0;
@@ -151,8 +155,9 @@ export class GeomShinScene extends Phaser.Scene {
 
     this.cameras.main.setBounds(0, 0, GRID_W * CELL_PX, GRID_H * CELL_PX);
     this.cameras.main.roundPixels = true;
-    this.cameras.main.centerOn(80 * CELL_PX, 80 * CELL_PX);
-    this.cameras.main.setZoom(1);
+    // 처음엔 전체 맵이 보이게
+    this.cameras.main.setZoom(this.minZoom());
+    this.cameras.main.centerOn((GRID_W * CELL_PX) / 2, (GRID_H * CELL_PX) / 2);
 
     // 기본 1개 + 2개 → 핀치용 멀티터치
     this.input.addPointer(2);
@@ -200,14 +205,37 @@ export class GeomShinScene extends Phaser.Scene {
         _dx: number,
         dy: number,
       ) => {
-        const mid = { x: _p.x, y: _p.y };
-        const z = Phaser.Math.Clamp(this.cameras.main.zoom * (dy > 0 ? 0.9 : 1.1), 0.2, 6);
-        this.zoomAtScreen(mid.x, mid.y, z);
+        const z = this.clampZoom(this.cameras.main.zoom * (dy > 0 ? 0.9 : 1.1));
+        this.zoomAtScreen(_p.x, _p.y, z);
       },
     );
 
+    this.scale.on('resize', () => {
+      const cam = this.cameras.main;
+      if (cam.zoom <= this.minZoom() * 1.02) {
+        cam.setZoom(this.minZoom());
+        cam.centerOn((GRID_W * CELL_PX) / 2, (GRID_H * CELL_PX) / 2);
+      } else {
+        cam.setZoom(this.clampZoom(cam.zoom));
+      }
+    });
+
     this.cursors = this.input.keyboard?.createCursorKeys();
     this.emitView(true);
+  }
+
+  /** 화면 안에 500×500 맵 전체가 들어가는 줌 */
+  private minZoom(): number {
+    const cam = this.cameras.main;
+    const mapW = GRID_W * CELL_PX;
+    const mapH = GRID_H * CELL_PX;
+    const w = Math.max(1, cam.width);
+    const h = Math.max(1, cam.height);
+    return Math.min(w / mapW, h / mapH) * 0.98;
+  }
+
+  private clampZoom(z: number): number {
+    return Phaser.Math.Clamp(z, this.minZoom(), this.maxZoom);
   }
 
   private downPointerCount(): number {
@@ -234,8 +262,19 @@ export class GeomShinScene extends Phaser.Scene {
     this.drag = false;
     const pair = this.twoFingerPointers();
     if (!pair) return;
-    this.pinchStartDist = Phaser.Math.Distance.Between(pair[0].x, pair[0].y, pair[1].x, pair[1].y);
-    this.pinchStartZoom = this.cameras.main.zoom;
+    const midX = (pair[0].x + pair[1].x) / 2;
+    const midY = (pair[0].y + pair[1].y) / 2;
+    const cam = this.cameras.main;
+    const world = cam.getWorldPoint(midX, midY);
+    this.pinchWorldX = world.x;
+    this.pinchWorldY = world.y;
+    this.pinchStartDist = Phaser.Math.Distance.Between(
+      pair[0].x,
+      pair[0].y,
+      pair[1].x,
+      pair[1].y,
+    );
+    this.pinchStartZoom = cam.zoom;
   }
 
   private updatePinch() {
@@ -245,25 +284,48 @@ export class GeomShinScene extends Phaser.Scene {
     if (dist <= 0) return;
     const midX = (pair[0].x + pair[1].x) / 2;
     const midY = (pair[0].y + pair[1].y) / 2;
-    const z = Phaser.Math.Clamp(this.pinchStartZoom * (dist / this.pinchStartDist), 0.2, 6);
-    this.zoomAtScreen(midX, midY, z);
+    const z = this.clampZoom(this.pinchStartZoom * (dist / this.pinchStartDist));
+    this.zoomWorldToScreen(midX, midY, this.pinchWorldX, this.pinchWorldY, z);
   }
 
-  /** 화면 좌표(sx,sy) 아래 월드 지점을 고정한 채 줌 */
+  /**
+   * 화면 (sx,sy)에 월드 (wx,wy)가 오도록 줌.
+   * bounds 클램프가 기준점을 밀어내지 않게 잠시 bounds 해제.
+   */
+  private zoomWorldToScreen(sx: number, sy: number, wx: number, wy: number, zoom: number) {
+    const cam = this.cameras.main;
+    const z = this.clampZoom(zoom);
+    const mapW = GRID_W * CELL_PX;
+    const mapH = GRID_H * CELL_PX;
+    const minZ = this.minZoom();
+
+    cam.useBounds = false;
+    cam.setZoom(z);
+
+    if (z <= minZ * 1.001) {
+      cam.centerOn(mapW / 2, mapH / 2);
+    } else {
+      const after = cam.getWorldPoint(sx, sy);
+      cam.scrollX += wx - after.x;
+      cam.scrollY += wy - after.y;
+    }
+
+    cam.useBounds = true;
+    cam.setBounds(0, 0, mapW, mapH);
+    this.emitView(false);
+  }
+
+  /** 화면 좌표 아래 현재 월드를 고정한 채 줌 (휠용) */
   private zoomAtScreen(sx: number, sy: number, zoom: number) {
     const cam = this.cameras.main;
-    const before = cam.getWorldPoint(sx, sy);
-    cam.setZoom(zoom);
-    const after = cam.getWorldPoint(sx, sy);
-    cam.scrollX += before.x - after.x;
-    cam.scrollY += before.y - after.y;
-    this.emitView(false);
+    const world = cam.getWorldPoint(sx, sy);
+    this.zoomWorldToScreen(sx, sy, world.x, world.y, zoom);
   }
 
   /** HUD 등에서 호출 — 화면 중앙 기준 줌 */
   adjustZoom(factor: number) {
     const cam = this.cameras.main;
-    const z = Phaser.Math.Clamp(cam.zoom * factor, 0.2, 6);
+    const z = this.clampZoom(cam.zoom * factor);
     this.zoomAtScreen(cam.width / 2, cam.height / 2, z);
   }
 
