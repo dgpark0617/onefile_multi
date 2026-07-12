@@ -592,3 +592,119 @@ body:has(.gs-root) main {
   opacity: 0.85;
 }
 
+/* —— 모바일: HUD를 얇게, 맵 면적 확보 —— */
+@media (max-width: 720px) {
+  .gs-hide-sm {
+    display: none !important;
+  }
+
+  .gs-hud,
+  .gs-hud-slim {
+    padding: 6px 8px 4px;
+  }
+
+  .gs-brand {
+    gap: 6px;
+    align-items: center;
+  }
+
+  .gs-brand strong {
+    font-size: 1.05rem;
+  }
+
+  .gs-player-id {
+    padding: 1px 6px;
+    font-size: 0.7rem !important;
+  }
+
+  .gs-hud-slim .gs-nav {
+    display: none;
+  }
+
+  .gs-stats {
+    gap: 8px;
+    margin-top: 4px;
+    font-size: 0.75rem;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .gs-palette {
+    flex-wrap: nowrap;
+    gap: 4px;
+    margin-top: 6px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+
+  .gs-palette::-webkit-scrollbar {
+    display: none;
+  }
+
+  .gs-swatch {
+    width: 22px;
+    height: 22px;
+    flex: 0 0 auto;
+    border-width: 1px;
+  }
+
+  .gs-swatch.active {
+    box-shadow: 0 0 0 1px #38bdf8;
+  }
+
+  .gs-color-input {
+    gap: 0;
+  }
+
+  .gs-color-input input {
+    width: 28px;
+    height: 22px;
+  }
+
+  .gs-actions {
+    gap: 4px;
+    margin-top: 6px;
+  }
+
+  .gs-actions button,
+  .gs-link {
+    padding: 5px 8px;
+    font-size: 0.72rem;
+    border-radius: 5px;
+  }
+
+  .gs-zoom-btn {
+    min-width: 30px;
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+    font-size: 1rem !important;
+  }
+
+  .gs-logout {
+    margin-left: 0;
+  }
+
+  .gs-msg,
+  .gs-msg-one {
+    margin: 4px 0 0;
+    font-size: 0.7rem;
+    min-height: 0;
+  }
+}
+
+@media (max-width: 380px) {
+  .gs-swatch {
+    width: 20px;
+    height: 20px;
+  }
+
+  .gs-actions button,
+  .gs-link {
+    padding: 4px 6px;
+    font-size: 0.68rem;
+  }
+}
+
+

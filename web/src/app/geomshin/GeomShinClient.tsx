@@ -537,7 +537,7 @@ export default function GeomShinClient() {
       <header className="gs-hud gs-hud-slim">
         <div className="gs-brand">
           <strong>{TERMS.brand}</strong>
-          <span>즉시 칠하기 · 인접만 확장</span>
+          <span className="gs-hide-sm">즉시 칠하기 · 인접만 확장</span>
           <span className="gs-player-id" title="내 아이디">
             @{user?.displayName || userId}
           </span>
@@ -545,22 +545,24 @@ export default function GeomShinClient() {
         <GeomShinNav current="/geomshin" compact />
         <div className="gs-stats">
           <span>
-            {TERMS.inkShort} <b>{user?.ink ?? '…'}</b> / 200
+            {TERMS.inkShort} <b>{user?.ink ?? '…'}</b>
+            <span className="gs-hide-sm"> / 200</span>
           </span>
           <span className={user?.onsite ? 'gs-mode-onsite' : 'gs-mode-remote'}>
-            {user?.onsite ? '현장 · 1분/1' : '집관 · 5분/1'}
+            {user?.onsite ? '현장' : '집관'}
+            <span className="gs-hide-sm">{user?.onsite ? ' · 1분/1' : ' · 5분/1'}</span>
           </span>
-          <span>
+          <span className="gs-hide-sm">
             {user?.seeded && user.homeX >= 0
               ? `시작 (${user.homeX},${user.homeY})`
               : '동기화 중'}
           </span>
           {selected && (
-            <span>
+            <span className="gs-hide-sm">
               선택 ({selected.x},{selected.y})
             </span>
           )}
-          <a className="gs-heat-stat" href="/geomshin/presence">
+          <a className="gs-heat-stat gs-hide-sm" href="/geomshin/presence">
             B2B {presence?.totalHits ?? 0}→
           </a>
         </div>
@@ -576,15 +578,15 @@ export default function GeomShinClient() {
               onClick={() => pickColor(hex)}
             />
           ))}
-          <label className="gs-color-input">
-            <span>직접</span>
+          <label className="gs-color-input" title="직접 색 선택">
+            <span className="gs-hide-sm">직접</span>
             <input
               type="color"
               value={/^#[0-9a-fA-F]{6}$/.test(brush) ? brush : colorToCss(parseBrushColor(brush))}
               onChange={(e) => pickColor(e.target.value)}
             />
           </label>
-          <span className="gs-brush-preview" style={{ background: brush }} title={brush} />
+          <span className="gs-brush-preview gs-hide-sm" style={{ background: brush }} title={brush} />
         </div>
 
         <div className="gs-actions">
@@ -622,7 +624,7 @@ export default function GeomShinClient() {
           <a className="gs-link" href="/geomshin/shop">
             QR
           </a>
-          <button type="button" onClick={reward}>
+          <button type="button" className="gs-hide-sm" onClick={reward}>
             리워드
           </button>
           <button
