@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import ComicPanel from './ComicPanel';
@@ -36,7 +36,10 @@ function uid(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function useVisualViewport(active: boolean) {
+function useVisualViewport(
+  active: boolean,
+  onResize?: () => void,
+) {
   useEffect(() => {
     if (!active || typeof window === 'undefined') return;
     const root = document.documentElement;
@@ -48,10 +51,8 @@ function useVisualViewport(active: boolean) {
       const top = vv?.offsetTop ?? 0;
       root.style.setProperty('--cc-vv-height', `${Math.round(h)}px`);
       root.style.setProperty('--cc-vv-top', `${Math.round(top)}px`);
-      // iOS가 입력 포커스 시 페이지를 밀어 올리는 것 상쇄
-      if (window.scrollY !== 0 || window.scrollX !== 0) {
-        window.scrollTo(0, 0);
-      }
+      if (window.scrollY || window.scrollX) window.scrollTo(0, 0);
+      onResize?.();
     };
 
     body.classList.add('cc-lock-scroll');
@@ -70,7 +71,7 @@ function useVisualViewport(active: boolean) {
       root.style.removeProperty('--cc-vv-height');
       root.style.removeProperty('--cc-vv-top');
     };
-  }, [active]);
+  }, [active, onResize]);
 }
 
 function useIsDesktop(minWidth = 900) {
@@ -96,20 +97,42 @@ export default function ComicChatApp() {
   const [phase, setPhase] = useState<'lobby' | 'room'>('lobby');
   const [roomCode, setRoomCode] = useState(joinParam);
   const [status, setStatus] = useState('닉네임과 캐릭터를 고른 뒤 방을 만드세요');
+  const [toast, setToast] = useState('');
   const [messages, setMessages] = useState<ComicMsg[]>([]);
   const [members, setMembers] = useState<RoomMember[]>([]);
   const [text, setText] = useState('');
   const [emotion, setEmotion] = useState<Emotion>('happy');
   const [emotionAuto, setEmotionAuto] = useState(true);
   const [bubble, setBubble] = useState<BubbleType | 'auto'>('auto');
+  const [showMood, setShowMood] = useState(false);
+  const [composing, setComposing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [myPeerId, setMyPeerId] = useState('');
   const [roomSheet, setRoomSheet] = useState(false);
   const roomRef = useRef<ComicRoom | null>(null);
   const stripRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const isDesktop = useIsDesktop(900);
 
-  useVisualViewport(phase === 'room');
+  const scrollToLatest = useCallback((smooth = false) => {
+    const el = stripRef.current;
+    if (!el) return;
+    const top = el.scrollHeight;
+    if (smooth) el.scrollTo({ top, behavior: 'smooth' });
+    else el.scrollTop = top;
+  }, []);
+
+  const flash = useCallback((msg: string) => {
+    setToast(msg);
+    setStatus(msg);
+  }, []);
+
+  useVisualViewport(
+    phase === 'room',
+    useCallback(() => {
+      requestAnimationFrame(() => scrollToLatest(false));
+    }, [scrollToLatest]),
+  );
 
   useEffect(() => {
     const saved = loadSavedLook();
@@ -118,6 +141,12 @@ export default function ComicChatApp() {
       setCharacterId('custom');
     }
   }, []);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(''), 2200);
+    return () => window.clearTimeout(t);
+  }, [toast]);
 
   const activeLook: CharLook = useMemo(() => {
     if (characterId === 'custom') return customLook;
@@ -144,9 +173,8 @@ export default function ComicChatApp() {
     : '';
 
   useEffect(() => {
-    const el = stripRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [panels.length, messages.length]);
+    scrollToLatest(false);
+  }, [panels.length, messages.length, scrollToLatest]);
 
   useEffect(() => {
     return () => {
@@ -185,8 +213,9 @@ export default function ComicChatApp() {
       );
       roomRef.current = room;
       setPhase('room');
+      flash(`방 ${room.peerId}`);
     } catch {
-      setStatus('방을 열지 못했습니다. 네트워크/방화벽을 확인하세요.');
+      setStatus('방을 열지 못했습니다.');
     } finally {
       setBusy(false);
     }
@@ -220,7 +249,7 @@ export default function ComicChatApp() {
       setRoomCode(clean);
       setPhase('room');
     } catch {
-      setStatus('입장 실패 — 코드/방장 연결을 확인하세요.');
+      setStatus('입장 실패 — 코드/방장을 확인하세요.');
     } finally {
       setBusy(false);
     }
@@ -242,7 +271,7 @@ export default function ComicChatApp() {
       panelIndex: messages.length,
       prevBg: prev?.bg,
     });
-    const msg: ComicMsg = {
+    roomRef.current.sendMessage({
       id: uid(),
       peerId,
       nick: nick.trim(),
@@ -255,9 +284,13 @@ export default function ComicChatApp() {
       bg: staged.bg,
       shot: staged.shot,
       at: Date.now(),
-    };
-    roomRef.current.sendMessage(msg);
+    });
     setText('');
+    // 키보드 유지 — blur 하지 않음
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      scrollToLatest(true);
+    });
   };
 
   const leave = () => {
@@ -266,6 +299,8 @@ export default function ComicChatApp() {
     setMessages([]);
     setMembers([]);
     setRoomSheet(false);
+    setComposing(false);
+    setShowMood(false);
     setPhase('lobby');
     setStatus('로비로 돌아왔습니다');
   };
@@ -274,9 +309,9 @@ export default function ComicChatApp() {
     if (!inviteUrl) return;
     try {
       await navigator.clipboard.writeText(inviteUrl);
-      setStatus('초대 링크를 복사했습니다');
+      flash('링크 복사됨');
     } catch {
-      setStatus(inviteUrl);
+      flash(inviteUrl);
     }
   };
 
@@ -284,9 +319,9 @@ export default function ComicChatApp() {
     if (!roomCode) return;
     try {
       await navigator.clipboard.writeText(roomCode);
-      setStatus(`방 코드 복사됨: ${roomCode}`);
+      flash(`코드 ${roomCode}`);
     } catch {
-      setStatus(`방 코드: ${roomCode}`);
+      flash(roomCode);
     }
   };
 
@@ -295,81 +330,6 @@ export default function ComicChatApp() {
     setCharacterId('custom');
     saveLook(look);
   };
-
-  const composer = (
-    <footer className="cc-composer">
-      <div className="cc-bubble-toggles" role="group" aria-label="말풍선">
-        <button
-          type="button"
-          className={`cc-bubble-tog${bubble === 'auto' ? ' active' : ''}`}
-          onClick={() => setBubble('auto')}
-        >
-          자동
-        </button>
-        {BUBBLE_TYPES.map((b) => (
-          <button
-            key={b}
-            type="button"
-            className={`cc-bubble-tog${bubble === b ? ' active' : ''}`}
-            onClick={() => setBubble(b)}
-          >
-            {BUBBLE_LABEL[b]}
-          </button>
-        ))}
-      </div>
-      <div className="cc-emo-chips" role="group" aria-label="기분">
-        <button
-          type="button"
-          className={`cc-emo-chip${emotionAuto ? ' active' : ''}`}
-          onClick={() => setEmotionAuto(true)}
-        >
-          기분자동
-        </button>
-        {WHEEL_CLOCK.map((e) => (
-          <button
-            key={e}
-            type="button"
-            className={`cc-emo-chip${!emotionAuto && emotion === e ? ' active' : ''}`}
-            onClick={() => {
-              setEmotionAuto(false);
-              setEmotion(e);
-            }}
-          >
-            {EMOTION_LABEL[e]}
-          </button>
-        ))}
-      </div>
-      <div className="cc-input-row">
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onFocus={() => {
-            setRoomSheet(false);
-            requestAnimationFrame(() => {
-              window.scrollTo(0, 0);
-              stripRef.current?.scrollTo({
-                top: stripRef.current.scrollHeight,
-                behavior: 'smooth',
-              });
-            });
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
-              e.preventDefault();
-              send();
-            }
-          }}
-          placeholder="대사…"
-          maxLength={120}
-          enterKeyHint="send"
-          autoComplete="off"
-        />
-        <button type="button" className="cc-btn" onClick={send}>
-          보내기
-        </button>
-      </div>
-    </footer>
-  );
 
   const roomInfoBody = (
     <>
@@ -406,7 +366,7 @@ export default function ComicChatApp() {
         <h3>입장 코드</h3>
         <p className="cc-code-big">{roomCode}</p>
         <button type="button" className="cc-btn" onClick={copyRoomCode}>
-          코드만 복사
+          코드 복사
         </button>
         <button type="button" className="cc-btn cc-btn-ghost" onClick={copyInvite}>
           링크 복사
@@ -414,7 +374,7 @@ export default function ComicChatApp() {
       </div>
       {qrSrc && (
         <details className="cc-invite">
-          <summary>초대 QR (선택)</summary>
+          <summary>QR (선택)</summary>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={qrSrc} alt="방 초대 QR" width={140} height={140} />
         </details>
@@ -499,7 +459,7 @@ export default function ComicChatApp() {
               방 만들기
             </button>
             <div className="cc-join-box">
-              <p className="cc-join-title">방 코드로 입장 (QR·링크 불필요)</p>
+              <p className="cc-join-title">방 코드로 입장</p>
               <div className="cc-join-row">
                 <input
                   value={roomCode}
@@ -518,7 +478,6 @@ export default function ComicChatApp() {
                   autoCorrect="off"
                   spellCheck={false}
                   inputMode="text"
-                  aria-label="방 입장 코드"
                 />
                 <button
                   type="button"
@@ -537,39 +496,131 @@ export default function ComicChatApp() {
   }
 
   return (
-    <div className="cc-root cc-room-layout">
-      <header className="cc-hud cc-hud-slim">
-        <div className="cc-brand">
-          <strong>컷톡</strong>
-          <span className="cc-room-code">{roomCode}</span>
+    <div
+      className={`cc-root cc-room-layout${composing ? ' cc-composing' : ''}${!isDesktop ? ' cc-mobile-main' : ''}`}
+    >
+      <header className="cc-topbar">
+        <button type="button" className="cc-top-code" onClick={copyRoomCode} title="코드 복사">
+          {roomCode}
+        </button>
+        <div className="cc-top-actions">
           <button
             type="button"
-            className="cc-btn cc-btn-ghost cc-hud-btn"
-            onClick={() => setRoomSheet(true)}
+            className="cc-icon-btn"
+            onClick={() => {
+              setComposing(false);
+              setRoomSheet(true);
+            }}
+            aria-label="방 정보"
           >
-            방 정보
+            ⋯
           </button>
-          <button type="button" className="cc-btn cc-btn-ghost cc-hud-btn" onClick={leave}>
-            나가기
+          <button type="button" className="cc-icon-btn" onClick={leave} aria-label="나가기">
+            ✕
           </button>
         </div>
-        {status ? <p className="cc-status cc-status-one">{status}</p> : null}
       </header>
+
+      {toast ? <div className="cc-toast">{toast}</div> : null}
 
       <div className="cc-main">
         <section className="cc-comic-col">
           <div className="cc-strip" ref={stripRef}>
+            <div className="cc-strip-spacer" aria-hidden />
             {panels.length === 0 ? (
-              <p className="cc-empty">아직 칸이 없습니다.</p>
+              <p className="cc-empty">한마디 던져 보세요</p>
             ) : (
               <div className="cc-panel-grid">
                 {panels.map((p) => (
-                  <ComicPanel key={p.id} panel={p} />
+                  <ComicPanel key={p.id} panel={p} compact={!isDesktop} />
                 ))}
               </div>
             )}
           </div>
-          {composer}
+
+          <footer className="cc-dock">
+            <div className="cc-dock-tools">
+              <div className="cc-bubble-toggles" role="group" aria-label="말풍선">
+                {BUBBLE_TYPES.map((b) => (
+                  <button
+                    key={b}
+                    type="button"
+                    className={`cc-bubble-tog${bubble === b ? ' active' : ''}`}
+                    onClick={() => setBubble(b)}
+                  >
+                    {BUBBLE_LABEL[b]}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className={`cc-bubble-tog${bubble === 'auto' ? ' active' : ''}`}
+                  onClick={() => setBubble('auto')}
+                >
+                  자동
+                </button>
+                <button
+                  type="button"
+                  className={`cc-bubble-tog${showMood ? ' active' : ''}`}
+                  onClick={() => setShowMood((v) => !v)}
+                >
+                  기분
+                </button>
+              </div>
+            </div>
+            {showMood && (
+              <div className="cc-emo-chips" role="group" aria-label="기분">
+                <button
+                  type="button"
+                  className={`cc-emo-chip${emotionAuto ? ' active' : ''}`}
+                  onClick={() => setEmotionAuto(true)}
+                >
+                  자동
+                </button>
+                {WHEEL_CLOCK.map((e) => (
+                  <button
+                    key={e}
+                    type="button"
+                    className={`cc-emo-chip${!emotionAuto && emotion === e ? ' active' : ''}`}
+                    onClick={() => {
+                      setEmotionAuto(false);
+                      setEmotion(e);
+                    }}
+                  >
+                    {EMOTION_LABEL[e]}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="cc-input-row">
+              <input
+                ref={inputRef}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onFocus={() => {
+                  setRoomSheet(false);
+                  setComposing(true);
+                  requestAnimationFrame(() => {
+                    window.scrollTo(0, 0);
+                    scrollToLatest(false);
+                  });
+                }}
+                onBlur={() => setComposing(false)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                    e.preventDefault();
+                    send();
+                  }
+                }}
+                placeholder="대사…"
+                maxLength={120}
+                enterKeyHint="send"
+                autoComplete="off"
+              />
+              <button type="button" className="cc-btn cc-send" onClick={send}>
+                전송
+              </button>
+            </div>
+          </footer>
         </section>
 
         {isDesktop ? (
@@ -579,16 +630,19 @@ export default function ComicChatApp() {
 
       {!isDesktop && roomSheet && (
         <div className="cc-sheet" role="dialog" aria-label="방 정보">
-          <div className="cc-sheet-backdrop" onClick={() => setRoomSheet(false)} />
+          <div
+            className="cc-sheet-backdrop"
+            onClick={() => setRoomSheet(false)}
+          />
           <div className="cc-sheet-panel">
             <div className="cc-sheet-head">
               <strong>방 정보</strong>
               <button
                 type="button"
-                className="cc-btn cc-btn-ghost cc-hud-btn"
+                className="cc-icon-btn"
                 onClick={() => setRoomSheet(false)}
               >
-                닫기
+                ✕
               </button>
             </div>
             <div className="cc-sheet-body">{roomInfoBody}</div>

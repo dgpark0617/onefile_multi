@@ -13,9 +13,10 @@
  *    - user_id → 소유 pack / 구매 기록 → CDN 캐시
  *    - draft → published → for_sale 상태, 마켓 결제·라이선스는 후속
  *
- * 3) 모바일 UX 원칙 (현재 구현 중)
- *    - 키보드 위 남는 화면 ≈ 작업 공간 → 만화 컷 최대화
- *    - 참가자·내 캐릭터·QR·큰 휠은 접고, 말/생각/외침·기분 칩만 입력바에
+ * 3) 모바일 UX 원칙 (메인 UI)
+ *    - 키보드 위 남는 화면 = 작업 공간 → 컷 하단 앵커 + 초슬림 탑바 + 독
+ *    - 참가자·내 캐릭터·QR은 ⋯ 시트, 입력 중엔 노출 금지
+ *    - 기분 칩은 접고, 말/생각/외침만 기본
  */
 export const CUTTOK_ROADMAP_NOTE =
   'See comments above — doll dress-up + sellable expression packs (Storage + packId), not Base64 in chat.';

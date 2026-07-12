@@ -36,6 +36,68 @@
   font-size: 1rem;
 }
 
+/* 모바일 방 초슬림 탑바 */
+.cc-topbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 2px 6px 2px 8px;
+  background: #1a1520ee;
+  border-bottom: 1px solid #3f3a4a;
+  z-index: 5;
+}
+
+.cc-top-code {
+  border: 1px solid #475569;
+  background: #1e293b;
+  color: #fbbf24;
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.cc-top-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+
+.cc-icon-btn {
+  width: 36px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: #cbd5e1;
+  font-size: 1.1rem;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.cc-icon-btn:active {
+  background: #334155;
+}
+
+.cc-toast {
+  position: absolute;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  background: #0f172acc;
+  color: #f8fafc;
+  font-size: 0.75rem;
+  padding: 6px 12px;
+  border-radius: 999px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
 .cc-status-one {
   margin: 2px 0 0;
   white-space: nowrap;
@@ -284,7 +346,7 @@
   box-shadow: 0 0 0 1px #38bdf8;
 }
 
-/* —— 방: 기본(모바일) 만화만 / PC에서만 사이드바 —— */
+/* —— 방: 모바일 메인 = 탑바 + 컷(하단 앵커) + 독 —— */
 .cc-room-layout .cc-main {
   flex: 1;
   min-height: 0;
@@ -305,22 +367,45 @@
 .cc-strip {
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 6px;
+  padding: 4px 4px 2px;
   -webkit-overflow-scrolling: touch;
+}
+
+.cc-strip-spacer {
+  flex: 1 1 auto;
+  min-height: 8px;
 }
 
 .cc-panel-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 6px;
-  align-content: start;
+  gap: 4px;
+  align-content: end;
+  flex: 0 0 auto;
+  width: 100%;
 }
 
-/* 사이드바: 모바일 DOM에 있어도 절대 안 보임 (아래 .cc-sidebar display:flex 에 덮이지 않게) */
 .cc-sidebar-desktop {
   display: none !important;
+}
+
+.cc-dock {
+  flex-shrink: 0;
+  padding: 4px 6px max(6px, env(safe-area-inset-bottom));
+  background: #1a1520;
+  border-top: 1px solid #3f3a4a;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 6;
+}
+
+.cc-dock-tools {
+  min-height: 0;
 }
 
 .cc-emo-chips {
@@ -329,7 +414,6 @@
   gap: 4px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: 2px;
 }
 
 .cc-emo-chip {
@@ -338,8 +422,8 @@
   background: #1e293b;
   color: #e2e8f0;
   border-radius: 999px;
-  padding: 3px 8px;
-  font-size: 0.68rem;
+  padding: 2px 8px;
+  font-size: 0.65rem;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -347,17 +431,6 @@
 .cc-emo-chip.active {
   border-color: #fbbf24;
   background: #422006;
-}
-
-.cc-composer {
-  flex-shrink: 0;
-  padding: 6px 8px 8px;
-  background: #2a2435;
-  border-top: 2px solid #1a1a1a;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding-bottom: max(8px, env(safe-area-inset-bottom));
 }
 
 .cc-bubble-toggles {
@@ -370,13 +443,12 @@
 .cc-bubble-tog {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
   border: 1px solid #475569;
   background: #1e293b;
   color: #e2e8f0;
   border-radius: 6px;
-  padding: 3px 8px;
-  font-size: 0.7rem;
+  padding: 2px 8px;
+  font-size: 0.68rem;
   cursor: pointer;
 }
 
@@ -394,6 +466,16 @@
   flex: 1;
   padding: 8px 10px;
   font-size: 16px;
+  border-radius: 8px;
+}
+
+.cc-send {
+  padding: 8px 12px !important;
+  font-size: 0.85rem !important;
+}
+
+.cc-composer {
+  display: none; /* legacy */
 }
 
 .cc-sheet {
@@ -437,20 +519,45 @@
   gap: 10px;
 }
 
-.cc-panel {
-  min-height: 140px;
+.cc-mobile-main .cc-panel,
+.cc-panel-compact {
+  min-height: 0;
+  border-width: 2px;
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.2);
 }
 
-.cc-panel-stage {
-  min-height: 140px;
-  padding: 4px;
+.cc-panel-compact .cc-panel-stage {
+  min-height: 96px;
+  padding: 2px 4px 2px;
+  gap: 2px;
 }
 
-.cc-bubble-text {
-  font-size: 0.85rem;
+.cc-panel-compact .cc-bubble {
+  padding: 5px 8px;
+  margin-bottom: 2px;
+}
+
+.cc-panel-compact .cc-bubble-text {
+  font-size: 0.8rem;
+  line-height: 1.25;
+}
+
+.cc-panel-compact .cc-actor-name {
+  font-size: 0.58rem;
+}
+
+/* 입력 중 모션 약화 */
+.cc-composing .cc-pose-wave,
+.cc-composing .cc-pose-cheer {
+  animation: none !important;
 }
 
 @media (min-width: 900px) {
+  .cc-topbar {
+    min-height: 40px;
+    padding: 4px 10px;
+  }
+
   .cc-room-layout .cc-main {
     display: grid;
     grid-template-columns: 1fr minmax(220px, 280px);
@@ -469,17 +576,8 @@
     gap: 8px;
   }
 
-  .cc-panel {
-    min-height: 200px;
-  }
-
-  .cc-panel-stage {
-    min-height: 200px;
-    padding: 8px 6px 6px;
-  }
-
-  .cc-bubble-text {
-    font-size: 0.92rem;
+  .cc-strip {
+    padding: 8px;
   }
 
   .cc-sheet {
