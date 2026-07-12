@@ -532,7 +532,7 @@ export default function ComicChatApp() {
             ) : (
               <div className="cc-panel-grid">
                 {panels.map((p) => (
-                  <ComicPanel key={p.id} panel={p} compact={!isDesktop} />
+                  <ComicPanel key={p.id} panel={p} />
                 ))}
               </div>
             )}

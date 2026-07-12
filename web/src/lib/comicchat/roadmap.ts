@@ -17,6 +17,7 @@
  *    - 키보드 위 남는 화면 = 작업 공간 → 컷 하단 앵커 + 초슬림 탑바 + 독
  *    - 참가자·내 캐릭터·QR은 ⋯ 시트, 입력 중엔 노출 금지
  *    - 기분 칩은 접고, 말/생각/외침만 기본
+ *    - 만화 구도는 모바일·PC 동일 1열 (PC는 사이드바만 추가, 스케일만 다름)
  */
 export const CUTTOK_ROADMAP_NOTE =
   'See comments above — doll dress-up + sellable expression packs (Storage + packId), not Base64 in chat.';

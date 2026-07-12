@@ -5,8 +5,6 @@ import ComicAvatar from './ComicAvatar';
 
 type Props = {
   panel: ComicPanelModel;
-  /** 모바일: 더 작은 전신으로 컷 밀도↑ */
-  compact?: boolean;
 };
 
 function bubbleClass(t: BubbleType): string {
@@ -15,23 +13,20 @@ function bubbleClass(t: BubbleType): string {
   return 'cc-bubble cc-bubble-speech';
 }
 
-export default function ComicPanel({ panel, compact }: Props) {
+/** 모바일·PC 동일 구도. 인원 수에 따른 크기만 조정. */
+function avatarSize(n: number): number {
+  if (n >= 3) return 56;
+  if (n === 2) return 70;
+  return 84;
+}
+
+export default function ComicPanel({ panel }: Props) {
   const n = panel.lines.length;
-  const size = compact
-    ? n >= 3
-      ? 44
-      : n === 2
-        ? 56
-        : 68
-    : n >= 3
-      ? 56
-      : n === 2
-        ? 72
-        : 88;
+  const size = avatarSize(n);
 
   return (
     <article
-      className={`cc-panel cc-bg-${panel.bg} cc-shot-${panel.shot} cc-actors-${n}${compact ? ' cc-panel-compact' : ''}`}
+      className={`cc-panel cc-bg-${panel.bg} cc-shot-${panel.shot} cc-actors-${n}`}
     >
       <div className="cc-panel-bg" aria-hidden />
       <div className="cc-panel-stage">
