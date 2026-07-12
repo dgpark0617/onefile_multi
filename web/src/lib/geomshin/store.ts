@@ -10,6 +10,7 @@ import {
   persistPixel,
   persistUser,
   useSupabaseStore,
+  fetchPixelsInViewport,
 } from './persist';
 
 /** GPS 미갱신 시 현장 버프 만료 (집관으로 복귀) */
@@ -540,6 +541,7 @@ export async function claimPixelAsync(
   color?: unknown,
 ) {
   await ensureUserAsync(userId);
+  if (useSupabaseStore()) await syncNeighborhoodFromDb(x, y);
   const out = claimPixel(userId, x, y, color);
   await saveUserById(userId);
   await saveDelta(out.delta);
@@ -604,6 +606,50 @@ export async function getViewportDeltaAsync(
   x1: number,
   y1: number,
 ) {
+  if (useSupabaseStore()) {
+    const pixels = await fetchPixelsInViewport(x0, y0, x1, y1);
+    return {
+      version: Date.now(),
+      w: GRID_W,
+      h: GRID_H,
+      cells: pixels.map((p) => ({
+        i: p.i,
+        x: p.x,
+        y: p.y,
+        ownerSlot: p.owner_slot,
+        color: p.color,
+        lockUntilMs: Number(p.lock_until_ms) || 0,
+        hasAd: Boolean(p.has_ad),
+      })),
+    };
+  }
   await ensureGeomShinReady();
   return getViewportDelta(x0, y0, x1, y1);
+}
+
+/** claim 직전에 인접 칸을 DB에서 메모리로 동기화 (서버리스 교차 인스턴스) */
+async function syncNeighborhoodFromDb(x: number, y: number) {
+  const x0 = x - 1;
+  const y0 = y - 1;
+  const x1 = x + 1;
+  const y1 = y + 1;
+  const pixels = await fetchPixelsInViewport(x0, y0, x1, y1);
+  const store = getStore();
+  for (let cy = y0; cy <= y1; cy++) {
+    for (let cx = x0; cx <= x1; cx++) {
+      if (cx < 0 || cy < 0 || cx >= GRID_W || cy >= GRID_H) continue;
+      const i = idx(cx, cy);
+      store.owners[i] = 0;
+      store.colors[i] = 0;
+      store.lockUntil[i] = 0;
+      store.hasAd[i] = 0;
+    }
+  }
+  for (const p of pixels) {
+    if (p.i < 0 || p.i >= GRID_SIZE) continue;
+    store.owners[p.i] = p.owner_slot >>> 0;
+    store.colors[p.i] = p.color >>> 0;
+    store.lockUntil[p.i] = Number(p.lock_until_ms) || 0;
+    store.hasAd[p.i] = p.has_ad ? 1 : 0;
+  }
 }

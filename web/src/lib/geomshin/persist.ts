@@ -1,7 +1,7 @@
 import { getStoreBackend, supabaseConfigured } from './backend';
 import { getSupabaseAdmin } from './supabaseAdmin';
 import type { PixelDelta, UserRecord } from './store';
-import { GRID_SIZE } from './config';
+import { GRID_H, GRID_SIZE, GRID_W } from './config';
 
 export function useSupabaseStore(): boolean {
   return getStoreBackend() === 'supabase' && supabaseConfigured();
@@ -162,4 +162,32 @@ export async function checkGeomShinTables(): Promise<{ ok: boolean; detail: stri
   const { error } = await sb.from('geomshin_users').select('id').limit(1);
   if (error) return { ok: false, detail: error.message };
   return { ok: true, detail: 'tables ok' };
+}
+
+/** 서버리스 인스턴스 간 공유를 위해 뷰포트는 항상 DB에서 읽음 */
+export async function fetchPixelsInViewport(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+): Promise<DbPixel[]> {
+  const sb = getSupabaseAdmin();
+  if (!sb) return [];
+  const minX = Math.max(0, Math.min(x0, x1));
+  const maxX = Math.min(GRID_W - 1, Math.max(x0, x1));
+  const minY = Math.max(0, Math.min(y0, y1));
+  const maxY = Math.min(GRID_H - 1, Math.max(y0, y1));
+  const { data, error } = await sb
+    .from('geomshin_pixels')
+    .select('i,x,y,owner_slot,color,lock_until_ms,has_ad')
+    .gte('x', minX)
+    .lte('x', maxX)
+    .gte('y', minY)
+    .lte('y', maxY)
+    .limit(20_000);
+  if (error) {
+    console.error('[geomshin] fetchPixelsInViewport', error.message);
+    return [];
+  }
+  return (data as DbPixel[] | null) ?? [];
 }

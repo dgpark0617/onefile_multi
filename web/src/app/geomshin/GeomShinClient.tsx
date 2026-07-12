@@ -172,16 +172,11 @@ export default function GeomShinClient() {
     });
   };
 
-  const removeCell = useCallback((x: number, y: number) => {
-    setCells((prev) => prev.filter((c) => !(c.x === x && c.y === y)));
-  }, []);
-
-  /** 다른 유저 칠하기 → Realtime 변경분만 반영 */
+  /** 다른 유저 칠하기 → Realtime + 뷰포트 폴링(서버리스 대비) */
   useEffect(() => {
     if (!userId || !accessToken || !isSupabaseBrowserReady()) return;
-    const sub = subscribePixelRealtime({
+    const sub = subscribePixelRealtime(accessToken, {
       onUpsert: (cell) => mergeDelta(cell),
-      // owner 0 으로 넘겨야 Phaser 캔버스가 빈 칸으로 다시 그려짐
       onDelete: ({ x, y }) =>
         mergeDelta({ x, y, color: 0xf1f5f9, ownerSlot: 0, hasAd: false }),
     });
@@ -374,33 +369,39 @@ export default function GeomShinClient() {
 
   useEffect(() => {
     if (!accessToken) return;
-    const q = new URLSearchParams({
-      x0: String(view.x0),
-      y0: String(view.y0),
-      x1: String(view.x1),
-      y1: String(view.y1),
-    });
     let cancelled = false;
-    fetch(`/api/geomshin/pixels?${q}`, { headers })
-      .then((r) => {
-        if (!r.ok) throw new Error(`pixels ${r.status}`);
-        return r.json();
-      })
-      .then((data) => {
-        if (cancelled) return;
-        setCells(
-          (data.cells || []).map((c: BoardCell) => ({
-            x: c.x,
-            y: c.y,
-            color: c.color,
-            ownerSlot: c.ownerSlot,
-            hasAd: c.hasAd,
-          })),
-        );
-      })
-      .catch(() => {});
+    const load = () => {
+      const q = new URLSearchParams({
+        x0: String(view.x0),
+        y0: String(view.y0),
+        x1: String(view.x1),
+        y1: String(view.y1),
+      });
+      fetch(`/api/geomshin/pixels?${q}`, { headers })
+        .then((r) => {
+          if (!r.ok) throw new Error(`pixels ${r.status}`);
+          return r.json();
+        })
+        .then((data) => {
+          if (cancelled) return;
+          setCells(
+            (data.cells || []).map((c: BoardCell) => ({
+              x: c.x,
+              y: c.y,
+              color: c.color,
+              ownerSlot: c.ownerSlot,
+              hasAd: c.hasAd,
+            })),
+          );
+        })
+        .catch(() => {});
+    };
+    load();
+    // Realtime 미구성·누락 대비: 보이는 영역만 2.5초마다 DB 기준 갱신
+    const t = setInterval(load, 2500);
     return () => {
       cancelled = true;
+      clearInterval(t);
     };
   }, [view, accessToken, headers]);
 
