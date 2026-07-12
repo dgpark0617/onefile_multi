@@ -412,23 +412,21 @@
   z-index: 20;
 }
 
-/* iOS Safari: 키보드 오버레이 위로 독을 고정 */
+/*
+ * iOS Safari: 루트 높이를 visualViewport에 맞추면 독은 flex 흐름에 두고
+ * (fixed+kb 이중 처리 금지). 스트립이 키보드 위 남은 영역만 씀.
+ */
 .cc-mobile-main .cc-dock {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: var(--cc-kb, 0px);
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  flex-shrink: 0;
   padding-bottom: max(6px, env(safe-area-inset-bottom));
 }
 
 .cc-mobile-main .cc-strip {
-  /* 독 + 키보드가 가리는 만큼 스크롤 여백 */
-  padding-bottom: calc(var(--cc-dock-space, 72px) + 8px);
-}
-
-.cc-mobile-main.cc-composing .cc-strip {
-  /* 포커스 중엔 VV 높이 기준 무대 */
-  max-height: none;
+  padding-bottom: 8px;
 }
 
 .cc-dock-tools-mini {

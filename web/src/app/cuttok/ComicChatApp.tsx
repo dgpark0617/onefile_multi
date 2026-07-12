@@ -38,28 +38,31 @@ function uid(): string {
 
 function useKeyboardChrome(
   active: boolean,
+  appRef: React.RefObject<HTMLElement | null>,
   dockRef: React.RefObject<HTMLElement | null>,
   onChange?: () => void,
 ) {
   useEffect(() => {
     if (!active || typeof window === 'undefined') return;
-    const root = document.documentElement;
     const body = document.body;
     const vv = window.visualViewport;
 
     const sync = () => {
+      const el = appRef.current;
+      if (!el) return;
       const layoutH = window.innerHeight;
       const height = vv?.height ?? layoutH;
       const offsetTop = vv?.offsetTop ?? 0;
-      // iOS: 키보드는 레이아웃을 안 줄이고 오버레이 → 아래 가려진 높이
+      // iOS: 레이아웃은 안 줄고 키보드가 오버레이 → 보이는 높이만 무대에 씀
       const kb = Math.max(0, Math.round(layoutH - height - offsetTop));
       const dockH = Math.round(dockRef.current?.offsetHeight ?? 72);
 
-      root.style.setProperty('--cc-vv-height', `${Math.round(height)}px`);
-      root.style.setProperty('--cc-vv-top', `${Math.round(offsetTop)}px`);
-      root.style.setProperty('--cc-kb', `${kb}px`);
-      root.style.setProperty('--cc-dock-space', `${dockH}px`);
-      root.style.setProperty('--cc-stage-height', `${Math.max(120, Math.round(height - dockH))}px`);
+      // .cc-root 자체에 써야 함 — html에 쓰면 .cc-root 기본값이 가려서 무효화됨
+      el.style.setProperty('--cc-vv-height', `${Math.round(height)}px`);
+      el.style.setProperty('--cc-vv-top', `${Math.round(offsetTop)}px`);
+      el.style.setProperty('--cc-kb', `${kb}px`);
+      el.style.setProperty('--cc-dock-space', `${dockH}px`);
+      el.style.setProperty('--cc-stage-height', `${Math.max(120, Math.round(height - dockH))}px`);
 
       if (window.scrollY || window.scrollX) window.scrollTo(0, 0);
       onChange?.();
@@ -79,13 +82,13 @@ function useKeyboardChrome(
     window.addEventListener('resize', sync);
     window.addEventListener('scroll', sync, { passive: true });
     // iOS 키보드 애니메이션 중 지연 재측정
-    const onFocusIn = () => {
+    const onFocus = () => {
       window.setTimeout(sync, 50);
       window.setTimeout(sync, 300);
       window.setTimeout(sync, 600);
     };
-    document.addEventListener('focusin', onFocusIn);
-    document.addEventListener('focusout', onFocusIn);
+    document.addEventListener('focusin', onFocus);
+    document.addEventListener('focusout', onFocus);
 
     return () => {
       body.classList.remove('cc-lock-scroll');
@@ -94,15 +97,18 @@ function useKeyboardChrome(
       vv?.removeEventListener('scroll', sync);
       window.removeEventListener('resize', sync);
       window.removeEventListener('scroll', sync);
-      document.removeEventListener('focusin', onFocusIn);
-      document.removeEventListener('focusout', onFocusIn);
-      root.style.removeProperty('--cc-vv-height');
-      root.style.removeProperty('--cc-vv-top');
-      root.style.removeProperty('--cc-kb');
-      root.style.removeProperty('--cc-dock-space');
-      root.style.removeProperty('--cc-stage-height');
+      document.removeEventListener('focusin', onFocus);
+      document.removeEventListener('focusout', onFocus);
+      const el = appRef.current;
+      if (el) {
+        el.style.removeProperty('--cc-vv-height');
+        el.style.removeProperty('--cc-vv-top');
+        el.style.removeProperty('--cc-kb');
+        el.style.removeProperty('--cc-dock-space');
+        el.style.removeProperty('--cc-stage-height');
+      }
     };
-  }, [active, dockRef, onChange]);
+  }, [active, appRef, dockRef, onChange]);
 }
 
 function useIsDesktop(minWidth = 900) {
@@ -141,6 +147,7 @@ export default function ComicChatApp() {
   const [myPeerId, setMyPeerId] = useState('');
   const [roomSheet, setRoomSheet] = useState(false);
   const roomRef = useRef<ComicRoom | null>(null);
+  const appRef = useRef<HTMLDivElement>(null);
   const stripRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLElement | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -149,7 +156,11 @@ export default function ComicChatApp() {
   const scrollToLatest = useCallback((smooth = false) => {
     const el = stripRef.current;
     if (!el) return;
-    const top = el.scrollHeight;
+    // iOS: scrollIntoView 는 윈도우를 밀어 올려서 쓰지 않음
+    const last = el.querySelector('.cc-panel:last-of-type') as HTMLElement | null;
+    const top = last
+      ? Math.max(0, last.offsetTop + last.offsetHeight - el.clientHeight + 12)
+      : el.scrollHeight;
     if (smooth) el.scrollTo({ top, behavior: 'smooth' });
     else el.scrollTop = top;
   }, []);
@@ -161,9 +172,12 @@ export default function ComicChatApp() {
 
   useKeyboardChrome(
     phase === 'room',
+    appRef,
     dockRef,
     useCallback(() => {
-      requestAnimationFrame(() => scrollToLatest(false));
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => scrollToLatest(false));
+      });
     }, [scrollToLatest]),
   );
 
@@ -530,6 +544,7 @@ export default function ComicChatApp() {
 
   return (
     <div
+      ref={appRef}
       className={`cc-root cc-room-layout${!isDesktop ? ' cc-mobile-main' : ''}${composing ? ' cc-composing' : ''}`}
     >
       <header className={`cc-topbar${composing && !isDesktop ? ' cc-topbar-hidden' : ''}`}>
