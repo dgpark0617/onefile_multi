@@ -63,3 +63,26 @@ begin
   return n::integer;
 end;
 $$;
+
+-- Realtime: 변경된 픽셀만 브로드캐스트 (다른 클라 즉시 반영)
+alter table geomshin_pixels replica identity full;
+
+do $$
+begin
+  alter publication supabase_realtime add table geomshin_pixels;
+exception
+  when duplicate_object then null;
+  when undefined_object then null;
+end $$;
+
+alter table geomshin_pixels enable row level security;
+
+drop policy if exists geomshin_pixels_select_authenticated on geomshin_pixels;
+create policy geomshin_pixels_select_authenticated
+  on geomshin_pixels
+  for select
+  to authenticated
+  using (true);
+
+-- API는 service_role 로 쓰므로 INSERT/UPDATE/DELETE 정책 불필요
+

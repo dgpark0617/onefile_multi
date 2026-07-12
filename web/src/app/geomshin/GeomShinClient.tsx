@@ -11,6 +11,7 @@ import GeomShinNav from './GeomShinNav';
 import GeomShinLogin from './GeomShinLogin';
 import { clearStoredSession, writeStoredSession } from '@/lib/geomshin/session';
 import { getBrowserSupabase, isSupabaseBrowserReady } from '@/lib/geomshin/supabaseBrowser';
+import { subscribePixelRealtime } from '@/lib/geomshin/pixelRealtime';
 
 const PhaserMap = dynamic(() => import('@/game/geomshin/PhaserMap'), {
   ssr: false,
@@ -170,6 +171,23 @@ export default function GeomShinClient() {
       return [...next];
     });
   };
+
+  const removeCell = useCallback((x: number, y: number) => {
+    setCells((prev) => prev.filter((c) => !(c.x === x && c.y === y)));
+  }, []);
+
+  /** 다른 유저 칠하기 → Realtime 변경분만 반영 */
+  useEffect(() => {
+    if (!userId || !accessToken || !isSupabaseBrowserReady()) return;
+    const sub = subscribePixelRealtime({
+      onUpsert: (cell) => mergeDelta(cell),
+      // owner 0 으로 넘겨야 Phaser 캔버스가 빈 칸으로 다시 그려짐
+      onDelete: ({ x, y }) =>
+        mergeDelta({ x, y, color: 0xf1f5f9, ownerSlot: 0, hasAd: false }),
+    });
+    return () => sub.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, accessToken]);
 
   const goHome = useCallback((x: number, y: number, note?: string) => {
     setFocus({ x, y });
