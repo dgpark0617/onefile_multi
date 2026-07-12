@@ -50,7 +50,7 @@ export default function HomePage() {
       </section>
 
       <section style={{ marginBottom: 32 }}>
-        <h2 className="section-title">검단 전광판</h2>
+        <h2 className="section-title">검단 · 소셜</h2>
         <div className="game-grid">
           <article className="game-card featured">
             <div className="tag-row">
@@ -66,6 +66,20 @@ export default function HomePage() {
               </Link>
               <Link href="/geomshin/terms" className="btn btn-secondary">
                 약관
+              </Link>
+            </div>
+          </article>
+          <article className="game-card featured">
+            <div className="tag-row">
+              <span className="tag">채팅</span>
+              <span className="tag">만화칸</span>
+              <span className="tag">PeerJS</span>
+            </div>
+            <h2>컷톡 (CutTok)</h2>
+            <p>만화칸 웹채팅 · 감정·포즈 · Comic Chat 계승 (별도 서비스)</p>
+            <div className="card-actions">
+              <Link href="/cuttok" className="btn btn-primary">
+                입장
               </Link>
             </div>
           </article>

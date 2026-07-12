@@ -9,6 +9,7 @@
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.110.2",
     "next": "^15.3.4",
+    "peerjs": "^1.5.5",
     "phaser": "^3.90.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
