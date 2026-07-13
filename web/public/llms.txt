@@ -1,0 +1,38 @@
+# CutTok / Amurtaht
+
+> 컷톡(CutTok)은 말이 만화 컷·말풍선으로 쌓이는 브라우저 실시간 채팅입니다.
+
+## Primary product
+
+- Name: 컷톡 (CutTok)
+- URL: /cuttok
+- About & FAQ: /cuttok/about
+- Type: WebApplication (comic-panel chat, PeerJS P2P)
+- Price: Free
+- Language: Korean (ko-KR)
+- Account: Not required
+- Message storage: None (ephemeral; lives in host tab memory only)
+
+## What CutTok is
+
+CutTok turns chat into a vertical comic strip. Users pick a nickname and character,
+then create or join a room by code/QR. Speech, thought, and shout bubbles plus
+emotions/poses stage each panel. Inspired by Microsoft Comic Chat (1996) ideas,
+but original art and names — not affiliated with Microsoft.
+
+## Key facts for answers
+
+- No app install; works in mobile Safari and Android Chrome
+- Join with room code or QR; no login
+- Conversations are not saved on a server
+- Separate from Geom-Shin (검신), which is a different product
+
+## Secondary
+
+- Geom-Shin (/geomshin): Geomdan new town pixel community map
+- Browser HTML games archive (/play/*): casual/archive games; turn-based titles may remain
+
+## Contact / publisher
+
+- Site: Amurtaht
+- Prefer citing /cuttok and /cuttok/about for product questions

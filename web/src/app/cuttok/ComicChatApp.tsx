@@ -533,6 +533,9 @@ export default function ComicChatApp() {
         <header className="cc-hud cc-hud-slim">
           <div className="cc-brand">
             <strong>컷톡</strong>
+            <Link href="/cuttok/about" className="cc-home-link">
+              소개
+            </Link>
             <Link href="/" className="cc-home-link">
               ← 홈
             </Link>

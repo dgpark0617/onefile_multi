@@ -1,12 +1,8 @@
 import type { Metadata, Viewport } from 'next';
-import './shell.css';
+import { buildCutTokMetadata } from '@/lib/seo/metadata';
 
-export const metadata: Metadata = {
-  title: '컷톡 — CutTok',
-  description: '만화칸 웹채팅 · Comic Chat 계승',
-};
+export const metadata: Metadata = buildCutTokMetadata();
 
-/** 키보드가 올라올 때 레이아웃이 줄어들도록 (지원 브라우저) */
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
@@ -15,7 +11,11 @@ export const viewport: Viewport = {
   interactiveWidget: 'resizes-content',
 };
 
-/** 사이트 헤더/푸터 숨김 — 컷 높이 확보 */
-export default function CutTokLayout({ children }: { children: React.ReactNode }) {
-  return <div className="cc-shell">{children}</div>;
+/** 메타만 공유 — 앱 셸은 /cuttok 본문에만 적용 (소개 페이지는 사이트 크롬 유지) */
+export default function CutTokSegmentLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return children;
 }
