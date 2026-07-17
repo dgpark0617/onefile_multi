@@ -41,8 +41,8 @@ export async function resolveAvatarFrameAsync(
   const file = manifest
     ? resolvePackFrameFile(manifest, emotion, pose)
     : pose !== 'idle'
-      ? `${pose}.svg`
-      : `${emotion}.svg`;
+      ? `${pose}.png`
+      : `${emotion}.png`;
 
   return {
     src: packFrameUrl(packId, file),

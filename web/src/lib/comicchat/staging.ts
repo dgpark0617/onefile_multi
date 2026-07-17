@@ -43,23 +43,39 @@ const EMOTION_POSE: Record<Emotion, Pose> = {
   think: 'think',
 };
 
+/**
+ * 배경은 기본 sticky.
+ * 짧은 단어(방/집/달/꽃/축하…)에 반응하면 장면이 튀므로
+ * “장면 전환 의도”가 분명한 표현만 인정한다.
+ */
 function pickExplicitBg(text: string): BgId | null {
   const t = text.toLowerCase();
-  if (/비|우산|젖|폭우|장마/.test(t)) return 'rain';
-  if (/밤|달|야경|심야|별|새벽/.test(t)) return 'night';
-  if (/카페|커피|라떼|브런치|술|술집|바\b|맥주/.test(t)) return 'cafe';
-  if (/공원|산책|나무|꽃|해변|바다|해변가|피크닉/.test(t)) return 'park';
-  if (/회사|회의|일하|야근|학교|교실|수업|병원|사무/.test(t)) return 'office';
-  if (/무대|공연|노래|쇼|콘서트|발표|축하/.test(t)) return 'stage';
-  if (/집|방|침대|집콕|소파|거실|침실/.test(t)) return 'room';
+  if (/비가\s*와|비\s*오|폭우|장마|우산/.test(t)) return 'rain';
+  if (/밤거리|야경|심야|밤하늘|달빛/.test(t)) return 'night';
+  if (/카페|커피숍|커피집|라떼\s*한\s*잔|술집|호프집/.test(t)) return 'cafe';
+  if (/공원에|산책하|피크닉|해변에|바다에/.test(t)) return 'park';
+  if (/회사에서|회의실|야근|교실|학교에서|병원에서/.test(t)) return 'office';
+  if (/무대\s*위|콘서트|공연\s*장|라이브\s*쇼/.test(t)) return 'stage';
+  if (/우리\s*집\s*(으로|에서)|집콕\s*중|거실에서\s*놀|침실에서\s*쉬/.test(t)) return 'room';
+  // 명시 전환 명령
+  if (/배경\s*(을\s*)?(카페|공원|밤|회사|무대|비|집|방)/.test(t)) {
+    if (/카페/.test(t)) return 'cafe';
+    if (/공원/.test(t)) return 'park';
+    if (/밤/.test(t)) return 'night';
+    if (/회사/.test(t)) return 'office';
+    if (/무대/.test(t)) return 'stage';
+    if (/비/.test(t)) return 'rain';
+    return 'room';
+  }
   return null;
 }
 
 function pickBg(emotion: Emotion, text: string, index: number, prevBg?: BgId): BgId {
   const explicit = pickExplicitBg(text);
   if (explicit) return explicit;
-  // 감정만으로 배경을 매번 바꾸면 합연출이 깨짐 → 직전 장면 유지
+  // 장면 유지가 기본 — 감정만으로 바꾸지 않음
   if (prevBg) return prevBg;
+  // 첫 발화만 감정 힌트 (이후 sticky)
   const list = EMOTION_BG[emotion];
   return list[index % list.length];
 }

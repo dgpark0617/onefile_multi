@@ -135,22 +135,22 @@ export const DEFAULT_LOOK: CharLook = {
 export const CHARACTERS = [
   {
     id: 'ink',
-    name: '잉크',
+    name: '아라넬',
     packId: 'ink',
   },
   {
     id: 'brush',
-    name: '붓',
+    name: '아웨나',
     packId: 'brush',
   },
   {
     id: 'dot',
-    name: '점',
+    name: '비비안',
     packId: 'dot',
   },
   {
     id: 'frame',
-    name: '칸',
+    name: '아웨나·과거',
     packId: 'frame',
   },
 ] as const;

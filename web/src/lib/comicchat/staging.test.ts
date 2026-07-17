@@ -20,7 +20,7 @@ function msg(partial: Partial<ComicMsg> & Pick<ComicMsg, 'id' | 'peerId' | 'text
 }
 
 describe('comicchat staging', () => {
-  it('picks rain bg from text', () => {
+  it('picks rain bg from clear scene phrase', () => {
     const s = stagePanel({
       text: '비가 와서 우산 필요해',
       emotion: 'sad',
@@ -38,6 +38,18 @@ describe('comicchat staging', () => {
       bubble: 'speech',
       peerId: 'b',
       panelIndex: 2,
+      prevBg: 'cafe',
+    });
+    assert.equal(s.bg, 'cafe');
+  });
+
+  it('does not jump bg on short words like 축하/방', () => {
+    const s = stagePanel({
+      text: '축하해! 내 방 정리했어',
+      emotion: 'happy',
+      bubble: 'speech',
+      peerId: 'a',
+      panelIndex: 3,
       prevBg: 'cafe',
     });
     assert.equal(s.bg, 'cafe');

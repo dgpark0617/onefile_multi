@@ -26,7 +26,7 @@ export default function ComicAvatar({
   fullBody = true,
   facing = 'right',
 }: Props) {
-  const aspect = fullBody ? 168 / 120 : 120 / 120;
+  const aspect = 1; // 치비 머그샷 팩은 정사각
   const height = Math.round(size * aspect);
   const [src, setSrc] = useState('');
   const [flip, setFlip] = useState(false);

@@ -231,6 +231,18 @@ function heartAcc() {
 
 for (const pack of PACKS) {
   const dir = path.join(OUT, pack.id);
+  const manifestPath = path.join(dir, 'pack.json');
+  if (fs.existsSync(manifestPath)) {
+    try {
+      const existing = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+      if (existing.external) {
+        console.log(`skip ${pack.id} (external art pack)`);
+        continue;
+      }
+    } catch {
+      /* rewrite */
+    }
+  }
   fs.mkdirSync(dir, { recursive: true });
   const frames = {};
   for (const frame of FRAMES) {
