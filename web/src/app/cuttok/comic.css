@@ -1081,6 +1081,7 @@
 
 .cc-framing-bust {
   overflow: hidden;
+  align-items: flex-start;
 }
 
 .cc-framing-bust .cc-avatar-sprite {
@@ -1093,6 +1094,7 @@
 
 .cc-framing-close {
   overflow: hidden;
+  align-items: flex-start;
 }
 
 .cc-framing-close .cc-avatar-sprite {
