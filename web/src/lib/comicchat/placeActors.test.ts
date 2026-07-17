@@ -54,7 +54,16 @@ describe('placeActors', () => {
       msg({ id: '2', peerId: 'b', text: 'b'.repeat(50) }),
       msg({ id: '3', peerId: 'c', text: 'c'.repeat(50) }),
     ]);
-    assert.ok(parseInt(placed[0].balloonMaxWidth, 10) <= 84);
+    assert.ok(parseInt(placed[0].balloonMaxWidth, 10) <= 76);
+  });
+
+  it('attaches side balloons to panel edges in duo', () => {
+    const placed = placeActors([
+      msg({ id: '1', peerId: 'a', text: 'hi' }),
+      msg({ id: '2', peerId: 'b', text: 'yo' }),
+    ]);
+    assert.ok(placed[0].balloonAttach.includes('left'));
+    assert.ok(placed[1].balloonAttach.includes('right'));
   });
 
   it('panel zoom varies by shot', () => {

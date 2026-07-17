@@ -20,6 +20,11 @@ function bubbleClass(t: BubbleType): string {
   return 'cc-bubble cc-bubble-speech';
 }
 
+function bubbleAttachClass(attach: string[] | undefined): string {
+  if (!attach?.length) return '';
+  return attach.map((edge) => `cc-bubble-attach-${edge}`).join(' ');
+}
+
 /** 모바일·PC 동일 구도. 인원·프레이밍에 따른 크기. */
 function avatarSize(n: number, framing: string): number {
   const base = n >= 4 ? 52 : n >= 3 ? 64 : n === 2 ? 78 : 96;
@@ -63,11 +68,11 @@ export default function ComicPanel({ panel }: Props) {
           return (
             <div
               key={line.id}
-              className={`cc-actor cc-actor-${side}${layout?.row ? ` cc-actor-row-${layout.row}` : ''}`}
+              className={`cc-actor cc-actor-${side} cc-actor-row-${layout?.row ?? 0}`}
               style={actorStyle}
             >
               <div
-                className={bubbleClass(line.bubble)}
+                className={`${bubbleClass(line.bubble)} ${bubbleAttachClass(layout?.balloonAttach)}${layout?.balloonCompact ? ' cc-bubble-compact' : ''}`}
                 style={{ maxWidth: layout?.balloonMaxWidth }}
               >
                 <p className="cc-bubble-text">{line.text}</p>

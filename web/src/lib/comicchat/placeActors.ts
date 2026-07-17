@@ -3,6 +3,9 @@ import type { ComicMsg, Shot } from './types';
 export type ActorFacing = 'left' | 'right';
 export type ActorSide = 'left' | 'center' | 'right';
 
+/** 패널 테두리와 말풍선을 한 덩어리로 붙일 방향 */
+export type BalloonAttach = 'left' | 'right' | 'top';
+
 /** Comic Chat PlaceBalloons·패널 줌 근사 */
 export type PlacedActor = {
   lineId: string;
@@ -12,6 +15,8 @@ export type PlacedActor = {
   zIndex: number;
   translateY: number;
   balloonMaxWidth: string;
+  balloonAttach: BalloonAttach[];
+  balloonCompact: boolean;
 };
 
 const SHOT_ZOOM: Record<Shot, number> = {
@@ -61,12 +66,29 @@ function staggerY(n: number, i: number, bubble: ComicMsg['bubble']): number {
 }
 
 function balloonWidth(n: number, totalChars: number, line: ComicMsg): string {
-  if (line.bubble === 'shout') return n >= 3 ? '72%' : '80%';
-  if (totalChars > 180) return '70%';
-  if (totalChars > 120) return '76%';
-  if (n >= 4) return '78%';
-  if (n === 3) return '84%';
-  return line.text.length > 60 ? '90%' : '92%';
+  const long = line.text.length > 72;
+  if (line.bubble === 'shout') return n >= 3 ? '64%' : '70%';
+  if (long || totalChars > 180) return '62%';
+  if (totalChars > 120) return '68%';
+  if (n >= 4) return '72%';
+  if (n === 3) return '76%';
+  return line.text.length > 48 ? '78%' : '84%';
+}
+
+function balloonAttach(side: ActorSide, line: ComicMsg, n: number): BalloonAttach[] {
+  const attach: BalloonAttach[] = [];
+  if (n >= 2) {
+    if (side === 'left') attach.push('left');
+    if (side === 'right') attach.push('right');
+  }
+  if (line.bubble === 'shout' || line.text.length > 64 || n === 1) {
+    attach.push('top');
+  }
+  return attach;
+}
+
+function balloonCompact(line: ComicMsg): boolean {
+  return line.text.length > 96 || line.bubble === 'shout';
 }
 
 /** 말풍선·캐릭터 겹침 완화 — 슬롯·시선·z-index */
@@ -92,6 +114,8 @@ export function placeActors(lines: ComicMsg[]): PlacedActor[] {
       zIndex,
       translateY: staggerY(n, i, line.bubble),
       balloonMaxWidth: balloonWidth(n, totalChars, line),
+      balloonAttach: balloonAttach(side, line, n),
+      balloonCompact: balloonCompact(line),
     };
   });
 }

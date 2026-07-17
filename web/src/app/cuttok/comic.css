@@ -5,6 +5,7 @@
   --cc-panel: #fffdf8;
   --cc-rule: #1a1a1a;
   --cc-paper: #e8e0d0;
+  --cc-comic-font: 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', 'Segoe UI', system-ui, sans-serif;
   --cc-vv-height: 100dvh;
   --cc-vv-top: 0px;
   --cc-kb: 0px;
@@ -572,11 +573,6 @@
   gap: 6px;
 }
 
-.cc-bubble-text {
-  font-size: 0.9rem;
-  line-height: 1.3;
-}
-
 /* 입력 중 모션 약화 */
 .cc-composing .cc-pose-wave,
 .cc-composing .cc-pose-cheer {
@@ -665,7 +661,9 @@
   justify-content: space-around;
   gap: 4px;
   min-height: 200px;
-  padding: 8px 6px 6px;
+  --cc-stage-pad-x: 10px;
+  --cc-stage-pad-top: 12px;
+  padding: var(--cc-stage-pad-top) var(--cc-stage-pad-x) 6px;
   transform: scale(var(--cc-panel-zoom));
   transform-origin: bottom center;
   transition: transform 0.2s ease;
@@ -677,6 +675,7 @@
   align-items: center;
   max-width: 48%;
   flex: 1;
+  min-width: 0;
 }
 
 .cc-actor-right {
@@ -741,64 +740,109 @@
   margin-top: -2px;
 }
 
-/* 말풍선 */
+/* 말풍선 — 패널 안 배치, 가장자리는 칸 테두리와 결합 */
 .cc-bubble {
   position: relative;
+  box-sizing: border-box;
   background: #fff;
-  border: 2px solid #1a1a1a;
-  padding: 8px 10px;
+  border: 2px solid var(--cc-ink);
+  padding: 6px 9px;
   margin-bottom: 6px;
   max-width: 100%;
-  color: #1a1a1a;
+  width: 100%;
+  color: var(--cc-ink);
+  z-index: 2;
 }
 
 .cc-bubble-speech {
-  border-radius: 14px;
+  border-radius: 12px;
 }
 
 .cc-bubble-thought {
-  border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%;
+  border-radius: 50% 50% 50% 50% / 42% 42% 58% 58%;
   border-style: dashed;
+  background: #fffef9;
 }
 
 .cc-bubble-shout {
-  border-radius: 2px;
-  clip-path: polygon(
-    2% 8%,
-    8% 0%,
-    18% 6%,
-    28% 0%,
-    40% 5%,
-    50% 0%,
-    62% 6%,
-    72% 0%,
-    84% 5%,
-    94% 0%,
-    100% 10%,
-    96% 22%,
-    100% 40%,
-    96% 55%,
-    100% 72%,
-    94% 88%,
-    80% 100%,
-    60% 94%,
-    45% 100%,
-    30% 94%,
-    12% 100%,
-    0% 85%,
-    4% 65%,
-    0% 45%,
-    4% 25%
-  );
-  font-weight: 800;
+  border-radius: 6px;
+  border-width: 2.5px;
+  font-weight: 700;
+  background: #fff;
+  box-shadow: 2px 2px 0 rgba(26, 26, 26, 0.12);
+}
+
+.cc-bubble-shout::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border: 2px solid var(--cc-ink);
+  border-radius: 10px;
+  transform: rotate(-1.2deg);
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.35;
 }
 
 .cc-bubble-text {
   margin: 0;
-  font-size: 0.92rem;
-  line-height: 1.3;
+  font-size: 0.84rem;
+  line-height: 1.42;
   word-break: break-word;
-  font-family: 'Comic Neue', 'Comic Sans MS', 'Pretendard', sans-serif;
+  font-family: var(--cc-comic-font);
+  letter-spacing: -0.01em;
+}
+
+.cc-bubble-compact .cc-bubble-text {
+  font-size: 0.78rem;
+  line-height: 1.38;
+}
+
+/* 좌·우·상단 패널 테두리와 말풍선 결합 (만화 칸 관례) */
+.cc-actor-left .cc-bubble-attach-left {
+  align-self: flex-start;
+  margin-left: calc(-1 * var(--cc-stage-pad-x));
+  padding-left: calc(9px + var(--cc-stage-pad-x));
+  border-left: none;
+  border-top-left-radius: 2px;
+  border-bottom-left-radius: 2px;
+  max-width: calc(100% + var(--cc-stage-pad-x)) !important;
+}
+
+.cc-actor-right .cc-bubble-attach-right {
+  align-self: flex-end;
+  margin-right: calc(-1 * var(--cc-stage-pad-x));
+  padding-right: calc(9px + var(--cc-stage-pad-x));
+  border-right: none;
+  border-top-right-radius: 2px;
+  border-bottom-right-radius: 2px;
+  max-width: calc(100% + var(--cc-stage-pad-x)) !important;
+}
+
+.cc-actor-center .cc-bubble-attach-left,
+.cc-actor-center .cc-bubble-attach-right {
+  margin-left: 0;
+  margin-right: 0;
+  padding-left: 9px;
+  padding-right: 9px;
+  border-left: 2px solid var(--cc-ink);
+  border-right: 2px solid var(--cc-ink);
+}
+
+.cc-actor-row-0 .cc-bubble-attach-top {
+  margin-top: calc(-1 * var(--cc-stage-pad-top));
+  padding-top: calc(6px + var(--cc-stage-pad-top));
+  border-top: none;
+  border-top-left-radius: 2px;
+  border-top-right-radius: 2px;
+}
+
+.cc-bubble-attach-top.cc-bubble-attach-left {
+  border-top-left-radius: 0;
+}
+
+.cc-bubble-attach-top.cc-bubble-attach-right {
+  border-top-right-radius: 0;
 }
 
 .cc-bubble-tail {
