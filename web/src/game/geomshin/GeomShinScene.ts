@@ -200,13 +200,16 @@ export class GeomShinScene extends Phaser.Scene {
     this.input.on(
       'wheel',
       (
-        _p: Phaser.Input.Pointer,
+        pointer: Phaser.Input.Pointer,
         _g: Phaser.GameObjects.GameObject[],
         _dx: number,
         dy: number,
+        _dz: number,
+        event: WheelEvent,
       ) => {
+        const screen = this.screenFromPointer(pointer, event);
         const z = this.clampZoom(this.cameras.main.zoom * (dy > 0 ? 0.9 : 1.1));
-        this.zoomAtScreen(_p.x, _p.y, z);
+        this.zoomAtScreen(screen.x, screen.y, z);
       },
     );
 
@@ -264,8 +267,7 @@ export class GeomShinScene extends Phaser.Scene {
     if (!pair) return;
     const midX = (pair[0].x + pair[1].x) / 2;
     const midY = (pair[0].y + pair[1].y) / 2;
-    const cam = this.cameras.main;
-    const world = cam.getWorldPoint(midX, midY);
+    const world = this.worldUnderScreen(midX, midY);
     this.pinchWorldX = world.x;
     this.pinchWorldY = world.y;
     this.pinchStartDist = Phaser.Math.Distance.Between(
@@ -288,9 +290,35 @@ export class GeomShinScene extends Phaser.Scene {
     this.zoomWorldToScreen(midX, midY, this.pinchWorldX, this.pinchWorldY, z);
   }
 
+  /** 휠/포인터 → 게임 화면 좌표 (캔버스 CSS 스케일 보정) */
+  private screenFromPointer(pointer: Phaser.Input.Pointer, event?: WheelEvent) {
+    if (event && Number.isFinite(event.clientX) && Number.isFinite(event.clientY)) {
+      const rect = this.game.canvas.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        return {
+          x: ((event.clientX - rect.left) / rect.width) * this.scale.width,
+          y: ((event.clientY - rect.top) / rect.height) * this.scale.height,
+        };
+      }
+    }
+    return { x: pointer.x, y: pointer.y };
+  }
+
+  /** 화면 (sx,sy) 아래 월드 좌표 — 카메라 행렬 갱신 전에도 정확한 수식 */
+  private worldUnderScreen(sx: number, sy: number) {
+    const cam = this.cameras.main;
+    const z = cam.zoom || 1;
+    const hw = cam.width * 0.5;
+    const hh = cam.height * 0.5;
+    return {
+      x: cam.scrollX + hw + (sx - hw) / z,
+      y: cam.scrollY + hh + (sy - hh) / z,
+    };
+  }
+
   /**
    * 화면 (sx,sy)에 월드 (wx,wy)가 오도록 줌.
-   * bounds 클램프가 기준점을 밀어내지 않게 잠시 bounds 해제.
+   * setZoom 직후 getWorldPoint 행렬이 옛값일 수 있어 scroll을 수식으로 고정.
    */
   private zoomWorldToScreen(sx: number, sy: number, wx: number, wy: number, zoom: number) {
     const cam = this.cameras.main;
@@ -298,6 +326,8 @@ export class GeomShinScene extends Phaser.Scene {
     const mapW = GRID_W * CELL_PX;
     const mapH = GRID_H * CELL_PX;
     const minZ = this.minZoom();
+    const hw = cam.width * 0.5;
+    const hh = cam.height * 0.5;
 
     cam.useBounds = false;
     cam.setZoom(z);
@@ -305,9 +335,10 @@ export class GeomShinScene extends Phaser.Scene {
     if (z <= minZ * 1.001) {
       cam.centerOn(mapW / 2, mapH / 2);
     } else {
-      const after = cam.getWorldPoint(sx, sy);
-      cam.scrollX += wx - after.x;
-      cam.scrollY += wy - after.y;
+      // 보던 지점(wx,wy)이 커서/중점(sx,sy)에 그대로 남도록
+      cam.scrollX = wx - hw - (sx - hw) / z;
+      cam.scrollY = wy - hh - (sy - hh) / z;
+      this.clampScrollInsideMap();
     }
 
     cam.useBounds = true;
@@ -315,14 +346,35 @@ export class GeomShinScene extends Phaser.Scene {
     this.emitView(false);
   }
 
+  /** bounds 재적용 전, 맵 밖으로 안 나가게 midPoint만 클램프 */
+  private clampScrollInsideMap() {
+    const cam = this.cameras.main;
+    const z = cam.zoom || 1;
+    const mapW = GRID_W * CELL_PX;
+    const mapH = GRID_H * CELL_PX;
+    const halfViewW = (cam.width * 0.5) / z;
+    const halfViewH = (cam.height * 0.5) / z;
+    const midX = Phaser.Math.Clamp(
+      cam.scrollX + cam.width * 0.5,
+      Math.min(halfViewW, mapW - halfViewW),
+      Math.max(halfViewW, mapW - halfViewW),
+    );
+    const midY = Phaser.Math.Clamp(
+      cam.scrollY + cam.height * 0.5,
+      Math.min(halfViewH, mapH - halfViewH),
+      Math.max(halfViewH, mapH - halfViewH),
+    );
+    cam.scrollX = midX - cam.width * 0.5;
+    cam.scrollY = midY - cam.height * 0.5;
+  }
+
   /** 화면 좌표 아래 현재 월드를 고정한 채 줌 (휠용) */
   private zoomAtScreen(sx: number, sy: number, zoom: number) {
-    const cam = this.cameras.main;
-    const world = cam.getWorldPoint(sx, sy);
+    const world = this.worldUnderScreen(sx, sy);
     this.zoomWorldToScreen(sx, sy, world.x, world.y, zoom);
   }
 
-  /** HUD 등에서 호출 — 화면 중앙 기준 줌 */
+  /** HUD +/− — 지금 보고 있는 화면 중앙을 기점으로 줌 */
   adjustZoom(factor: number) {
     const cam = this.cameras.main;
     const z = this.clampZoom(cam.zoom * factor);

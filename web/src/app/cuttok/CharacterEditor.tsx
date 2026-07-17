@@ -1,37 +1,10 @@
 'use client';
 
-import {
-  ACCESSORIES,
-  BODIES,
-  HAIRS,
-  type Accessory,
-  type BodyShape,
-  type CharLook,
-  type Hair,
-} from '@/lib/comicchat/types';
+import { useRef, useState } from 'react';
+import { compressPortrait } from '@/lib/comicchat/photoCompress';
+import { BUILTIN_PACK_IDS } from '@/lib/comicchat/packRegistry';
+import { CHARACTERS, type CharLook } from '@/lib/comicchat/types';
 import ComicAvatar from './ComicAvatar';
-
-const HAIR_LABEL: Record<Hair, string> = {
-  none: '민머리',
-  bob: '단발',
-  spike: '스파이크',
-  ponytail: '묶음',
-  cap: '모자',
-};
-
-const ACC_LABEL: Record<Accessory, string> = {
-  none: '없음',
-  glasses: '안경',
-  scarf: '스카프',
-  star: '별',
-  bow: '리본',
-};
-
-const BODY_LABEL: Record<BodyShape, string> = {
-  round: '둥글',
-  tall: '키큼',
-  wide: '통통',
-};
 
 type Props = {
   look: CharLook;
@@ -39,8 +12,39 @@ type Props = {
 };
 
 export default function CharacterEditor({ look, onChange }: Props) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoErr, setPhotoErr] = useState('');
+
   const set = <K extends keyof CharLook>(key: K, value: CharLook[K]) => {
     onChange({ ...look, [key]: value });
+  };
+
+  const pickPack = (packId: string) => {
+    setPhotoErr('');
+    onChange({
+      name: look.name,
+      packId,
+    });
+  };
+
+  const onPhotoPick = async (file: File | undefined) => {
+    if (!file) return;
+    setPhotoBusy(true);
+    setPhotoErr('');
+    try {
+      const photoUrl = await compressPortrait(file);
+      onChange({
+        name: look.name,
+        packId: 'photo',
+        photoUrl,
+      });
+    } catch (e) {
+      setPhotoErr(e instanceof Error ? e.message : '사진 처리 실패');
+    } finally {
+      setPhotoBusy(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
   };
 
   return (
@@ -57,63 +61,55 @@ export default function CharacterEditor({ look, onChange }: Props) {
         </label>
       </div>
 
-      <label className="cc-field">
-        색상 {look.hue}°
-        <input
-          type="range"
-          min={0}
-          max={360}
-          value={look.hue}
-          onChange={(e) => set('hue', Number(e.target.value))}
-        />
-      </label>
-
       <div className="cc-editor-row">
-        <span>머리</span>
+        <span>캐릭터 팩</span>
         <div className="cc-chip-row">
-          {HAIRS.map((h) => (
+          {CHARACTERS.map((c) => (
             <button
-              key={h}
+              key={c.id}
               type="button"
-              className={`cc-wheel-btn${look.hair === h ? ' active' : ''}`}
-              onClick={() => set('hair', h)}
+              className={`cc-wheel-btn${look.packId === c.packId && look.packId !== 'photo' ? ' active' : ''}`}
+              onClick={() => pickPack(c.packId)}
             >
-              {HAIR_LABEL[h]}
+              {c.name}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="cc-editor-row">
-        <span>액세서리</span>
+      <div className="cc-editor-row cc-editor-photo">
+        <span>실사 사진</span>
         <div className="cc-chip-row">
-          {ACCESSORIES.map((a) => (
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/*"
+            hidden
+            onChange={(e) => onPhotoPick(e.target.files?.[0])}
+          />
+          <button
+            type="button"
+            className={`cc-wheel-btn${look.packId === 'photo' ? ' active' : ''}`}
+            disabled={photoBusy}
+            onClick={() => fileRef.current?.click()}
+          >
+            {photoBusy ? '처리 중…' : '사진 업로드'}
+          </button>
+          {look.packId === 'photo' && look.photoUrl ? (
             <button
-              key={a}
               type="button"
-              className={`cc-wheel-btn${look.accessory === a ? ' active' : ''}`}
-              onClick={() => set('accessory', a)}
+              className="cc-wheel-btn"
+              onClick={() => pickPack(BUILTIN_PACK_IDS[0])}
             >
-              {ACC_LABEL[a]}
+              팩으로 되돌리기
             </button>
-          ))}
+          ) : null}
         </div>
-      </div>
-
-      <div className="cc-editor-row">
-        <span>체형</span>
-        <div className="cc-chip-row">
-          {BODIES.map((b) => (
-            <button
-              key={b}
-              type="button"
-              className={`cc-wheel-btn${look.body === b ? ' active' : ''}`}
-              onClick={() => set('body', b)}
-            >
-              {BODY_LABEL[b]}
-            </button>
-          ))}
-        </div>
+        <p className="cc-editor-hint">
+          멋진 실사 초상도 가능합니다. 입장 시 1회만 전송되며, 좌우는 자동으로 마주보도록
+          뒤집습니다.
+        </p>
+        {photoErr ? <p className="cc-editor-error">{photoErr}</p> : null}
       </div>
     </div>
   );

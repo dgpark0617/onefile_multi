@@ -115,18 +115,20 @@ export const BODIES = ['round', 'tall', 'wide'] as const;
 export type BodyShape = (typeof BODIES)[number];
 
 export type CharLook = {
-  hue: number;
-  hair: Hair;
-  accessory: Accessory;
-  body: BodyShape;
   name: string;
+  /** sprite 팩 id (ink/brush/…) 또는 photo */
+  packId: string;
+  /** packId=photo 일 때 data URL / https */
+  photoUrl?: string;
+  /** @deprecated v1 커스텀 SVG — 마이그레이션용 */
+  hue?: number;
+  hair?: Hair;
+  accessory?: Accessory;
+  body?: BodyShape;
 };
 
 export const DEFAULT_LOOK: CharLook = {
-  hue: 210,
-  hair: 'bob',
-  accessory: 'none',
-  body: 'round',
+  packId: 'ink',
   name: '커스텀',
 };
 
@@ -134,34 +136,22 @@ export const CHARACTERS = [
   {
     id: 'ink',
     name: '잉크',
-    hue: 210,
-    hair: 'none' as Hair,
-    accessory: 'none' as Accessory,
-    body: 'round' as BodyShape,
+    packId: 'ink',
   },
   {
     id: 'brush',
     name: '붓',
-    hue: 28,
-    hair: 'spike' as Hair,
-    accessory: 'none' as Accessory,
-    body: 'tall' as BodyShape,
+    packId: 'brush',
   },
   {
     id: 'dot',
     name: '점',
-    hue: 320,
-    hair: 'bob' as Hair,
-    accessory: 'bow' as Accessory,
-    body: 'round' as BodyShape,
+    packId: 'dot',
   },
   {
     id: 'frame',
     name: '칸',
-    hue: 150,
-    hair: 'cap' as Hair,
-    accessory: 'glasses' as Accessory,
-    body: 'wide' as BodyShape,
+    packId: 'frame',
   },
 ] as const;
 
@@ -171,10 +161,7 @@ export type CharacterId = PresetCharacterId | 'custom';
 export function lookFromPreset(id: PresetCharacterId): CharLook {
   const c = CHARACTERS.find((x) => x.id === id) ?? CHARACTERS[0];
   return {
-    hue: c.hue,
-    hair: c.hair,
-    accessory: c.accessory,
-    body: c.body,
+    packId: c.packId,
     name: c.name,
   };
 }
@@ -226,4 +213,5 @@ export type WireMsg =
 export const MAX_PANEL_ACTORS = 5;
 export const MAX_PANELS = 24;
 export const PEER_PREFIX = 'cuttok-';
-export const LOOK_STORAGE_KEY = 'cuttok-char-look-v1';
+export const LOOK_STORAGE_KEY = 'cuttok-char-look-v2';
+export const PHOTO_STORAGE_KEY = 'cuttok-char-photo-v1';

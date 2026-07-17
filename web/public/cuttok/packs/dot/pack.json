@@ -1,0 +1,29 @@
+{
+  "id": "dot",
+  "name": "점",
+  "version": 1,
+  "facing": "right",
+  "flipForLeft": true,
+  "kind": "sprite",
+  "fallback": "idle.svg",
+  "frames": {
+    "idle": "idle.svg",
+    "neutral": "neutral.svg",
+    "happy": "happy.svg",
+    "laugh": "laugh.svg",
+    "angry": "angry.svg",
+    "sad": "sad.svg",
+    "surprise": "surprise.svg",
+    "shy": "shy.svg",
+    "cool": "cool.svg",
+    "love": "love.svg",
+    "think": "think.svg",
+    "wave": "wave.svg",
+    "shrug": "shrug.svg",
+    "fist": "fist.svg",
+    "facepalm": "facepalm.svg",
+    "heart": "heart.svg",
+    "point": "point.svg",
+    "cheer": "cheer.svg"
+  }
+}

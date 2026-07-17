@@ -17,13 +17,15 @@
   "scripts": {
     "patch-invite": "node scripts/patch-invite-qr.mjs",
     "sync-games": "node scripts/sync-games.mjs",
-    "predev": "npm run patch-invite && npm run sync-games",
-    "prebuild": "npm run patch-invite && npm run sync-games",
+    "predev": "npm run patch-invite && npm run sync-games && npm run gen:cuttok-packs",
+    "prebuild": "npm run patch-invite && npm run sync-games && npm run gen:cuttok-packs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "test:geomshin": "npx --yes tsx --test src/lib/geomshin/*.test.ts",
+    "gen:cuttok-packs": "node scripts/gen-cuttok-packs.mjs",
+    "test:cuttok": "npx --yes tsx --test src/lib/comicchat/*.test.ts",
     "test:cuttok-kb": "npx --yes tsx --test src/lib/comicchat/keyboardChrome.test.ts",
     "verify:cuttok-ios-kb": "node scripts/verify-cuttok-ios-kb.mjs"
   },
