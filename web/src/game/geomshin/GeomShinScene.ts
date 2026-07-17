@@ -276,7 +276,7 @@ export class GeomShinScene extends Phaser.Scene {
       pair[1].x,
       pair[1].y,
     );
-    this.pinchStartZoom = cam.zoom;
+    this.pinchStartZoom = this.cameras.main.zoom;
   }
 
   private updatePinch() {

@@ -68,7 +68,7 @@ export default function CharacterEditor({ look, onChange }: Props) {
             <button
               key={c.id}
               type="button"
-              className={`cc-wheel-btn${look.packId === c.packId && look.packId !== 'photo' ? ' active' : ''}`}
+              className={`cc-wheel-btn${look.packId === c.packId ? ' active' : ''}`}
               onClick={() => pickPack(c.packId)}
             >
               {c.name}
