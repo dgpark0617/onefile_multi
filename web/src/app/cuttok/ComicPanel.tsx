@@ -2,7 +2,11 @@
 
 import { useMemo } from 'react';
 import type { CSSProperties } from 'react';
-import type { BubbleType, ComicPanelModel } from '@/lib/comicchat/types';
+import {
+  framingFromShot,
+  type BubbleType,
+  type ComicPanelModel,
+} from '@/lib/comicchat/types';
 import { panelZoom, placeActors } from '@/lib/comicchat/placeActors';
 import ComicAvatar from './ComicAvatar';
 
@@ -16,17 +20,18 @@ function bubbleClass(t: BubbleType): string {
   return 'cc-bubble cc-bubble-speech';
 }
 
-/** 모바일·PC 동일 구도. 인원 수에 따른 크기만 조정. */
-function avatarSize(n: number): number {
-  if (n >= 4) return 48;
-  if (n >= 3) return 56;
-  if (n === 2) return 70;
-  return 84;
+/** 모바일·PC 동일 구도. 인원·프레이밍에 따른 크기. */
+function avatarSize(n: number, framing: string): number {
+  const base = n >= 4 ? 52 : n >= 3 ? 64 : n === 2 ? 78 : 96;
+  if (framing === 'full') return Math.round(base * 1.15);
+  if (framing === 'close') return Math.round(base * 1.05);
+  return base;
 }
 
 export default function ComicPanel({ panel }: Props) {
   const n = panel.lines.length;
-  const size = avatarSize(n);
+  const framing = framingFromShot(panel.shot);
+  const size = avatarSize(n, framing);
   const layouts = useMemo(() => placeActors(panel.lines), [panel.lines]);
   const layoutById = useMemo(
     () => new Map(layouts.map((l) => [l.lineId, l])),
@@ -39,17 +44,20 @@ export default function ComicPanel({ panel }: Props) {
 
   return (
     <article
-      className={`cc-panel cc-bg-${panel.bg} cc-shot-${panel.shot} cc-actors-${n}`}
+      className={`cc-panel cc-bg-${panel.bg} cc-shot-${panel.shot} cc-framing-${framing} cc-actors-${n}`}
       style={panelStyle}
     >
       <div className="cc-panel-bg" aria-hidden />
       <div className="cc-panel-stage">
         {panel.lines.map((line) => {
           const layout = layoutById.get(line.id);
-          const side = layout?.side ?? (panel.lines.indexOf(line) % 2 === 0 ? 'left' : 'right');
+          const side =
+            layout?.side ?? (panel.lines.indexOf(line) % 2 === 0 ? 'left' : 'right');
           const actorStyle: CSSProperties = {
             zIndex: layout?.zIndex,
-            transform: layout?.translateY ? `translateY(${layout.translateY}px)` : undefined,
+            transform: layout?.translateY
+              ? `translateY(${layout.translateY}px)`
+              : undefined,
           };
 
           return (
@@ -72,7 +80,7 @@ export default function ComicPanel({ panel }: Props) {
                   pose={line.pose}
                   nick={line.nick}
                   size={size}
-                  fullBody
+                  framing={framing}
                   facing={layout?.facing ?? (side === 'right' ? 'left' : 'right')}
                 />
                 <span className="cc-actor-name">{line.nick}</span>

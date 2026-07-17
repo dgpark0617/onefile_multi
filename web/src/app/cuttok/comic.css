@@ -640,10 +640,14 @@
   position: relative;
   border: 3px solid var(--cc-rule);
   background: var(--cc-panel);
-  min-height: 200px;
+  min-height: 240px;
   overflow: hidden;
   box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.25);
   --cc-panel-zoom: 1;
+}
+
+.cc-framing-full.cc-panel {
+  min-height: 280px;
 }
 
 .cc-panel-bg {
@@ -1067,6 +1071,37 @@
   user-select: none;
   pointer-events: none;
   image-rendering: auto;
+}
+
+/* Comic Chat식 프레이밍 — 전신 PNG를 잘라 상반신/클로즈업 */
+.cc-framing-full .cc-avatar-sprite {
+  object-fit: contain;
+  object-position: center bottom;
+}
+
+.cc-framing-bust {
+  overflow: hidden;
+}
+
+.cc-framing-bust .cc-avatar-sprite {
+  object-fit: cover;
+  object-position: center 8%;
+  height: 165%;
+  width: 100%;
+  max-width: none;
+}
+
+.cc-framing-close {
+  overflow: hidden;
+}
+
+.cc-framing-close .cc-avatar-sprite {
+  object-fit: cover;
+  object-position: center 0%;
+  height: 220%;
+  width: 115%;
+  max-width: none;
+  margin-left: -7.5%;
 }
 
 .cc-avatar-flip {

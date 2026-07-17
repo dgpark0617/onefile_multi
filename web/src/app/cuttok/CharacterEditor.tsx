@@ -50,7 +50,7 @@ export default function CharacterEditor({ look, onChange }: Props) {
   return (
     <div className="cc-editor">
       <div className="cc-editor-preview">
-        <ComicAvatar look={look} emotion="happy" pose="wave" nick={look.name} size={96} />
+        <ComicAvatar look={look} emotion="happy" pose="wave" nick={look.name} size={96} framing="bust" />
         <label className="cc-field">
           이름
           <input

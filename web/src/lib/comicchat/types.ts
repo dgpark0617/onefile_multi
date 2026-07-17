@@ -105,6 +105,17 @@ export const BG_LABEL: Record<BgId, string> = {
 export const SHOTS = ['close', 'medium', 'wide', 'low', 'high'] as const;
 export type Shot = (typeof SHOTS)[number];
 
+/** Comic Chat 줌에 대응하는 프레이밍 — 전신 스프라이트를 잘라 씀 */
+export const FRAMINGS = ['full', 'bust', 'close'] as const;
+export type Framing = (typeof FRAMINGS)[number];
+
+export function framingFromShot(shot: Shot): Framing {
+  if (shot === 'close') return 'close';
+  if (shot === 'wide' || shot === 'low') return 'full';
+  // medium / high → 상반신(가슴 아래까지)
+  return 'bust';
+}
+
 export const HAIRS = ['none', 'bob', 'spike', 'ponytail', 'cap'] as const;
 export type Hair = (typeof HAIRS)[number];
 
@@ -135,22 +146,22 @@ export const DEFAULT_LOOK: CharLook = {
 export const CHARACTERS = [
   {
     id: 'ink',
-    name: '아라넬',
+    name: '쿠데레·교복',
     packId: 'ink',
   },
   {
     id: 'brush',
-    name: '아웨나',
+    name: '쿠데레·캐주얼',
     packId: 'brush',
   },
   {
     id: 'dot',
-    name: '비비안',
+    name: '쿠데레·드레스',
     packId: 'dot',
   },
   {
     id: 'frame',
-    name: '아웨나·과거',
+    name: '쿠데레·자켓',
     packId: 'frame',
   },
 ] as const;

@@ -1,13 +1,18 @@
 {
   "id": "brush",
-  "name": "아웨나",
-  "version": 2,
+  "name": "쿠데레·캐주얼",
+  "version": 3,
   "facing": "right",
   "flipForLeft": true,
   "kind": "sprite",
+  "body": "full",
+  "aspect": [
+    360,
+    700
+  ],
   "external": true,
-  "credit": "eysselia — headmugshot packs (OpenGameArt). Free use; credit optional.",
-  "source": "https://opengameart.org/content/headmugshot-packs-chibi-emotions",
+  "credit": "LisadiKaprio — Kuudere Visual Novel Sprite (OpenGameArt).",
+  "source": "https://opengameart.org/content/kuudere-visual-novel-sprite",
   "fallback": "idle.png",
   "frames": {
     "idle": "idle.png",
