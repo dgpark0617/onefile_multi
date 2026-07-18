@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>코지월드 3D</title>
+  <link rel="stylesheet" href="../src/ui/lobby.css" />
+</head>
+<body>
+  <div id="lobby">
+    <h1>🌸 코지월드 3D</h1>
+    <p class="sub">파스텔 오픈월드 · 초대코드 멀티 · 위치 동기화</p>
+    <div class="hint">
+      솔로로 바로 놀거나, 방을 만들어 친구코드를 공유하세요.<br />
+      같은 WiFi/네트워크에서 PeerJS로 만나요.
+    </div>
+
+    <div class="mode-block">
+      <h2>솔로</h2>
+      <p>혼자 산책</p>
+      <button class="btn-green" id="btnSolo" type="button">시작하기</button>
+    </div>
+
+    <div class="mode-block">
+      <h2>멀티 — 방장</h2>
+      <p>6자 초대코드 생성</p>
+      <button class="btn-primary" id="btnHost" type="button">방 만들기</button>
+      <div id="roomBox" class="hidden" style="margin-top:10px">
+        <div>코드: <strong id="roomCodeText">-</strong></div>
+        <a id="inviteLink" href="#" target="_blank" rel="noopener"></a>
+        <div class="btn-row" style="margin-top:8px">
+          <button class="btn-ghost" id="btnCopyCode" type="button">코드 복사</button>
+          <button class="btn-ghost" id="btnCopyLink" type="button">링크 복사</button>
+        </div>
+        <ul id="rosterList"></ul>
+      </div>
+    </div>
+
+    <div class="mode-block">
+      <h2>멀티 — 참가</h2>
+      <p>초대코드 입력</p>
+      <input id="joinCodeInput" placeholder="예: a3k9mx" autocomplete="off" />
+      <input id="roomInput" class="hidden" />
+      <button class="btn-primary" id="btnJoin" type="button">입장</button>
+      <div id="waitingBox" class="hidden" style="margin-top:8px">연결 대기 중…</div>
+    </div>
+
+    <div id="log"></div>
+  </div>
+
+  <div id="gameShell" class="hidden">
+    <div id="gameMount"></div>
+    <button type="button" id="backBtn" class="btn-ghost">← 로비</button>
+    <div id="hint">왼쪽 패드로 이동 · 드래그로 카메라 · 휠/핀치 줌</div>
+    <div id="netBadge"></div>
+    <div id="minimapWrap"><canvas id="minimap"></canvas></div>
+    <div id="joyPad"><div id="joyKnob"></div></div>
+    <div id="camHint">드래그: 카메라<br>스크롤: 줌</div>
+    <button id="settingsBtn" type="button">🎨</button>
+    <div id="settingsPanel">
+      <h3>색감 설정</h3>
+      <div class="setRow">
+        <label><span>채도</span><span id="satVal">125%</span></label>
+        <input type="range" id="satSlider" min="30" max="220" value="125" />
+      </div>
+      <div class="setRow">
+        <label><span>밝기</span><span id="briVal">100%</span></label>
+        <input type="range" id="briSlider" min="60" max="150" value="100" />
+      </div>
+      <div class="setRow">
+        <label><span>대비</span><span id="conVal">112%</span></label>
+        <input type="range" id="conSlider" min="60" max="150" value="112" />
+      </div>
+      <div class="setRow">
+        <label><span>톤 노출</span><span id="expVal">1.0</span></label>
+        <input type="range" id="expSlider" min="60" max="180" value="100" />
+      </div>
+      <button id="resetBtn" type="button">기본값으로 초기화</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="/dist/dev.bundle.js"></script>
+</body>
+</html>
