@@ -38,7 +38,7 @@ const html = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>코지월드 3D</title>
+  <title>말씀으로 이루어진 세상</title>
   <style>${css}</style>
 </head>
 <body>

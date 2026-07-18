@@ -1,10 +1,10 @@
 [
   {
     "slug": "cozy-world",
-    "title": "코지월드 3D",
-    "subtitle": "파스텔 오픈월드 · 초대코드 멀티 · Three.js",
+    "title": "말씀으로 이루어진 세상",
+    "subtitle": "주일학교 오픈월드 · 초대코드 멀티 · Three.js",
     "category": "arcade",
-    "tags": ["코지", "3D", "멀티", "PeerJS"],
+    "tags": ["말씀", "주일학교", "3D", "멀티", "PeerJS"],
     "source": "onefile_multi_cozy_world/onefile_multi_cozy_world.html",
     "downloadName": "cozy_world_3d.html",
     "featured": true

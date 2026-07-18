@@ -8,8 +8,8 @@ const FACE_H = 0.55;
 const FACE_Y = 1.35;
 const FACE_Z = 0.42;
 
-/** 파스텔 기본 얼굴 (이미지 없을 때) */
-export function makePlaceholderFaceDataUrl(label = "🌸", bg = "#f7c9d6") {
+/** 파스텔 기본 얼굴 (이모지 / 이미지 없을 때) */
+export function makePlaceholderFaceDataUrl(label = "🙂", bg = "#f7c9d6") {
   const c = document.createElement("canvas");
   c.width = 128;
   c.height = 128;
@@ -22,12 +22,58 @@ export function makePlaceholderFaceDataUrl(label = "🌸", bg = "#f7c9d6") {
   ctx.beginPath();
   ctx.arc(48, 48, 18, 0, Math.PI * 2);
   ctx.fill();
-  ctx.font = "48px serif";
+  ctx.font = '56px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(label, 64, 70);
   return c.toDataURL("image/png");
 }
+
+/** 캐릭터별 기본 이모지 얼굴 (사진 없을 때) */
+export const CHAR_FACE_EMOJI = {
+  woojin: { emoji: "⚽", bg: "#d4ecc8" },
+  gahyun: { emoji: "🎨", bg: "#f7c9d6" },
+  youngsun: { emoji: "✈️", bg: "#c9e4f5" },
+  taemi: { emoji: "🏕️", bg: "#f5e0c0" },
+  nammun: { emoji: "💐", bg: "#f0d4e8" },
+  jongmyo: { emoji: "🧥", bg: "#c9e4f5" },
+  player: { emoji: "🙂", bg: "#f5e0c0" },
+  elijah: { emoji: "🧔", bg: "#e8d0a8" },
+  angel: { emoji: "🕊️", bg: "#fff4dc" },
+  hazael: { emoji: "👑", bg: "#c8d4dc" },
+  jehu: { emoji: "⚔️", bg: "#e8c8b8" },
+  elisha: { emoji: "🐂", bg: "#d8e8c8" },
+};
+
+const _faceUrlCache = Object.create(null);
+
+/** @param {keyof typeof CHAR_FACE_EMOJI | string} id */
+export function getCharFaceUrl(id) {
+  const key = CHAR_FACE_EMOJI[id] ? id : "player";
+  if (_faceUrlCache[key]) return _faceUrlCache[key];
+  const conf = CHAR_FACE_EMOJI[key];
+  _faceUrlCache[key] = makePlaceholderFaceDataUrl(conf.emoji, conf.bg);
+  return _faceUrlCache[key];
+}
+
+/** 말씀 인물 — getCharFaceUrl 별칭 */
+export const STORY_FACES = {
+  get elijah() {
+    return getCharFaceUrl("elijah");
+  },
+  get angel() {
+    return getCharFaceUrl("angel");
+  },
+  get hazael() {
+    return getCharFaceUrl("hazael");
+  },
+  get jehu() {
+    return getCharFaceUrl("jehu");
+  },
+  get elisha() {
+    return getCharFaceUrl("elisha");
+  },
+};
 
 const PLACEHOLDER_COLORS = ["#f7c9d6", "#c9e4f5", "#d4ecc8", "#f5e0c0"];
 const PLACEHOLDER_LABELS = ["🌸", "🐰", "🍀", "🍊"];
@@ -35,7 +81,7 @@ const PLACEHOLDER_LABELS = ["🌸", "🐰", "🍀", "🍊"];
 /**
  * @param {typeof THREE} THREE
  * @param {number} color body hex
- * @param {{ index?: number, imageUrl?: string|null, showFace?: boolean }} opts
+ * @param {{ index?: number, imageUrl?: string|null, showFace?: boolean, faceId?: string }} opts
  */
 export function makeCharacterMesh(THREE, color, opts = {}) {
   const index = opts.index ?? 0;
@@ -97,11 +143,15 @@ export function makeCharacterMesh(THREE, color, opts = {}) {
 
   if (showFace) {
     attachFacePlate(THREE, player);
-    const placeholder = makePlaceholderFaceDataUrl(
-      PLACEHOLDER_LABELS[index % PLACEHOLDER_LABELS.length],
-      PLACEHOLDER_COLORS[index % PLACEHOLDER_COLORS.length]
-    );
-    setCharacterImage(THREE, player, opts.imageUrl || placeholder);
+    let url = opts.imageUrl;
+    if (!url && opts.faceId) url = getCharFaceUrl(opts.faceId);
+    if (!url) {
+      url = makePlaceholderFaceDataUrl(
+        PLACEHOLDER_LABELS[index % PLACEHOLDER_LABELS.length],
+        PLACEHOLDER_COLORS[index % PLACEHOLDER_COLORS.length]
+      );
+    }
+    setCharacterImage(THREE, player, url);
   }
 
   return player;

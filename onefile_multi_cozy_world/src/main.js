@@ -18,7 +18,7 @@ function stopWorld() {
   setNetBadge("");
 }
 
-function startWorld(opts) {
+async function startWorld(opts) {
   stopWorld();
   const mount = document.getElementById("gameMount");
   if (!mount) return;

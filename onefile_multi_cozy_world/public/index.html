@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>코지월드 3D</title>
+  <title>말씀으로 이루어진 세상</title>
   <link rel="stylesheet" href="../src/ui/lobby.css" />
 </head>
 <body>
   <div id="lobby">
-    <h1>🌸 코지월드 3D</h1>
-    <p class="sub">파스텔 오픈월드 · 초대코드 멀티 · 위치 동기화</p>
+    <h1>말씀으로 이루어진 세상</h1>
+    <p class="sub">주일학교 오픈월드 · 초대코드 멀티 · 위치 동기화</p>
     <div class="hint">
       솔로로 바로 놀거나, 방을 만들어 친구코드를 공유하세요.<br />
       같은 WiFi/네트워크에서 PeerJS로 만나요.
@@ -51,7 +51,7 @@
   <div id="gameShell" class="hidden">
     <div id="gameMount"></div>
     <button type="button" id="backBtn" class="btn-ghost">← 로비</button>
-    <div id="hint">패드 이동 · 점프 · E로 집/말씀 장면 입장 · 드래그 카메라</div>
+    <div id="hint">클릭으로 마우스 잠금 · Esc 해제 · 휠클릭 시점 · 휠 줌 · E 입장</div>
     <div id="netBadge"></div>
     <div id="hudRight">
       <div id="minimapWrap"><canvas id="minimap"></canvas></div>
@@ -60,32 +60,32 @@
         <h3>디자인 설정</h3>
         <p class="setHint">색감 · 분위기 · 화면</p>
         <div class="setRow">
-          <label><span>채도</span><span id="satVal">152%</span></label>
-          <input type="range" id="satSlider" min="40" max="240" value="152" />
+          <label><span>채도</span><span id="satVal">112%</span></label>
+          <input type="range" id="satSlider" min="40" max="240" value="112" />
         </div>
         <div class="setRow">
-          <label><span>밝기</span><span id="briVal">102%</span></label>
-          <input type="range" id="briSlider" min="70" max="160" value="102" />
+          <label><span>밝기</span><span id="briVal">100%</span></label>
+          <input type="range" id="briSlider" min="70" max="160" value="100" />
         </div>
         <div class="setRow">
-          <label><span>대비</span><span id="conVal">122%</span></label>
-          <input type="range" id="conSlider" min="70" max="170" value="122" />
+          <label><span>대비</span><span id="conVal">108%</span></label>
+          <input type="range" id="conSlider" min="70" max="170" value="108" />
         </div>
         <div class="setRow">
-          <label><span>톤 노출</span><span id="expVal">1.10</span></label>
-          <input type="range" id="expSlider" min="70" max="180" value="110" />
+          <label><span>톤 노출</span><span id="expVal">1.04</span></label>
+          <input type="range" id="expSlider" min="70" max="180" value="104" />
         </div>
         <div class="setRow">
-          <label><span>따뜻함</span><span id="warmVal">+6°</span></label>
-          <input type="range" id="warmSlider" min="-30" max="40" value="6" />
+          <label><span>따뜻함</span><span id="warmVal">+4°</span></label>
+          <input type="range" id="warmSlider" min="-30" max="40" value="4" />
         </div>
         <div class="setRow">
-          <label><span>지평선</span><span id="fogVal">보통</span></label>
-          <input type="range" id="fogSlider" min="0" max="100" value="42" />
+          <label><span>지평선</span><span id="fogVal">끔</span></label>
+          <input type="range" id="fogSlider" min="0" max="100" value="0" disabled title="지평선 안개 비활성" />
         </div>
         <div class="setRow">
-          <label><span>꽃잎</span><span id="petalVal">58%</span></label>
-          <input type="range" id="petalSlider" min="0" max="100" value="58" />
+          <label><span>꽃잎</span><span id="petalVal">48%</span></label>
+          <input type="range" id="petalSlider" min="0" max="100" value="48" />
         </div>
         <div class="setRow setRowCheck">
           <label><span>그림자</span><small style="opacity:.7">느려질 수 있음</small></label>
@@ -102,7 +102,7 @@
       <div id="joyPad"><div id="joyKnob"></div></div>
       <button type="button" id="jumpBtn" aria-label="점프">⬆</button>
     </div>
-    <div id="camHint">드래그·줌 자유 · 우측 시점 프리셋<br>1~4 키 · 스페이스 점프 · E 입장</div>
+    <div id="camHint">클릭 잠금 · 마우스 시선 · 휠클릭 시점 · 휠 줌<br>1~4 시점 · 스페이스 점프 · E 입장</div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
