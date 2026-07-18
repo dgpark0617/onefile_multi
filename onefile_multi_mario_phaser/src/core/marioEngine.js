@@ -3018,6 +3018,8 @@ let overworldPlatforms = [
         this.lastKnownInputs = {};
         this.inputWaitStartedAt = 0;
         this.pendingGuestInput = null;
+        this.frameQueue = {};
+        this._lastGuestSendSig = '';
         this.lastFrameT = 0;
         this.disconnectedPlayers = new Set();
         this.rafId = 0;
@@ -3049,6 +3051,8 @@ let overworldPlatforms = [
         this.lastKnownInputs = {};
         this.inputWaitStartedAt = 0;
         this.pendingGuestInput = null;
+        this.frameQueue = {};
+        this._lastGuestSendSig = '';
         this.disconnectedPlayers = new Set();
         popups.length = 0;
       }
@@ -3815,16 +3819,38 @@ let overworldPlatforms = [
           p.input.right = !!inp.r;
           p.input.jumpHeld = !!inp.jh;
           p.input.downHeld = !!inp.dh;
-          if (inp.j) p.input.jumpPressed = true;
-          if (inp.d) p.input.downPressed = true;
+          // 서브스텝마다 OR하지 않고 스냅샷 그대로 (점프 3연타 소모 방지)
+          p.input.jumpPressed = !!inp.j;
+          p.input.downPressed = !!inp.d;
         }
+      }
+
+      /** 물리 서브스텝용 — held만 유지, jump/down 엣지 제거 */
+      stripEdgeInputs(inputs) {
+        const out = {};
+        for (const key of Object.keys(inputs)) {
+          const inp = inputs[key];
+          out[key] = { l: inp.l, r: inp.r, j: 0, jh: inp.jh, d: 0, dh: inp.dh };
+        }
+        return out;
       }
 
       storeInput(tick, playerIndex, inp) {
         if (tick < this.simTick) return;
         if (!this.inputBuffer[tick]) this.inputBuffer[tick] = {};
-        this.inputBuffer[tick][playerIndex] = inp;
-        this.lastKnownInputs[playerIndex] = inp;
+        const existing = this.inputBuffer[tick][playerIndex];
+        if (!existing) {
+          this.inputBuffer[tick][playerIndex] = { ...inp };
+        } else {
+          // 같은 tick 재전송: 방향은 최신, 점프/↓ 엣지는 OR
+          existing.l = inp.l ? 1 : 0;
+          existing.r = inp.r ? 1 : 0;
+          existing.jh = inp.jh ? 1 : 0;
+          existing.dh = inp.dh ? 1 : 0;
+          if (inp.j) existing.j = 1;
+          if (inp.d) existing.d = 1;
+        }
+        this.lastKnownInputs[playerIndex] = this.inputBuffer[tick][playerIndex];
       }
 
       idleInput() {
@@ -3902,13 +3928,16 @@ let overworldPlatforms = [
 
       applyFrame(tick, inputs) {
         if (tick !== this.simTick || this.gameOver) return;
-        for (let s = 0; s < this.substeps(); s++) {
-          this.simulateTick(inputs);
+        const n = this.substeps();
+        const heldOnly = n > 1 ? this.stripEdgeInputs(inputs) : null;
+        for (let s = 0; s < n; s++) {
+          this.simulateTick(s === 0 ? inputs : heldOnly);
         }
         this.simTick++;
         this.predAccumulator = 0;
         this.inputWaitStartedAt = 0;
         delete this.inputBuffer[tick];
+        if (this.frameQueue) delete this.frameQueue[tick];
       }
 
       sealFrame(tick) {
@@ -3918,6 +3947,45 @@ let overworldPlatforms = [
           netBroadcastGame({ type: 'FRAME', proto: 2, tick, inputs });
         }
         this.applyFrame(tick, inputs);
+      }
+
+      /** 게스트: FRAME 도착 순서가 어긋나도 큐로 따라잡기 */
+      enqueueGuestFrame(tick, inputs) {
+        if (this.solo || this.isHost || this.gameOver) return;
+        if (tick < this.simTick) return;
+        if (!this.frameQueue) this.frameQueue = {};
+        this.frameQueue[tick] = inputs;
+        while (this.frameQueue[this.simTick]) {
+          const frameInputs = this.frameQueue[this.simTick];
+          delete this.frameQueue[this.simTick];
+          this.applyFrame(this.simTick, frameInputs);
+          if (this.pendingGuestInput?.tick != null && this.pendingGuestInput.tick < this.simTick) {
+            this.pendingGuestInput = null;
+          }
+        }
+      }
+
+      /** 게스트 입력: held는 매 프레임 갱신, 엣지는 tick 확정 전까지 OR */
+      captureGuestInputForTick(tick) {
+        const me = this.me();
+        if (!me) {
+          this.pendingGuestInput = { tick, input: this.idleInput() };
+          return this.pendingGuestInput.input;
+        }
+        if (!this.pendingGuestInput || this.pendingGuestInput.tick !== tick) {
+          this.pendingGuestInput = { tick, input: this.sampleLocalInput() };
+          return this.pendingGuestInput.input;
+        }
+        const existing = this.pendingGuestInput.input;
+        existing.l = me.input.left ? 1 : 0;
+        existing.r = me.input.right ? 1 : 0;
+        existing.jh = me.input.jumpHeld ? 1 : 0;
+        existing.dh = me.input.downHeld ? 1 : 0;
+        if (me.input.jumpPressed) existing.j = 1;
+        if (me.input.downPressed) existing.d = 1;
+        me.input.jumpPressed = false;
+        me.input.downPressed = false;
+        return existing;
       }
 
       runGuestPrediction(dt) {
@@ -3951,9 +4019,7 @@ let overworldPlatforms = [
       }
 
       onFrame(tick, inputs) {
-        if (this.solo || this.isHost) return;
-        this.applyFrame(tick, inputs);
-        if (this.pendingGuestInput?.tick === tick) this.pendingGuestInput = null;
+        this.enqueueGuestFrame(tick, inputs);
       }
 
       onPeerLeft(index) {
@@ -4033,19 +4099,24 @@ let overworldPlatforms = [
               this.simAccumulator -= step;
             }
           } else {
-            // 비신뢰 채널: FRAME 오기 전까지 같은 tick 스냅샷을 ~40Hz로 재전송
+            // FRAME 오기 전까지 입력을 계속 갱신·재전송 (방향키 고정 버그 방지)
             const tick = this.simTick;
-            if (!this.pendingGuestInput || this.pendingGuestInput.tick !== tick) {
-              this.pendingGuestInput = { tick, input: this.sampleLocalInput() };
-            }
-            if (!this._lastGuestSendT || t - this._lastGuestSendT >= NET_TICK_MS * 0.5) {
+            const input = this.captureGuestInputForTick(tick);
+            const sig = `${input.l}${input.r}${input.j}${input.jh}${input.d}${input.dh}`;
+            const changed = sig !== this._lastGuestSendSig;
+            if (
+              changed ||
+              !this._lastGuestSendT ||
+              t - this._lastGuestSendT >= 16
+            ) {
               WwNetRef.sendGame({
                 type: 'INP',
                 proto: 2,
                 tick,
-                input: this.pendingGuestInput.input,
+                input,
               });
               this._lastGuestSendT = t;
+              this._lastGuestSendSig = sig;
               this.lastSentInputTick = tick;
             }
             this.simAccumulator = 0;

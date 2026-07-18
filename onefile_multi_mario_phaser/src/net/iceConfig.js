@@ -149,9 +149,13 @@ export function buildPeerOptions(iceServers, opts = {}) {
   };
 }
 
-/** 게임 채널: UDP식 — 유실 허용 */
+/**
+ * 게임 채널: 신뢰 전송.
+ * 비신뢰(UDP식)면 FRAME 유실 시 게스트 simTick이 영원히  lagged →
+ * 호스트에는 P2 움직임이 "한참 뒤"로 보이거나 멈춘 것처럼 보임.
+ */
 export const GAME_CONN_OPTS = {
-  reliable: false,
+  reliable: true,
   serialization: "binary",
   label: "game",
 };

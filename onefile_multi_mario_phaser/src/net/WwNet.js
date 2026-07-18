@@ -100,6 +100,16 @@ function forEachCtrlConn(fn) {
 
 function broadcastGame(data) {
   forEachGameConn((conn) => conn.send(data));
+  // FRAME은 유실되면 락스텝이 깨지므로 제어 채널에도 백업
+  if (data?.type === "FRAME") {
+    forEachCtrlConn((conn) => {
+      try {
+        conn.send(data);
+      } catch {
+        /* ignore */
+      }
+    });
+  }
 }
 
 function broadcastCtrl(data) {
