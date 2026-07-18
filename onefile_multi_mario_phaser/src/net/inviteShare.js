@@ -1,14 +1,16 @@
 import QRCode from "qrcode";
+import { toShortRoomCode } from "./roomCode.js";
 
 export function getInviteUrl(hostPeerId) {
-  if (!hostPeerId) return location.href;
+  const code = toShortRoomCode(hostPeerId);
+  if (!code) return location.href;
   try {
     if (self !== top) {
       const parentUrl = new URL(parent.location.href);
       const playMatch = parentUrl.pathname.match(/\/play\/([^/]+)/);
       if (playMatch) {
         const u = new URL(parentUrl.origin + "/play/" + playMatch[1]);
-        u.searchParams.set("join", hostPeerId);
+        u.searchParams.set("join", code);
         return u.toString();
       }
     }
@@ -18,12 +20,12 @@ export function getInviteUrl(hostPeerId) {
   const gameMatch = location.pathname.match(/\/games\/([^/]+)\//);
   if (gameMatch) {
     const u = new URL(location.origin + "/play/" + gameMatch[1]);
-    u.searchParams.set("join", hostPeerId);
+    u.searchParams.set("join", code);
     return u.toString();
   }
   const u = new URL(location.href);
   u.search = "";
-  u.searchParams.set("join", hostPeerId);
+  u.searchParams.set("join", code);
   return u.toString();
 }
 
@@ -52,9 +54,10 @@ function setLinkEl(el, url) {
 }
 
 export function setupHost(hostPeerId, els) {
-  const url = getInviteUrl(hostPeerId);
+  const code = toShortRoomCode(hostPeerId);
+  const url = getInviteUrl(code);
   if (els?.inviteCodeEl) {
-    els.inviteCodeEl.textContent = "방 코드: " + hostPeerId;
+    els.inviteCodeEl.textContent = "방 코드: " + code;
   }
   setLinkEl(els?.inviteLinkEl, url);
   drawQr(els?.qrCanvas, url);

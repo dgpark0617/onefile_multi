@@ -2,6 +2,7 @@ import { CHARACTER_DEFS, getCharacter, MAX_PLAYERS } from "../core/marioConstant
 import { CHAR_SPRITE_URLS, preloadCharSprites } from "../assets/charSprites.js";
 import { gameSession } from "../core/gameSession.js";
 import { setupHost } from "../net/inviteShare.js";
+import { toShortRoomCode } from "../net/roomCode.js";
 import { WwNet } from "../net/WwNet.js";
 import { startBgm } from "../audio/bgm.js";
 import { setMarioGameRef } from "./marioInput.js";
@@ -9,12 +10,37 @@ import { refreshEndgameAd } from "./dummyAd.js";
 
 const IS_FILE = location.protocol === "file:";
 const CHAR_STORAGE_KEY = "mario_phaser_char";
+const LAN_STORAGE_KEY = "mario_phaser_lan";
 
 let currentInviteUrl = "";
 let callbacks = {};
 let selectedCharId = loadSavedChar();
 
 preloadCharSprites();
+
+function loadLanMode() {
+  try {
+    const v = localStorage.getItem(LAN_STORAGE_KEY);
+    if (v === "0") return false;
+    if (v === "1") return true;
+  } catch {
+    /* ignore */
+  }
+  return true; // 기본: 같은 WiFi 빠른 연결
+}
+
+function saveLanMode(on) {
+  try {
+    localStorage.setItem(LAN_STORAGE_KEY, on ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
+
+function isLanModeChecked() {
+  const el = $("lanModeCheck");
+  return el ? !!el.checked : loadLanMode();
+}
 
 function loadSavedChar() {
   try {
@@ -116,7 +142,8 @@ function updateRosterUI(data) {
 }
 
 function showCoopWait(hostPeerId, asHost) {
-  $("roomCode").textContent = hostPeerId;
+  const code = toShortRoomCode(hostPeerId);
+  $("roomCode").textContent = code;
   $("roomBox")?.classList.remove("hidden");
   $("waitingBox")?.classList.remove("hidden");
   $("joinPanel")?.classList.add("hidden");
@@ -132,6 +159,7 @@ function showCoopWait(hostPeerId, asHost) {
   }
   updateRosterUI({ roster: WwNet.buildRoster(), playerCount: WwNet.isHost ? 1 : 0 });
   lobbyLog(asHost ? "대기실 — 친구를 초대하세요" : "대기실 입장");
+  if (WwNet.lanMode) lobbyLog("WiFi 모드: 같은 공유기에서 직접 연결 시도");
 }
 
 function hideCoopWait() {
@@ -183,16 +211,25 @@ function startSolo() {
 }
 
 function startNet(asHost) {
-  const remoteId = asHost ? "" : ($("roomInput")?.value.trim() || $("joinCodeInput")?.value.trim() || "");
+  const raw = asHost ? "" : ($("roomInput")?.value.trim() || $("joinCodeInput")?.value.trim() || "");
+  const remoteId = asHost ? "" : raw.toLowerCase().replace(/[^a-z0-9_-]/g, "");
   if (!asHost && !remoteId) {
     lobbyLog("방 코드를 입력하세요");
     return;
   }
+  if (!asHost && remoteId.length < 4) {
+    lobbyLog("방 코드 6자를 입력하세요");
+    return;
+  }
 
   WwNet.setMyCharacter(selectedCharId);
+  const lan = isLanModeChecked();
+  saveLanMode(lan);
+  lobbyLog(lan ? "WiFi 빠른 연결 모드 (같은 공유기)" : "원격 연결 모드 (TURN 허용)");
   WwNet.initPeer({
     asHost,
     remoteId,
+    lanMode: lan,
     handlers: {
       onOpen: (info) => {
         if (info.roomReady) showCoopWait(info.id, true);
@@ -204,6 +241,10 @@ function startNet(asHost) {
       onData: handleNetData,
       onClose: () => lobbyLog("연결 끊김"),
       onError: (e) => lobbyLog(e.message || `오류: ${e.type || e.message || e}`),
+      onNetStatus: () => {
+        const el = $("netStatus");
+        if (el) el.textContent = WwNet.getNetStatusLabel();
+      },
     },
   });
 }
@@ -276,6 +317,12 @@ export function initLobby(opts) {
   callbacks = opts;
   WwNet.setMyCharacter(selectedCharId);
   renderCharPicker();
+
+  const lanCheck = $("lanModeCheck");
+  if (lanCheck) {
+    lanCheck.checked = loadLanMode();
+    lanCheck.addEventListener("change", () => saveLanMode(!!lanCheck.checked));
+  }
 
   $("btnSolo")?.addEventListener("click", startSolo);
   $("btnCoopHost")?.addEventListener("click", () => startNet(true));

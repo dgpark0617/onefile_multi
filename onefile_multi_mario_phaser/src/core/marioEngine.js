@@ -19,6 +19,7 @@ import {
   MOVE_SPEED,
   NET_SUBSTEPS,
   NET_TICK_MS,
+  NET_INPUT_WAIT_MS,
   PIPE_COOLDOWN,
   resolveCharacterIds,
   TICK_MS,
@@ -3014,6 +3015,9 @@ let overworldPlatforms = [
         this.simAccumulator = 0;
         this.inputBuffer = {};
         this.lastSentInputTick = -1;
+        this.lastKnownInputs = {};
+        this.inputWaitStartedAt = 0;
+        this.pendingGuestInput = null;
         this.lastFrameT = 0;
         this.disconnectedPlayers = new Set();
         this.rafId = 0;
@@ -3042,6 +3046,9 @@ let overworldPlatforms = [
         this.simAccumulator = 0;
         this.inputBuffer = {};
         this.lastSentInputTick = -1;
+        this.lastKnownInputs = {};
+        this.inputWaitStartedAt = 0;
+        this.pendingGuestInput = null;
         this.disconnectedPlayers = new Set();
         popups.length = 0;
       }
@@ -3817,6 +3824,11 @@ let overworldPlatforms = [
         if (tick < this.simTick) return;
         if (!this.inputBuffer[tick]) this.inputBuffer[tick] = {};
         this.inputBuffer[tick][playerIndex] = inp;
+        this.lastKnownInputs[playerIndex] = inp;
+      }
+
+      idleInput() {
+        return { l: 0, r: 0, j: 0, jh: 0, d: 0, dh: 0 };
       }
 
       hasAllInputs(tick) {
@@ -3830,11 +3842,34 @@ let overworldPlatforms = [
       getInputsArray(tick) {
         const inputs = {};
         for (let i = 0; i < this.playerCount; i++) {
-          inputs[i] = this.disconnectedPlayers.has(i)
-            ? { l: 0, r: 0, j: 0, jh: 0, d: 0 }
-            : (this.inputBuffer[tick]?.[i] ?? { l: 0, r: 0, j: 0, jh: 0, d: 0 });
+          if (this.disconnectedPlayers.has(i)) {
+            inputs[i] = this.idleInput();
+            continue;
+          }
+          inputs[i] =
+            this.inputBuffer[tick]?.[i] ??
+            this.lastKnownInputs[i] ??
+            this.idleInput();
         }
         return inputs;
+      }
+
+      /** 늦게 온 INP를 무한정 기다리지 않음 — 유실/고RTT에서도 진행 */
+      trySealCurrentTick(now = performance.now()) {
+        const tick = this.simTick;
+        this.storeInput(tick, this.myIndex, this.sampleLocalInput());
+        if (this.hasAllInputs(tick)) {
+          this.inputWaitStartedAt = 0;
+          this.sealFrame(tick);
+          return true;
+        }
+        if (!this.inputWaitStartedAt) this.inputWaitStartedAt = now;
+        if (now - this.inputWaitStartedAt >= NET_INPUT_WAIT_MS) {
+          this.inputWaitStartedAt = 0;
+          this.sealFrame(tick);
+          return true;
+        }
+        return false;
       }
 
       simulateTick(inputs) {
@@ -3849,6 +3884,7 @@ let overworldPlatforms = [
         }
         this.simTick++;
         this.predAccumulator = 0;
+        this.inputWaitStartedAt = 0;
         delete this.inputBuffer[tick];
       }
 
@@ -3875,23 +3911,22 @@ let overworldPlatforms = [
 
       onRemoteInput(from, tick, inp) {
         this.storeInput(tick, from, inp);
-        if (this.isHost && tick === this.simTick && this.hasAllInputs(tick)) {
-          this.sealFrame(tick);
+        if (this.isHost && tick === this.simTick) {
+          this.trySealCurrentTick();
         }
       }
 
       onFrame(tick, inputs) {
         if (this.solo || this.isHost) return;
         this.applyFrame(tick, inputs);
+        if (this.pendingGuestInput?.tick === tick) this.pendingGuestInput = null;
       }
 
       onPeerLeft(index) {
         this.disconnectedPlayers.add(index);
         const p = this.players[index];
         if (p && p.alive) this.playerDie(p);
-        if (this.isHost && this.hasAllInputs(this.simTick)) {
-          this.sealFrame(this.simTick);
-        }
+        if (this.isHost) this.trySealCurrentTick();
       }
 
       draw() {
@@ -3959,24 +3994,27 @@ let overworldPlatforms = [
             }
           } else if (this.isHost) {
             while (this.simAccumulator >= step) {
+              // 대기 중에는 accumulator를 깎지 않음 → 타임아웃/도착 후 정상 진행
+              if (!this.trySealCurrentTick(t)) break;
               this.simAccumulator -= step;
-              const tick = this.simTick;
-              this.storeInput(tick, this.myIndex, this.sampleLocalInput());
-              if (this.hasAllInputs(tick)) {
-                this.sealFrame(tick);
-              } else {
-                break;
-              }
             }
           } else {
-            while (this.simAccumulator >= step) {
-              this.simAccumulator -= step;
-              const tick = this.simTick;
-              if (this.lastSentInputTick < tick) {
-                WwNetRef.sendGame({ type: 'INP', proto: 2, tick, input: this.sampleLocalInput() });
-                this.lastSentInputTick = tick;
-              }
+            // 비신뢰 채널: FRAME 오기 전까지 같은 tick 스냅샷을 ~40Hz로 재전송
+            const tick = this.simTick;
+            if (!this.pendingGuestInput || this.pendingGuestInput.tick !== tick) {
+              this.pendingGuestInput = { tick, input: this.sampleLocalInput() };
             }
+            if (!this._lastGuestSendT || t - this._lastGuestSendT >= NET_TICK_MS * 0.5) {
+              WwNetRef.sendGame({
+                type: 'INP',
+                proto: 2,
+                tick,
+                input: this.pendingGuestInput.input,
+              });
+              this._lastGuestSendT = t;
+              this.lastSentInputTick = tick;
+            }
+            this.simAccumulator = 0;
             this.runGuestPrediction(dt);
           }
           }

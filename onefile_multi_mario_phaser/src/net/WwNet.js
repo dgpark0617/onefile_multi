@@ -1,6 +1,12 @@
 import Peer from "peerjs";
 import { CHARACTER_DEFS, getCharacter, MAX_PLAYERS } from "../core/marioConstants.js";
-import { buildIceServers } from "./iceConfig.js";
+import {
+  buildPeerOptions,
+  CTRL_CONN_OPTS,
+  GAME_CONN_OPTS,
+  resolveIceServers,
+} from "./iceConfig.js";
+import { makeRoomCode, roomPeerId, toShortRoomCode } from "./roomCode.js";
 
 const GAME_TYPES = new Set(["INP", "FRAME"]);
 
@@ -22,6 +28,8 @@ let onClose = null;
 let onError = null;
 let onLobby = null;
 let onNetStatus = null;
+/** 같은 WiFi 빠른 연결 (TURN 중계 끔) */
+let lanMode = true;
 
 /** @type {{ role: string, path: string, rttMs: number|null, updated: number }} */
 let netStatus = { role: "-", path: "-", rttMs: null, updated: 0 };
@@ -159,7 +167,8 @@ function attachCtrlConn(conn, slot) {
 
 function openGuestGameChannel(hostId) {
   if (guestGameConn?.open) return;
-  guestGameConn = peer.connect(hostId.trim(), { reliable: false, label: "game" });
+  const target = roomPeerId(hostId);
+  guestGameConn = peer.connect(target, { ...GAME_CONN_OPTS });
   guestGameConn.on("open", () => pollConnectionStats(guestGameConn));
   guestGameConn.on("data", (d) => dispatchData(d));
   guestGameConn.on("close", () => {
@@ -246,6 +255,8 @@ function initPeer(opts) {
   isHost = asHost;
   myIndex = asHost ? 0 : -1;
   gameStarted = false;
+  lanMode = opts.lanMode !== false;
+  if (typeof window !== "undefined") window.__MARIO_LAN__ = lanMode;
   clients.clear();
   slotChars.clear();
   if (asHost) slotChars.set(0, myCharId);
@@ -259,11 +270,24 @@ function initPeer(opts) {
   onLobby = handlers.onLobby;
   onNetStatus = handlers.onNetStatus;
 
+  if (peer) {
+    try {
+      peer.destroy();
+    } catch {
+      /* ignore */
+    }
+    peer = null;
+  }
+
   let guestConnectAttempt = 0;
   const GUEST_CONNECT_MAX = 6;
+  const hostId = asHost ? "" : roomPeerId(remoteId);
+  let hostIdAttempt = 0;
+  const HOST_ID_MAX = 8;
 
   function connectAsGuest(id) {
-    guestCtrlConn = peer.connect(id.trim(), { reliable: true, label: "ctrl" });
+    const target = roomPeerId(id);
+    guestCtrlConn = peer.connect(target, { ...CTRL_CONN_OPTS });
     guestCtrlConn.on("open", () => {
       onOpen?.({ role: "client", connOpen: true });
       sendCtrl({ type: "CHAR_SELECT", charId: myCharId });
@@ -272,7 +296,7 @@ function initPeer(opts) {
     guestCtrlConn.on("data", (d) => {
       if (d.type === "WELCOME") {
         myIndex = d.index;
-        openGuestGameChannel(id);
+        openGuestGameChannel(target);
       }
       dispatchData(d);
     });
@@ -287,85 +311,112 @@ function initPeer(opts) {
     });
   }
 
-  peer = new Peer({
-    debug: 0,
-    config: { iceServers: buildIceServers() },
-  });
-
-  const openTimer = setTimeout(() => {
-    if (!roomId) {
-      onError?.({
-        type: "timeout",
-        message: multiFileIosBlocked
-          ? "아이폰 저장 파일에서는 멀티 불가. 웹사이트에서 열어주세요."
-          : "시그널링 서버 연결 시간 초과. 네트워크·방화벽을 확인하세요.",
-      });
-    }
-  }, 12000);
-
-  peer.on("open", (id) => {
-    clearTimeout(openTimer);
-    roomId = id;
-    startStatsLoop();
-    if (asHost) {
-      peer.on("connection", (conn) => {
-        if (conn.label === "game") {
-          const slot = findSlotByPeerId(conn.peer);
-          if (slot < 0) {
-            setTimeout(() => conn.close(), 300);
-            return;
-          }
-          const entry = clients.get(slot);
-          entry.gameConn = conn;
-          attachGameConn(conn, slot);
+  function bindHostConnections() {
+    peer.on("connection", (conn) => {
+      if (conn.label === "game") {
+        const slot = findSlotByPeerId(conn.peer);
+        if (slot < 0) {
+          setTimeout(() => conn.close(), 300);
           return;
         }
+        const entry = clients.get(slot);
+        entry.gameConn = conn;
+        attachGameConn(conn, slot);
+        return;
+      }
 
-        conn.on("open", () => {
-          if (gameStarted) {
-            conn.send({ type: "REJECT", reason: "이미 시작됨" });
-            setTimeout(() => conn.close(), 300);
-            return;
-          }
-          const slot = allocSlot();
-          if (slot < 0) {
-            conn.send({ type: "REJECT", reason: "방 가득 참" });
-            setTimeout(() => conn.close(), 300);
-            return;
-          }
-          clients.set(slot, { ctrlConn: conn, gameConn: null, peerId: conn.peer });
-          slotChars.set(slot, CHARACTER_DEFS[slot % CHARACTER_DEFS.length].id);
-          attachCtrlConn(conn, slot);
-          conn.send({ type: "WELCOME", index: slot, roster: buildRoster() });
-          broadcastLobby();
-          onOpen?.({ role: "host", clientJoined: true, index: slot });
+      conn.on("open", () => {
+        if (gameStarted) {
+          conn.send({ type: "REJECT", reason: "이미 시작됨" });
+          setTimeout(() => conn.close(), 300);
+          return;
+        }
+        const slot = allocSlot();
+        if (slot < 0) {
+          conn.send({ type: "REJECT", reason: "방 가득 참" });
+          setTimeout(() => conn.close(), 300);
+          return;
+        }
+        clients.set(slot, { ctrlConn: conn, gameConn: null, peerId: conn.peer });
+        slotChars.set(slot, CHARACTER_DEFS[slot % CHARACTER_DEFS.length].id);
+        attachCtrlConn(conn, slot);
+        conn.send({ type: "WELCOME", index: slot, roster: buildRoster() });
+        broadcastLobby();
+        onOpen?.({ role: "host", clientJoined: true, index: slot });
+      });
+    });
+  }
+
+  function startPeer(iceServers) {
+    const opts = buildPeerOptions(iceServers, { lanMode });
+    // 방장: 짧은 6자 코드로 Peer ID 고정 (컷톡과 동일). 손님: 자동 ID.
+    const desiredId = asHost ? roomPeerId(makeRoomCode()) : undefined;
+    peer = desiredId ? new Peer(desiredId, opts) : new Peer(opts);
+
+    const openTimer = setTimeout(() => {
+      if (!roomId) {
+        onError?.({
+          type: "timeout",
+          message: multiFileIosBlocked
+            ? "아이폰 저장 파일에서는 멀티 불가. 웹사이트에서 열어주세요."
+            : "시그널링 서버 연결 시간 초과. 네트워크·방화벽을 확인하세요.",
         });
-      });
-      onOpen?.({ id, role: "host", roomReady: true });
-    } else {
-      connectAsGuest(remoteId);
-    }
-  });
+      }
+    }, 12000);
 
-  peer.on("error", (e) => {
-    if (!asHost && e.type === "peer-unavailable" && guestConnectAttempt < GUEST_CONNECT_MAX) {
-      guestConnectAttempt += 1;
+    peer.on("open", (id) => {
+      clearTimeout(openTimer);
+      roomId = asHost ? toShortRoomCode(id) : id;
+      startStatsLoop();
+      if (asHost) {
+        bindHostConnections();
+        onOpen?.({ id: roomId, peerId: id, role: "host", roomReady: true });
+      } else {
+        connectAsGuest(hostId || remoteId);
+      }
+    });
+
+    peer.on("error", (e) => {
+      if (asHost && e.type === "unavailable-id" && hostIdAttempt < HOST_ID_MAX) {
+        hostIdAttempt += 1;
+        try {
+          peer.destroy();
+        } catch {
+          /* ignore */
+        }
+        peer = null;
+        roomId = "";
+        startPeer(iceServers);
+        return;
+      }
+      if (!asHost && e.type === "peer-unavailable" && guestConnectAttempt < GUEST_CONNECT_MAX) {
+        guestConnectAttempt += 1;
+        onError?.({
+          type: "retry",
+          message: `방 연결 재시도 (${guestConnectAttempt}/${GUEST_CONNECT_MAX})…`,
+        });
+        setTimeout(() => connectAsGuest(hostId || remoteId), 800 + guestConnectAttempt * 400);
+        return;
+      }
+      if (!asHost && e.type === "peer-unavailable") {
+        onError?.({
+          type: "peer-unavailable",
+          message: "방을 찾을 수 없습니다. 방장이 대기실을 연 상태인지, 방 코드 6자가 맞는지 확인하세요.",
+        });
+        return;
+      }
+      onError?.(e);
+    });
+  }
+
+  resolveIceServers({ lanMode })
+    .then((iceServers) => startPeer(iceServers))
+    .catch((err) => {
       onError?.({
-        type: "retry",
-        message: `방 연결 재시도 (${guestConnectAttempt}/${GUEST_CONNECT_MAX})…`,
+        type: "ice",
+        message: "네트워크(ICE) 설정 실패: " + (err?.message || String(err)),
       });
-      setTimeout(() => connectAsGuest(remoteId), 800 + guestConnectAttempt * 400);
-      return;
-    }
-    if (!asHost && e.type === "peer-unavailable") {
-      onError?.({
-        type: "peer-unavailable",
-        message: "방을 찾을 수 없습니다. 방장이 대기실을 연 상태인지, 방 코드가 맞는지 확인하세요.",
-      });
-      return;
-    }
-    onError?.(e);
-  });
+    });
 }
 
 function startGameBroadcast(playerCount, seed, characterIds) {
@@ -401,7 +452,8 @@ function getNetStatusLabel() {
   const { role, path, rttMs } = netStatus;
   const rtt = rttMs != null ? `${rttMs}ms` : "…";
   const pathKo = path === "relay" ? "중계" : path === "direct" || path === "host" ? "직접" : path;
-  return `${role === "host" ? "방장" : "참가"} · ${pathKo} · ${rtt}`;
+  const lan = lanMode ? " · WiFi" : "";
+  return `${role === "host" ? "방장" : "참가"} · ${pathKo}${lan} · ${rtt}`;
 }
 
 export const WwNet = {
@@ -429,6 +481,9 @@ export const WwNet = {
   },
   get roomId() {
     return roomId;
+  },
+  get lanMode() {
+    return lanMode;
   },
   get gameStarted() {
     return gameStarted;

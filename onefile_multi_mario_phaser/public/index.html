@@ -100,11 +100,15 @@
     <div id="roomBox" class="hidden" style="order:-9">Peer: <b id="roomCode">—</b></div>
     <div class="mode-block" style="order:2">
       <h2>① 협동 (2~4인)</h2>
+      <label class="lan-toggle" style="display:flex;align-items:center;gap:8px;margin:8px 0 10px;font-size:0.85rem;color:#cbd5e1;cursor:pointer">
+        <input type="checkbox" id="lanModeCheck" checked />
+        <span>같은 WiFi 빠른 연결 <small style="color:#94a3b8">(다른 집이면 끄기)</small></span>
+      </label>
       <button class="lobby-btn btn-primary" id="btnCoopHost">방 만들기</button>
     </div>
     <div class="mode-block" id="joinPanel" style="order:3">
       <h2>친구 방 참가</h2>
-      <input id="joinCodeInput" type="text" placeholder="방 코드" autocomplete="off" />
+      <input id="joinCodeInput" type="text" placeholder="방 코드 6자" maxlength="16" autocomplete="off" />
       <div class="btn-row" style="margin-top:8px">
         <button class="lobby-btn btn-red" id="btnJoin">참가</button>
       </div>

@@ -6,6 +6,8 @@ export const TICK_MS = 1000 / TICK_HZ;
 export const NET_TICK_HZ = 20;
 export const NET_TICK_MS = 1000 / NET_TICK_HZ;
 export const NET_SUBSTEPS = 3;
+/** 손님 INP가 늦/유실돼도 호스트가 멈추지 않도록 대기 한도(ms) */
+export const NET_INPUT_WAIT_MS = 90;
 
 export const DESIGN_W = 900;
 export const DESIGN_H = 500;
