@@ -3853,21 +3853,39 @@ let overworldPlatforms = [
       applyPlayerSnap(p, s, soft) {
         if (!p || !s) return;
         if (soft) {
+          // 자기 캐릭터: 지면에서 Y를 섞지 않음 (고무줄 잔점프 방지)
           const dx = s.x - p.x;
           const dy = s.y - p.y;
-          if (dx * dx + dy * dy > 6400) {
+          const dist2 = dx * dx + dy * dy;
+          if (dist2 > 6400) {
             p.x = s.x;
             p.y = s.y;
+            p.vx = s.vx;
+            p.vy = s.vy;
           } else {
-            p.x += dx * 0.4;
-            p.y += dy * 0.4;
+            p.x += dx * 0.3;
+            if (s.onG) {
+              p.y = s.y;
+              p.vy = s.vy > 0 ? 0 : s.vy;
+            } else {
+              p.y += dy * 0.25;
+              p.vx = s.vx;
+              p.vy = s.vy;
+            }
           }
         } else {
-          p.x = s.x;
-          p.y = s.y;
+          // 원격 플레이어: 목표점만 갱신 후 매 프레임 보간
+          p._tx = s.x;
+          p._ty = s.y;
+          p.vx = s.vx;
+          p.vy = s.vy;
+          const dx = s.x - p.x;
+          const dy = s.y - p.y;
+          if (dx * dx + dy * dy > 10000) {
+            p.x = s.x;
+            p.y = s.y;
+          }
         }
-        p.vx = s.vx;
-        p.vy = s.vy;
         p.alive = !!s.alive;
         p.facing = s.facing || 1;
         if (p.sizeLevel !== s.size) {
@@ -3880,6 +3898,23 @@ let overworldPlatforms = [
         p.featherTimer = s.feather | 0;
         p.soapBubbleTimer = s.soap | 0;
         p.fireCooldown = s.fireCd | 0;
+      }
+
+      /** 게스트: 원격 플레이어를 스냅 목표로 부드럽게 追従 */
+      smoothRemotePlayers() {
+        if (this.solo || this.isHost) return;
+        for (let i = 0; i < this.players.length; i++) {
+          if (i === this.myIndex) continue;
+          const p = this.players[i];
+          if (!p || p._tx == null) continue;
+          p.x += (p._tx - p.x) * 0.4;
+          p.y += (p._ty - p.y) * 0.4;
+        }
+      }
+
+      /** 게스트에서도 요정은 오너 위치로 로컬 추종 */
+      updatePetsVisual() {
+        this.pets.forEach((pet) => pet.update(this));
       }
 
       buildSnap() {
@@ -4110,6 +4145,8 @@ let overworldPlatforms = [
           } else {
             this.sendGuestInput(t);
             this.runGuestPrediction(dt);
+            this.smoothRemotePlayers();
+            this.updatePetsVisual();
           }
           }
         }

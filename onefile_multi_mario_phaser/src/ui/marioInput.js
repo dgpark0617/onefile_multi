@@ -57,6 +57,9 @@ export function initMarioInput() {
     const k = keyMap[e.key];
     if (!k) return;
     e.preventDefault();
+    // 키 리핏이 jumpPressed를 연속 발사 → 멀티에서 잔점프처럼 보임
+    if (e.repeat && (k === "jump" || k === "down")) return;
+    if (e.repeat && (k === "left" || k === "right")) return;
     setInput(k, true);
   });
   window.addEventListener("keyup", (e) => {
