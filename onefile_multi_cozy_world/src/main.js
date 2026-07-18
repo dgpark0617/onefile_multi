@@ -45,7 +45,15 @@ function onNetData(d) {
     if (idx == null || idx === CozyNet.myIndex) return;
     worldApi.applyRemotePose(idx, d);
     if (CozyNet.isHost && d.from != null) {
-      CozyNet.broadcast({ type: "POS", index: d.from, x: d.x, y: d.y, z: d.z, ry: d.ry });
+      CozyNet.broadcast({
+        type: "POS",
+        index: d.from,
+        x: d.x,
+        y: d.y,
+        z: d.z,
+        ry: d.ry,
+        scene: d.scene,
+      });
     }
   } else if (d.type === "PEER_LEFT") {
     worldApi.removeRemote(d.index);

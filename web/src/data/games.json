@@ -1,12 +1,22 @@
 [
   {
+    "slug": "cozy-world",
+    "title": "코지월드 3D",
+    "subtitle": "파스텔 오픈월드 · 초대코드 멀티 · Three.js",
+    "category": "arcade",
+    "tags": ["코지", "3D", "멀티", "PeerJS"],
+    "source": "onefile_multi_cozy_world/onefile_multi_cozy_world.html",
+    "downloadName": "cozy_world_3d.html",
+    "featured": true
+  },
+  {
     "slug": "soccer",
-    "title": "미니 사커 택틱스",
-    "subtitle": "10v10 WEGO 전술 축구 · 솔로/멀티",
+    "title": "실시간 미니 축구",
+    "subtitle": "아케이드 실시간 · 태클 점유 · Phaser",
     "category": "sports",
-    "tags": ["전술", "멀티", "PeerJS"],
-    "source": "onefile_multi_soccer/onefile_multi_soccer.html",
-    "downloadName": "mini_soccer_tactics.html",
+    "tags": ["실시간", "축구", "Phaser"],
+    "source": "onefile_multi_soccer_phaser/onefile_multi_soccer_phaser.html",
+    "downloadName": "mini_soccer_rt.html",
     "featured": true
   },
   {
@@ -57,12 +67,12 @@
   },
   {
     "slug": "rogue",
-    "title": "Emoji Rogue",
-    "subtitle": "P2P 협동 (최대 4인)",
+    "title": "Emoji Rogue Phaser",
+    "subtitle": "턴제 자동 경로 · 터치 이동",
     "category": "roguelike",
-    "tags": ["로그라이크", "협동"],
-    "source": "onefile_mulit_rogue/onefile_mulit_rogue.html",
-    "downloadName": "emoji_rogue.html"
+    "tags": ["로그라이크", "Phaser", "자동이동"],
+    "source": "onefile_multi_rogue_phaser/onefile_multi_rogue_phaser.html",
+    "downloadName": "emoji_rogue_phaser.html"
   },
   {
     "slug": "rogue-realtime",
