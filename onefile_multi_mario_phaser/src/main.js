@@ -25,13 +25,14 @@ initLobby({
     if (game.scene.isActive("MarioArenaScene")) game.scene.stop("MarioArenaScene");
     setMarioGameRef(null);
   },
-  onRestartSolo: () => {
+  onRestartSolo: (extra = {}) => {
     game.scene.stop("MarioArenaScene");
     game.scene.start("MarioArenaScene", {
       solo: true,
       isHost: true,
       myIndex: 0,
       playerCount: 1,
+      ...extra,
     });
     setTimeout(() => setMarioGameRef(gameSession.simulation), 0);
   },

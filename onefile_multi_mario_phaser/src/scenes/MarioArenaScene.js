@@ -3,6 +3,7 @@ import { createMarioEngine } from "../core/marioEngine.js";
 import { gameSession } from "../core/gameSession.js";
 import { WwNet } from "../net/WwNet.js";
 import { showLobby } from "../ui/lobbyDom.js";
+import { startBgm, stopBgm } from "../audio/bgm.js";
 
 export class MarioArenaScene extends Phaser.Scene {
   constructor() {
@@ -25,7 +26,8 @@ export class MarioArenaScene extends Phaser.Scene {
       this.engine = createMarioEngine({
         getCanvasContext: () => this.marioCanvas.getContext("2d"),
         getHudEl: (id) => document.getElementById(id),
-        netBroadcast: (payload) => WwNet.broadcast(payload),
+        netBroadcastGame: (payload) => WwNet.broadcastGame(payload),
+        netBroadcastCtrl: (payload) => WwNet.broadcastCtrl(payload),
         WwNetRef: WwNet,
       });
       this.engine.setCtx(this.marioCanvas.getContext("2d"));
@@ -38,12 +40,14 @@ export class MarioArenaScene extends Phaser.Scene {
       this.mario.start();
       gameSession.simulation = this.mario;
       gameSession.engine = this.engine;
+      startBgm();
 
     this.escKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.onShutdown, this);
   }
 
   onShutdown() {
+    stopBgm();
     this.mario?.stop();
     this.engine.game = null;
     gameSession.simulation = null;

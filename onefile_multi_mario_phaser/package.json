@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "node scripts/dev-server.mjs",
     "extract": "node scripts/extract-mario-engine.mjs",
-    "prebuild": "node scripts/extract-mario-engine.mjs",
     "build": "node scripts/build-onefile.mjs"
   },
   "dependencies": {

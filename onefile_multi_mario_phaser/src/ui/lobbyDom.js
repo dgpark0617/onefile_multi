@@ -1,14 +1,41 @@
-import { MAX_PLAYERS, PLAYER_DEFS } from "../core/marioConstants.js";
+import { CHARACTER_DEFS, getCharacter, MAX_PLAYERS } from "../core/marioConstants.js";
+import { CHAR_SPRITE_URLS, preloadCharSprites } from "../assets/charSprites.js";
 import { gameSession } from "../core/gameSession.js";
 import { setupHost } from "../net/inviteShare.js";
 import { WwNet } from "../net/WwNet.js";
+import { startBgm } from "../audio/bgm.js";
 import { setMarioGameRef } from "./marioInput.js";
 import { refreshEndgameAd } from "./dummyAd.js";
 
 const IS_FILE = location.protocol === "file:";
+const CHAR_STORAGE_KEY = "mario_phaser_char";
 
 let currentInviteUrl = "";
 let callbacks = {};
+let selectedCharId = loadSavedChar();
+
+preloadCharSprites();
+
+function loadSavedChar() {
+  try {
+    const id = localStorage.getItem(CHAR_STORAGE_KEY);
+    if (id && CHARACTER_DEFS.some((c) => c.id === id)) return id;
+  } catch {
+    /* ignore */
+  }
+  return CHARACTER_DEFS[0].id;
+}
+
+function saveChar(id) {
+  selectedCharId = getCharacter(id).id;
+  try {
+    localStorage.setItem(CHAR_STORAGE_KEY, selectedCharId);
+  } catch {
+    /* ignore */
+  }
+  WwNet.setMyCharacter(selectedCharId);
+  renderCharPicker();
+}
 
 function $(id) {
   return document.getElementById(id);
@@ -38,6 +65,30 @@ function copyText(text, msg) {
   }
 }
 
+function renderCharPicker() {
+  const box = $("charPicker");
+  if (!box) return;
+  box.innerHTML = "";
+  CHARACTER_DEFS.forEach((ch) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "char-pick" + (ch.id === selectedCharId ? " selected" : "");
+    btn.dataset.charId = ch.id;
+    const thumb = CHAR_SPRITE_URLS[ch.sprite || ch.id];
+    const thumbHtml = thumb
+      ? `<img class="char-thumb" src="${thumb}" alt="${ch.name}" />`
+      : `<span class="char-emoji">${ch.emoji}</span>`;
+    btn.innerHTML = `${thumbHtml}<span class="char-name">${ch.name}</span>`;
+    btn.addEventListener("click", () => saveChar(ch.id));
+    box.appendChild(btn);
+  });
+  const label = $("charSelectedLabel");
+  if (label) {
+    const ch = getCharacter(selectedCharId);
+    label.textContent = `선택: ${ch.name}`;
+  }
+}
+
 function updateRosterUI(data) {
   const roster = data.roster || WwNet.buildRoster();
   const count = data.playerCount || roster.length;
@@ -52,7 +103,7 @@ function updateRosterUI(data) {
   for (let i = count; i < MAX_PLAYERS; i++) {
     const li = document.createElement("li");
     li.className = "empty";
-    li.textContent = `${PLAYER_DEFS[i].emoji} (빈 슬롯)`;
+    li.textContent = `${CHARACTER_DEFS[i % CHARACTER_DEFS.length].emoji} (빈 슬롯)`;
     ul.appendChild(li);
   }
   const title = $("waitingTitle");
@@ -99,6 +150,7 @@ export function showLobby() {
   $("overlay")?.classList.remove("show");
   $("gameShell")?.classList.add("hidden");
   $("lobby")?.classList.remove("hidden");
+  renderCharPicker();
   if (!IS_FILE) history.replaceState(null, "", location.pathname);
 }
 
@@ -114,9 +166,11 @@ function showGameShell() {
   $("lobby")?.classList.add("hidden");
   $("gameShell")?.classList.remove("hidden");
   $("overlay")?.classList.remove("show");
+  startBgm();
 }
 
 function startSolo() {
+  startBgm();
   showGameShell();
   callbacks.onStartGame?.({
     solo: true,
@@ -124,6 +178,7 @@ function startSolo() {
     myIndex: 0,
     playerCount: 1,
     seed: Date.now() >>> 0,
+    characterIds: [selectedCharId],
   });
 }
 
@@ -134,6 +189,7 @@ function startNet(asHost) {
     return;
   }
 
+  WwNet.setMyCharacter(selectedCharId);
   WwNet.initPeer({
     asHost,
     remoteId,
@@ -156,7 +212,7 @@ function hostBeginGame() {
   const count = WwNet.buildRoster().length;
   if (count < 2) return;
   const seed = Date.now() >>> 0;
-  WwNet.startGameBroadcast(count, seed);
+  const characterIds = WwNet.startGameBroadcast(count, seed);
   showGameShell();
   callbacks.onStartGame?.({
     solo: false,
@@ -164,6 +220,7 @@ function hostBeginGame() {
     myIndex: 0,
     playerCount: count,
     seed,
+    characterIds,
   });
 }
 
@@ -189,6 +246,7 @@ export function handleNetData(d) {
       myIndex: WwNet.myIndex,
       playerCount: d.playerCount,
       seed: d.seed,
+      characterIds: d.characterIds,
     });
     return;
   }
@@ -204,15 +262,20 @@ export function handleNetData(d) {
     sim.onPeerLeft(d.index);
   } else if (d.type === "END" && !sim.isHost && !sim.gameOver) {
     sim.gameOver = true;
+    sim.gameWon = !!d.won;
     showGameOverlay({
       title: d.won ? "🎉 클리어!" : "💀 게임 오버",
       msg: d.msg || "",
     });
+  } else if (d.type === "LEVEL" && !sim.isHost) {
+    sim.applyLevelAdvance(d.levelIndex, d.seed);
   }
 }
 
 export function initLobby(opts) {
   callbacks = opts;
+  WwNet.setMyCharacter(selectedCharId);
+  renderCharPicker();
 
   $("btnSolo")?.addEventListener("click", startSolo);
   $("btnCoopHost")?.addEventListener("click", () => startNet(true));
@@ -232,7 +295,7 @@ export function initLobby(opts) {
   $("restartBtn")?.addEventListener("click", () => {
     $("overlay")?.classList.remove("show");
     if (gameSession.simulation?.solo) {
-      callbacks.onRestartSolo?.();
+      callbacks.onRestartSolo?.({ characterIds: [selectedCharId] });
     } else {
       showLobby();
     }

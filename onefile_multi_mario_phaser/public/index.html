@@ -4,6 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>버섯 어드벤처 — Phaser</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "phaser": "../node_modules/phaser/dist/phaser.esm.js",
+      "peerjs": "../node_modules/peerjs/dist/bundler.mjs",
+      "qrcode": "https://cdn.jsdelivr.net/npm/qrcode@1.5.4/+esm"
+    }
+  }
+  </script>
   <link rel="stylesheet" href="../src/ui/lobby.css" />
   <style>
   html, body { margin: 0; height: 100%; background: #1a1a2e; overflow: hidden; color: #eee; font-family: "Segoe UI", sans-serif; }
@@ -55,7 +64,7 @@
   .mode-block h2 { margin: 0 0 8px; font-size: 1rem; color: #7ec8e3; }
   .mode-block p { margin: 0 0 10px; font-size: 0.78rem; color: #888; }
   .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
-  #lobby { min-height: 100dvh; padding: 16px; max-width: 520px; margin: 0 auto; overflow-y: auto; }
+  #lobby { height: 100dvh; max-height: 100dvh; padding: 16px; max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   #lobby h1 { font-size: 1.35rem; }
   #lobby .sub { color: #94a3b8; font-size: 0.85rem; }
   #lobby .hint { background: #16213e; border: 1px solid #334; border-radius: 10px; padding: 12px; font-size: 0.82rem; color: #bbb; margin: 10px 0; }
@@ -65,33 +74,14 @@
   #rosterList { list-style: none; padding: 0; margin: 8px 0; line-height: 1.8; }
   #rosterList .empty { color: #666; font-style: italic; }
   .invite-share-box { text-align: center; margin: 10px 0; }
-  .invite-share-box canvas { border-radius: 8px; background: #fff; padding: 6px; }
+  .invite-share-box canvas { border-radius: 6px; background: #fff; padding: 4px; width: min(88px, 40vw); height: auto; }
   </style>
 </head>
 <body>
   <div id="lobby">
-    <h1>🍄 버섯 어드벤처 (Phaser)</h1>
-    <p class="sub">실시간 횡스크롤 · 2~4인 P2P 협동</p>
-    <div class="hint">
-      <strong>조작:</strong> ← → 이동 · 스페이스 점프(2단!) · ↓ 불/얼음 · 파이프+↓ 지하
-    </div>
-    <div class="mode-block">
-      <h2>① 솔로</h2>
-      <p>혼자 보스까지 클리어</p>
-      <button class="lobby-btn btn-green" id="btnSolo">솔로 시작</button>
-    </div>
-    <div class="mode-block">
-      <h2>② 협동 (2~4인)</h2>
-      <button class="lobby-btn btn-primary" id="btnCoopHost">방 만들기</button>
-    </div>
-    <div class="mode-block" id="joinPanel">
-      <h2>친구 방 참가</h2>
-      <input id="joinCodeInput" type="text" placeholder="방 코드" autocomplete="off" />
-      <div class="btn-row" style="margin-top:8px">
-        <button class="lobby-btn btn-red" id="btnJoin">참가</button>
-      </div>
-    </div>
-    <div id="waitingBox" class="hidden">
+    <h1 style="order:0">🍄 버섯 어드벤처 (Phaser)</h1>
+    <p class="sub" style="order:1">실시간 횡스크롤 · 2~4인 P2P 협동</p>
+    <div id="waitingBox" class="hidden" style="order:-10">
       <div id="waitingTitle">대기실</div>
       <div class="invite-share-box">
         <canvas id="inviteQr" width="176" height="176"></canvas>
@@ -107,8 +97,32 @@
       <p id="guestWaitHint" class="hidden" style="font-size:0.78rem;color:#888">방장 시작 대기…</p>
     </div>
     <input id="roomInput" type="hidden" />
-    <div id="roomBox" class="hidden">Peer: <b id="roomCode">—</b></div>
-    <div id="netLog"></div>
+    <div id="roomBox" class="hidden" style="order:-9">Peer: <b id="roomCode">—</b></div>
+    <div class="mode-block" style="order:2">
+      <h2>① 협동 (2~4인)</h2>
+      <button class="lobby-btn btn-primary" id="btnCoopHost">방 만들기</button>
+    </div>
+    <div class="mode-block" id="joinPanel" style="order:3">
+      <h2>친구 방 참가</h2>
+      <input id="joinCodeInput" type="text" placeholder="방 코드" autocomplete="off" />
+      <div class="btn-row" style="margin-top:8px">
+        <button class="lobby-btn btn-red" id="btnJoin">참가</button>
+      </div>
+    </div>
+    <div class="hint" style="order:4">
+      <strong>조작:</strong> ← → 이동 · 스페이스 점프(2단!) · ↓ 불/얼음 · 파이프+↓ 지하 · 날개 중 점프 유지=비행
+    </div>
+    <div class="mode-block" style="order:5">
+      <h2>② 솔로</h2>
+      <p>혼자 보스까지 클리어 · 머리 밟기/불꽃으로 처치</p>
+      <button class="lobby-btn btn-green" id="btnSolo">솔로 시작</button>
+    </div>
+    <div class="mode-block" style="order:6">
+      <h2>캐릭터 선택</h2>
+      <p id="charSelectedLabel">선택: 🍄 마리오</p>
+      <div id="charPicker" class="char-picker" role="group" aria-label="캐릭터 선택"></div>
+    </div>
+    <div id="netLog" style="order:7"></div>
   </div>
 
   <div id="gameShell" class="hidden">
@@ -118,7 +132,9 @@
       <div id="hud">
         <div>코인: <span id="coins">0</span></div>
         <div>불꽃: <span id="fireballsAmmo">0</span> · ❄️ <span id="iceAmmo">0</span></div>
-        <div>상태: <span id="status">작음</span> · 🪶 <span id="featherTime">-</span></div>
+        <div>상태: <span id="status">작음</span> · 날개 <span id="featherTime">-</span></div>
+        <div>스테이지: <span id="stage">1-1</span></div>
+        <div>네트: <span id="netStatus">-</span></div>
         <div>보스: <span id="bossHp">-</span></div>
       </div>
       <div id="playerTags"></div>

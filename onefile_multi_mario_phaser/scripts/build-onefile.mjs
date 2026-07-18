@@ -19,6 +19,13 @@ await build({
   minify: true,
   sourcemap: false,
   target: ["es2020"],
+  loader: {
+    ".png": "dataurl",
+    ".jpg": "dataurl",
+    ".jpeg": "dataurl",
+    ".webp": "dataurl",
+    ".gif": "dataurl",
+  },
 });
 
 const js = fs.readFileSync(tempJs, "utf8");

@@ -6,14 +6,16 @@ html, body {
 .hidden { display: none !important; }
 
 #lobby {
-  min-height: 100dvh;
-  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  height: 100dvh;
+  max-height: 100dvh;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
   max-width: 520px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 #lobby h1 {
   font-size: clamp(1.25rem, 4.5vw, 1.55rem);
@@ -56,13 +58,53 @@ input {
 #rosterList { margin: 8px 0; padding: 0; list-style: none; line-height: 1.7; font-size: 0.85rem; }
 #log { font-size: 0.75rem; color: #4ade80; max-height: 72px; overflow-y: auto; white-space: pre-wrap; }
 .invite-share-box { text-align: center; margin: 10px 0; }
-.invite-share-box canvas { border-radius: 8px; background: #fff; padding: 6px; max-width: min(176px, 80vw); height: auto; }
+.invite-share-box canvas {
+  border-radius: 6px;
+  background: #fff;
+  padding: 4px;
+  width: min(88px, 40vw);
+  height: auto;
+}
 .invite-code-text { font-size: 0.75rem; opacity: 0.85; margin: 6px 0; word-break: break-all; }
 .ios-warn {
   margin: 12px 0; padding: 12px 14px; border-radius: 10px;
   background: #422006; border: 1px solid #f59e0b; color: #fde68a; font-size: 0.85rem; line-height: 1.5;
 }
 .guest-hint { font-size: 0.78rem; color: #888; margin-top: 8px; }
+.char-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+.char-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  border-radius: 10px;
+  border: 2px solid #334155;
+  background: #0f172a;
+  color: #e2e8f0;
+  cursor: pointer;
+}
+.char-pick.selected {
+  border-color: #fbbf24;
+  background: rgba(251, 191, 36, 0.12);
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.35);
+}
+.char-pick .char-emoji { font-size: 1.45rem; line-height: 1; }
+.char-pick .char-thumb {
+  width: 48px;
+  height: 64px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  pointer-events: none;
+}
+.char-pick .char-name { font-size: 0.72rem; color: #94a3b8; }
+.char-pick.selected .char-name { color: #fde68a; }
 #controls {
   flex-shrink: 0;
   display: flex; justify-content: center; gap: clamp(16px, 8vw, 32px);

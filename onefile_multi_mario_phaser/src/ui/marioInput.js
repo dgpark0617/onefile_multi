@@ -25,11 +25,14 @@ function setInput(key, active) {
     if (active) me.input.jumpPressed = true;
     me.input.jumpHeld = active;
   }
-  if (key === "down") me.input.downPressed = active;
+  if (key === "down") {
+    if (active) me.input.downPressed = true;
+    me.input.downHeld = active;
+  }
   const btn = (id) => document.getElementById(id);
   btn("btnLeft")?.classList.toggle("active", me.input.left);
   btn("btnRight")?.classList.toggle("active", me.input.right);
-  btn("btnDown")?.classList.toggle("active", me.input.downPressed);
+  btn("btnDown")?.classList.toggle("active", me.input.downHeld);
   btn("btnJump")?.classList.toggle("active", me.input.jumpHeld);
 }
 
@@ -70,6 +73,7 @@ export function initMarioInput() {
     me.input.left = false;
     me.input.right = false;
     me.input.downPressed = false;
+    me.input.downHeld = false;
     me.input.jumpHeld = false;
     me.input.jumpPressed = false;
     ["btnLeft", "btnRight", "btnDown", "btnJump"].forEach((id) => {
