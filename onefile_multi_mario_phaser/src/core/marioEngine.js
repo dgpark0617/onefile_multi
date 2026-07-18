@@ -3854,10 +3854,33 @@ let overworldPlatforms = [
         return inputs;
       }
 
+      /** 호스트 입력: held는 최신값, jump/down 엣지는 tick 확정 전까지 OR 유지 */
+      captureHostInputForTick(tick) {
+        const me = this.me();
+        if (!me) {
+          this.storeInput(tick, this.myIndex, this.idleInput());
+          return;
+        }
+        const existing = this.inputBuffer[tick]?.[this.myIndex];
+        if (!existing) {
+          this.storeInput(tick, this.myIndex, this.sampleLocalInput());
+          return;
+        }
+        existing.l = me.input.left ? 1 : 0;
+        existing.r = me.input.right ? 1 : 0;
+        existing.jh = me.input.jumpHeld ? 1 : 0;
+        existing.dh = me.input.downHeld ? 1 : 0;
+        if (me.input.jumpPressed) existing.j = 1;
+        if (me.input.downPressed) existing.d = 1;
+        me.input.jumpPressed = false;
+        me.input.downPressed = false;
+        this.lastKnownInputs[this.myIndex] = existing;
+      }
+
       /** 늦게 온 INP를 무한정 기다리지 않음 — 유실/고RTT에서도 진행 */
       trySealCurrentTick(now = performance.now()) {
         const tick = this.simTick;
-        this.storeInput(tick, this.myIndex, this.sampleLocalInput());
+        this.captureHostInputForTick(tick);
         if (this.hasAllInputs(tick)) {
           this.inputWaitStartedAt = 0;
           this.sealFrame(tick);
@@ -3898,15 +3921,26 @@ let overworldPlatforms = [
       }
 
       runGuestPrediction(dt) {
+        // 로컬 예측은 FRAME 확정 위치와 어긋나 고무줄/끊김을 만듦.
+        // 같은 WiFi(수 ms)에서는 예측 없이 권위 프레임만 적용하는 편이 조작감이 낫다.
         if (this.solo || this.isHost || this.gameOver || this.levelTransition > 0) return;
+        if (WwNetRef?.lanMode) {
+          this.predAccumulator = 0;
+          return;
+        }
         const me = this.me();
         if (!me?.alive) return;
         const step = this.predStepMs();
         this.predAccumulator += dt;
-        while (this.predAccumulator >= step) {
+        // 원격일 때만 짧게 예측 (과예측 고무줄 완화)
+        const maxPredSteps = 2;
+        let steps = 0;
+        while (this.predAccumulator >= step && steps < maxPredSteps) {
           this.predAccumulator -= step;
           me.update({ predictive: true });
+          steps++;
         }
+        if (steps >= maxPredSteps) this.predAccumulator = 0;
       }
 
       onRemoteInput(from, tick, inp) {
