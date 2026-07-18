@@ -1,9 +1,21 @@
 import { CozyNet } from "../net/CozyNet.js";
 import { roomPeerId } from "../net/roomCode.js";
+import { SUNDAY_KIDS } from "../world/sundayScenes.js";
+import { CHAR_FACE_EMOJI } from "../world/characterVisual.js";
 
 let callbacks = {};
 let currentInviteUrl = "";
 let worldSeed = 0xc02a01;
+let selectedCharId = "woojin";
+
+const CHAR_ABILITY_HINT = {
+  woojin: "⚽ 우진 — 점프 대신 공 앞에서 슛(스페이스)으로 공을 찹니다.",
+  gahyun: "🎨 가현 — 집 앞 이젤에서 E를 누르면 그림을 그릴 수 있어요.",
+  youngsun: "✈️ 영선 — 스페이스를 연속 8번 누르면 점프가 2배가 됩니다.",
+  taemi: "🏕️ 태미 — E를 누르면 그 자리에 텐트를 칩니다.",
+  nammun: "💐 남문 — E로 꽃을 심어요. 가끔(1/20) 버섯이 나와요.",
+  jongmyo: "🧥 종묘 — 집 앞 옷걸이에서 E를 누르면 옷 색이 바뀝니다.",
+};
 
 const $ = (id) => document.getElementById(id);
 
@@ -51,9 +63,56 @@ function copyText(text, okMsg) {
   } else lobbyLog(text);
 }
 
+function getSelectedCharacter() {
+  return SUNDAY_KIDS.find((k) => k.id === selectedCharId) || SUNDAY_KIDS[0];
+}
+
+function renderCharPicker() {
+  const box = $("charPicker");
+  const hint = $("charAbilityHint");
+  if (!box) return;
+  box.innerHTML = "";
+  SUNDAY_KIDS.forEach((kid) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "char-pick" + (kid.id === selectedCharId ? " selected" : "");
+    btn.setAttribute("role", "option");
+    btn.setAttribute("aria-selected", kid.id === selectedCharId ? "true" : "false");
+    const face = CHAR_FACE_EMOJI[kid.id] || { emoji: "🙂" };
+    btn.innerHTML = `<span class="emoji">${face.emoji}</span>${kid.name}`;
+    btn.addEventListener("click", () => {
+      selectedCharId = kid.id;
+      try {
+        localStorage.setItem("cozy_char_id", kid.id);
+      } catch {
+        /* ignore */
+      }
+      renderCharPicker();
+    });
+    box.appendChild(btn);
+  });
+  if (hint) hint.textContent = CHAR_ABILITY_HINT[selectedCharId] || "";
+}
+
+function startOpts(extra = {}) {
+  const kid = getSelectedCharacter();
+  return {
+    characterId: kid.id,
+    characterName: kid.name,
+    characterColor: kid.color,
+    ...extra,
+  };
+}
+
 function startSolo() {
   showGameShell();
-  callbacks.onStartGame?.({ solo: true, isHost: true, myIndex: 0, seed: worldSeed });
+  callbacks.onStartGame?.({
+    solo: true,
+    isHost: true,
+    myIndex: 0,
+    seed: worldSeed,
+    ...startOpts(),
+  });
 }
 
 function startNet(asHost) {
@@ -86,6 +145,7 @@ function startNet(asHost) {
             isHost: true,
             myIndex: 0,
             seed: worldSeed,
+            ...startOpts(),
           });
         }
         if (info.clientJoined) {
@@ -106,6 +166,7 @@ function startNet(asHost) {
             isHost: false,
             myIndex: d.index,
             seed: worldSeed,
+            ...startOpts(),
           });
           return;
         }
@@ -128,6 +189,14 @@ function startNet(asHost) {
 
 export function initLobby(opts) {
   callbacks = opts;
+
+  try {
+    const saved = localStorage.getItem("cozy_char_id");
+    if (saved && SUNDAY_KIDS.some((k) => k.id === saved)) selectedCharId = saved;
+  } catch {
+    /* ignore */
+  }
+  renderCharPicker();
 
   $("btnSolo")?.addEventListener("click", startSolo);
   $("btnHost")?.addEventListener("click", () => startNet(true));

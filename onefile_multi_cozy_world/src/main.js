@@ -27,6 +27,9 @@ async function startWorld(opts) {
     mount,
     myIndex: opts.myIndex ?? 0,
     seed: opts.seed ?? 0xc02a01,
+    characterId: opts.characterId || "woojin",
+    characterColor: opts.characterColor,
+    localImageUrl: opts.localImageUrl,
     onPose: (pose) => {
       if (opts.solo) return;
       const msg = { type: "POS", index: opts.myIndex, ...pose };

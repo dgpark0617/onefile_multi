@@ -138,8 +138,10 @@ export function makeCharacterMesh(THREE, color, opts = {}) {
   player.add(eyeL, eyeR);
 
   player.userData.bodyCyl = bodyCyl;
+  player.userData.bodyMat = bodyMat;
   player.userData.charIndex = index;
   player.userData.imageUrl = null;
+  player.userData.charColor = color;
 
   if (showFace) {
     attachFacePlate(THREE, player);
@@ -221,6 +223,14 @@ export function setCharacterImage(THREE, character, url) {
       });
     }
   );
+}
+
+/** 몸통 색 변경 (종묘 옷걸이 등) */
+export function setCharacterColor(character, hex) {
+  const mat = character?.userData?.bodyMat;
+  if (!mat) return;
+  mat.color.setHex(hex);
+  character.userData.charColor = hex;
 }
 
 /** NPC/유저 공용: 앞으로 카메라 쪽을 살짝 바라보게 할 때 사용 (옵션) */

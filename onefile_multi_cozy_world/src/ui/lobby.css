@@ -61,6 +61,36 @@ html, body {
   border: none;
   background: transparent;
 }
+.char-picker {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.char-pick {
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.04);
+  color: #f2f2f4;
+  border-radius: 12px;
+  padding: 10px 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.char-pick .emoji { display: block; font-size: 1.35rem; margin-bottom: 4px; }
+.char-pick.selected {
+  border-color: #ffffff;
+  background: rgba(255,255,255,0.14);
+}
+.char-ability-hint {
+  margin: 0 !important;
+  font-size: 0.78rem !important;
+  color: var(--lobby-muted);
+  line-height: 1.45;
+  min-height: 2.6em;
+}
+
 .mode-block h2 {
   margin: 0 0 6px;
   font-size: 0.95rem;

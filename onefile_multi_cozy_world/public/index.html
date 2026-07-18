@@ -16,6 +16,13 @@
     </div>
 
     <div class="mode-block">
+      <h2>캐릭터</h2>
+      <p>누구로 시작할까요? 각자 특별한 능력이 있어요.</p>
+      <div id="charPicker" class="char-picker" role="listbox" aria-label="캐릭터 선택"></div>
+      <p id="charAbilityHint" class="char-ability-hint"></p>
+    </div>
+
+    <div class="mode-block">
       <h2>솔로</h2>
       <p>혼자 산책</p>
       <button class="btn-green" id="btnSolo" type="button">시작하기</button>
@@ -82,10 +89,6 @@
         <div class="setRow">
           <label><span>지평선</span><span id="fogVal">끔</span></label>
           <input type="range" id="fogSlider" min="0" max="100" value="0" disabled title="지평선 안개 비활성" />
-        </div>
-        <div class="setRow">
-          <label><span>꽃잎</span><span id="petalVal">48%</span></label>
-          <input type="range" id="petalSlider" min="0" max="100" value="48" />
         </div>
         <div class="setRow setRowCheck">
           <label><span>그림자</span><small style="opacity:.7">느려질 수 있음</small></label>

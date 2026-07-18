@@ -379,9 +379,8 @@ export function buildSundayContent(THREE, ctx) {
     const propX = 1.15;
     const propZ = bd * 0.5 + 0.85;
     if (kid.id === "woojin") {
-      const ball = makeSoccerBall(0.24);
-      ball.position.set(propX, 0.24, propZ);
-      g.add(ball);
+      // 공은 월드에 킥용으로 따로 둠 (장식 공 없음)
+      g.userData.ability = { kind: "ball", localX: propX, localZ: propZ };
     } else if (kid.id === "taemi") {
       // 접이식 캠핑의자 — X프레임 + 천 시트 + 팔걸이
       const fabric = new THREE.MeshStandardMaterial({ color: 0xd87840, roughness: 0.78 });
@@ -455,6 +454,7 @@ export function buildSundayContent(THREE, ctx) {
       ));
       canvas.position.set(0, 0.88, 0.16);
       canvas.rotation.x = -0.06;
+      canvas.name = "paintCanvas";
       easel.add(canvas);
       // 풍경 느낌 그림
       const sky = new THREE.Mesh(
@@ -484,6 +484,8 @@ export function buildSundayContent(THREE, ctx) {
       easel.position.set(propX, 0, propZ);
       easel.rotation.y = 0.15;
       g.add(easel);
+      g.userData.ability = { kind: "easel", localX: propX, localZ: propZ };
+      g.userData.paintCanvas = canvas;
     } else if (kid.id === "youngsun") {
       // 프로펠러 비행기 모형
       const stand = shadowify(new THREE.Mesh(
@@ -700,11 +702,45 @@ export function buildSundayContent(THREE, ctx) {
       rack.position.set(propX, 0, propZ);
       rack.rotation.y = 0.2;
       g.add(rack);
+      g.userData.ability = { kind: "rack", localX: propX, localZ: propZ };
     }
 
-    const nameTag = labelChip(`${kid.name}의 집`);
-    nameTag.position.set(0, bh + roofH + 0.4, 0);
-    g.add(nameTag);
+    // 문 위 명패 (지붕 위 떠 있는 이름표 아님)
+    {
+      const plateW = 0.95;
+      const plateH = 0.28;
+      const board = shadowify(
+        new THREE.Mesh(
+          new THREE.BoxGeometry(plateW + 0.08, plateH + 0.08, 0.06),
+          new THREE.MeshStandardMaterial({ color: 0x6a4830, roughness: 0.88 })
+        )
+      );
+      board.position.set(0, oDoorH + 0.28, doorFaceZ + 0.02);
+      g.add(board);
+
+      const c = document.createElement("canvas");
+      c.width = 256;
+      c.height = 72;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#f0e4d0";
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.strokeStyle = "#5a4030";
+      ctx.lineWidth = 6;
+      ctx.strokeRect(4, 4, c.width - 8, c.height - 8);
+      ctx.fillStyle = "#2a1c14";
+      ctx.font = 'bold 36px "Malgun Gothic", "Apple SD Gothic Neo", sans-serif';
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(`${kid.name}의 집`, c.width / 2, c.height / 2 + 2);
+      const tex = new THREE.CanvasTexture(c);
+      tex.needsUpdate = true;
+      const face = new THREE.Mesh(
+        new THREE.PlaneGeometry(plateW, plateH),
+        new THREE.MeshBasicMaterial({ map: tex, transparent: true })
+      );
+      face.position.set(0, oDoorH + 0.28, doorFaceZ + 0.055);
+      g.add(face);
+    }
 
     // 현관 꽃 (공통, 색만 다름)
     const flowerColors = [kid.color, kid.accent, kid.roof];
@@ -1101,20 +1137,116 @@ export function buildSundayContent(THREE, ctx) {
   }
 
   /**
+   * 나무 문 — 문틀 + 문짝(패널) + 손잡이
+   * faceSign: +1 = +Z쪽 손잡이, -1 = −Z쪽 손잡이
+   */
+  function makeWoodenDoor({
+    doorW = 1.15,
+    doorH = 1.7,
+    color = TOKENS.exitDoor,
+    faceSign = -1,
+  } = {}) {
+    const g = new THREE.Group();
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x6a4830, roughness: 0.88 });
+    const doorMat = new THREE.MeshStandardMaterial({ color, roughness: 0.78 });
+    const panelMat = new THREE.MeshStandardMaterial({ color: 0x7a4828, roughness: 0.82 });
+    const knobMat = new THREE.MeshStandardMaterial({
+      color: 0xe8c040,
+      roughness: 0.35,
+      metalness: 0.45,
+    });
+
+    const frameT = 0.12;
+    const frameD = 0.18;
+    // 문틀 (좌·우·상)
+    const frameL = shadowify(
+      new THREE.Mesh(new THREE.BoxGeometry(frameT, doorH + 0.1, frameD), frameMat),
+      true
+    );
+    frameL.position.set(-doorW / 2 - frameT / 2, doorH / 2, 0);
+    g.add(frameL);
+    const frameR = frameL.clone();
+    frameR.position.x = doorW / 2 + frameT / 2;
+    g.add(frameR);
+    const frameTop = shadowify(
+      new THREE.Mesh(new THREE.BoxGeometry(doorW + frameT * 2 + 0.04, frameT, frameD + 0.02), frameMat),
+      true
+    );
+    frameTop.position.set(0, doorH + frameT / 2, 0);
+    g.add(frameTop);
+    // 문지방
+    const sill = shadowify(
+      new THREE.Mesh(new THREE.BoxGeometry(doorW + frameT * 2, 0.08, frameD + 0.06), frameMat),
+      true
+    );
+    sill.position.set(0, 0.04, 0);
+    g.add(sill);
+
+    // 문짝
+    const leaf = shadowify(
+      new THREE.Mesh(new THREE.BoxGeometry(doorW - 0.06, doorH - 0.04, 0.09), doorMat),
+      true
+    );
+    leaf.position.set(0, doorH / 2, 0);
+    g.add(leaf);
+
+    // 상·하 패널 홈
+    const pw = doorW - 0.32;
+    const ph = doorH * 0.32;
+    const panelZ = faceSign * 0.055;
+    const panelTop = new THREE.Mesh(new THREE.BoxGeometry(pw, ph, 0.035), panelMat);
+    panelTop.position.set(0, doorH * 0.68, panelZ);
+    g.add(panelTop);
+    const panelBot = panelTop.clone();
+    panelBot.position.y = doorH * 0.32;
+    g.add(panelBot);
+
+    // 세로·가로 몰딩
+    const moldMat = new THREE.MeshStandardMaterial({ color: 0x5a3820, roughness: 0.85 });
+    const midBar = new THREE.Mesh(new THREE.BoxGeometry(pw + 0.06, 0.05, 0.04), moldMat);
+    midBar.position.set(0, doorH * 0.5, panelZ);
+    g.add(midBar);
+
+    // 손잡이 (손잡이 봉 + 둥근 노브)
+    const knobX = doorW * 0.32;
+    const knobY = doorH * 0.48;
+    const knobZ = faceSign * 0.08;
+    const plate = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.14, 0.02),
+      new THREE.MeshStandardMaterial({ color: 0xc4a060, roughness: 0.45, metalness: 0.35 })
+    );
+    plate.position.set(knobX, knobY, faceSign * 0.05);
+    g.add(plate);
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.08, 8), knobMat);
+    stem.rotation.x = Math.PI / 2;
+    stem.position.set(knobX, knobY, knobZ * 0.6);
+    g.add(stem);
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), knobMat);
+    knob.position.set(knobX, knobY, knobZ);
+    g.add(knob);
+
+    g.userData.doorH = doorH;
+    g.userData.doorW = doorW;
+    return g;
+  }
+
+  /**
    * 이야기 장면 출구 문 — 벽면보다 장면 쪽에 두어
    * 배치: 벽면(+Z 바깥) > 문 > 장면 > 우주
    */
   function addStoryExit(root, z = 9.2) {
-    const exitDoor = new THREE.Mesh(
-      new THREE.BoxGeometry(1.1, 1.55, 0.1),
-      new THREE.MeshStandardMaterial({ color: TOKENS.exitDoor })
-    );
-    exitDoor.position.set(0, 0.78, z);
-    root.add(exitDoor);
+    const door = makeWoodenDoor({
+      doorW: 1.2,
+      doorH: 1.75,
+      color: TOKENS.exitDoor,
+      faceSign: -1, // 장면(−Z)에서 손잡이 보임
+    });
+    door.position.set(0, 0, z);
+    root.add(door);
     const leave = labelChip("이야기로");
-    leave.position.set(0, 1.95, z - 0.45);
+    leave.position.set(0, 2.15, z - 0.5);
     root.add(leave);
-    return { x: 0, z: z - 0.15, r: 1.35, to: "elijah_hub", outPos: null };
+    return { x: 0, z: z - 0.2, r: 1.35, to: "elijah_hub", outPos: null };
   }
 
   /** 입구 깊이 상수 — 벽면이 문 뒤(+Z) */
@@ -1229,8 +1361,16 @@ export function buildSundayContent(THREE, ctx) {
       depthWrite: false,
     });
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
-    mesh.scale.set(4.6, compact ? 7.9 : 4.05, 1);
+    // 월드 스케일은 캔버스 종횡비 유지 (위아래 찌그러짐 방지)
+    mesh.userData.texAspect = c.width / c.height;
+    const worldH = compact ? 8.8 : 3.5;
+    mesh.scale.set(worldH * mesh.userData.texAspect, worldH, 1);
     return mesh;
+  }
+
+  function setMuralWorldHeight(mesh, worldH) {
+    const aspect = mesh.userData.texAspect || 1;
+    mesh.scale.set(worldH * aspect, worldH, 1);
   }
 
   /**
@@ -1271,11 +1411,11 @@ export function buildSundayContent(THREE, ctx) {
         const x = -span / 2 + t * span;
         mural.rotation.y = Math.PI;
         if (p.compact || tall) {
-          mural.scale.set(11.5, 9.2, 1);
-          mural.position.set(x, 4.55, wallZ - 0.32);
+          setMuralWorldHeight(mural, 8.6);
+          mural.position.set(x, 4.5, wallZ - 0.32);
         } else {
-          mural.scale.set(6.2, 3.9, 1);
-          mural.position.set(x, 3.6, wallZ - 0.32);
+          setMuralWorldHeight(mural, 3.5);
+          mural.position.set(x, 3.5, wallZ - 0.32);
         }
         root.add(mural);
       });
@@ -1303,11 +1443,11 @@ export function buildSundayContent(THREE, ctx) {
       const t = n === 1 ? 0.5 : i / (n - 1);
       const x = -span / 2 + t * span;
       if (p.compact || tall) {
-        mural.scale.set(11.5, 9.2, 1);
-        mural.position.set(x, 4.55, wallZ + 0.28);
+        setMuralWorldHeight(mural, 8.6);
+        mural.position.set(x, 4.5, wallZ + 0.28);
       } else {
-        mural.scale.set(6.2, 3.9, 1);
-        mural.position.set(x, 3.6, wallZ + 0.28);
+        setMuralWorldHeight(mural, 3.5);
+        mural.position.set(x, 3.5, wallZ + 0.28);
       }
       root.add(mural);
     });
@@ -1629,9 +1769,9 @@ export function buildSundayContent(THREE, ctx) {
       showFace: true,
       imageUrl: STORY_FACES.elijah,
     });
-    // 갈라진 발판 왼쪽 위에 서 있음
-    elijah.position.set(-1.1, 0.42, 0.4);
-    elijah.rotation.y = 0.55;
+    // 문·스폰 근처 — 플레이어와 나란히 바람·지진·불을 ‘함께’ 바라봄
+    elijah.position.set(-1.35, 0.22, STORY_SPAWN_Z + 0.15);
+    elijah.rotation.y = Math.PI; // −Z 쪽 장면(산·강풍·지진·불)을 향함
     root.add(elijah);
 
     // —— 강풍: 더 왼쪽에서, 더 크게
@@ -1680,7 +1820,7 @@ export function buildSundayContent(THREE, ctx) {
     const gap = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.55, 7.5), darkCrack);
     gap.position.set(0.15, -0.12, 0.2);
     quakeGroup.add(gap);
-    // 왼쪽 발판 (엘리야가 서는 쪽) — 위로·바깥으로 들림
+    // 왼쪽 발판 — 위로·바깥으로 들림
     const leftSlab = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.28, 6.8), crustMat);
     leftSlab.position.set(-2.75, 0.22, 0.15);
     leftSlab.rotation.z = 0.14;
@@ -1783,13 +1923,13 @@ export function buildSundayContent(THREE, ctx) {
 
   /**
    * ③ 세미한 음성과 새로운 사명
-   * 열왕기상 19:12 후반~16 — 엘리야가 굴 어귀에 서서 (19:13)
+   * Z: [+Z] 벽화 → 문 → 엘리야·스폰 → 동굴 몸체 → 어귀 → 하사엘·예후·엘리사 [-Z]
    */
   function makeElijahWhisper() {
     const root = new THREE.Group();
     root.visible = false;
-    // 우주/행성 없음 — 호렙 산·굴
-    desertFloor(root, 0x9a8a78, 14, { cosmos: false });
+    // 우주/행성 없음 — 호렙 산·굴 (섬을 더 길게)
+    desertFloor(root, 0x9a8a78, 16, { cosmos: false });
 
     addMuralBackdrop(root, [
       {
@@ -1807,78 +1947,79 @@ export function buildSundayContent(THREE, ctx) {
       },
     ], { wallZ: STORY_WALL_Z, wallColor: 0x6a6058, atEntrance: true });
 
-    // —— 호렙 산 바위 + 큰 굴 (어귀는 +Z, 세 사명을 향함)
+    // —— 호렙 굴 (몸체 → 어귀는 −Z로 열림 → 바깥에 세 사명)
+    const CAVE_BODY_Z = 0.2;
+    const CAVE_MOUTH_Z = -3.6;
+    const MISSION_Z = -8.0;
+
     const rockMat = new THREE.MeshStandardMaterial({ color: 0x6a6054, roughness: 1 });
     const darkMat = new THREE.MeshStandardMaterial({
       color: 0x2a2420,
       roughness: 1,
       side: THREE.DoubleSide,
     });
-    // 산 덩어리 (굴 뒤·옆)
+
+    // 산 덩어리 — 굴 옆만 (어귀 중앙은 비움)
     const mountL = new THREE.Mesh(new THREE.IcosahedronGeometry(3.2, 0), rockMat);
-    mountL.position.set(-4.2, 1.2, -5.8);
-    mountL.scale.set(1.4, 1.8, 1.2);
+    mountL.position.set(-4.6, 1.2, CAVE_BODY_Z - 0.8);
+    mountL.scale.set(1.35, 1.8, 1.2);
     root.add(mountL);
     const mountR = new THREE.Mesh(new THREE.IcosahedronGeometry(3.0, 0), rockMat);
-    mountR.position.set(4.2, 1.0, -5.6);
-    mountR.scale.set(1.3, 1.6, 1.2);
+    mountR.position.set(4.6, 1.0, CAVE_BODY_Z - 0.6);
+    mountR.scale.set(1.25, 1.6, 1.2);
     root.add(mountR);
-    const mountBack = new THREE.Mesh(new THREE.ConeGeometry(6.5, 5.5, 7), rockMat);
-    mountBack.position.set(0, 1.5, -8.2);
-    root.add(mountBack);
+    // 어귀 바깥(−Z) 멀리 배경 산 — 세 인물 뒤 (입구 가리지 않게)
+    const mountFar = new THREE.Mesh(new THREE.ConeGeometry(5.5, 4.2, 7), rockMat);
+    mountFar.position.set(0, 1.2, MISSION_Z - 3.5);
+    root.add(mountFar);
 
-    // 굴 내부 — 반구 어귀가 +Z(하사엘·예후·엘리사)를 향함
+    // 굴 천장·옆벽 — 반원통 터널 (양끝·바닥 뚫림, 어귀를 막지 않음)
+    const tunnelLen = Math.abs(CAVE_BODY_Z - CAVE_MOUTH_Z) + 1.8;
     const caveInner = new THREE.Mesh(
-      new THREE.SphereGeometry(2.8, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.58),
+      new THREE.CylinderGeometry(2.5, 2.5, tunnelLen, 20, 1, true, 0, Math.PI),
       darkMat
     );
-    caveInner.position.set(0, 1.45, -5.15);
-    caveInner.rotation.x = -Math.PI / 2; // 열린 면이 +Z
+    caveInner.rotation.x = Math.PI / 2; // 축 = Z
+    caveInner.rotation.z = Math.PI; // 열린 반쪽이 아래(바닥)
+    caveInner.position.set(0, 0.08, (CAVE_BODY_Z + CAVE_MOUTH_Z) * 0.5);
     root.add(caveInner);
-    // 굴 어귀 아치 (XY 평면 = Z축으로 뚫린 입구)
+
+    // 굴 어귀 — 세워진 아치 (바닥에 누운 돌 링 아님)
     const mouth = new THREE.Mesh(
-      new THREE.TorusGeometry(1.95, 0.4, 8, 22, Math.PI),
+      new THREE.TorusGeometry(1.85, 0.28, 8, 24, Math.PI),
       new THREE.MeshStandardMaterial({ color: 0x5a5048, roughness: 0.95 })
     );
-    mouth.position.set(0, 0.12, -3.45);
+    mouth.position.set(0, 1.85, CAVE_MOUTH_Z);
+    mouth.rotation.y = Math.PI; // 아치 볼록한 쪽이 위
     root.add(mouth);
-    // 어귀 옆 바위 턱
     [-1, 1].forEach((side) => {
-      const jamb = new THREE.Mesh(
-        new THREE.BoxGeometry(0.7, 2.6, 1.1),
-        rockMat
-      );
-      jamb.position.set(side * 2.15, 1.2, -3.7);
+      const jamb = new THREE.Mesh(new THREE.BoxGeometry(0.55, 2.5, 0.7), rockMat);
+      jamb.position.set(side * 1.95, 1.15, CAVE_MOUTH_Z);
       root.add(jamb);
     });
-    // 굴 바닥 돌판
+
+    // 굴 바닥 — 문 쪽에서 어귀까지
     const caveFloorMesh = new THREE.Mesh(
-      new THREE.CircleGeometry(2.2, 16),
+      new THREE.PlaneGeometry(4.2, 5.2),
       new THREE.MeshStandardMaterial({ color: 0x4a443c, roughness: 1 })
     );
     caveFloorMesh.rotation.x = -Math.PI / 2;
-    caveFloorMesh.position.set(0, 0.03, -4.4);
+    caveFloorMesh.position.set(0, 0.03, (CAVE_BODY_Z + CAVE_MOUTH_Z) * 0.5);
     root.add(caveFloorMesh);
 
-    // 엘리야 — 겉옷으로 얼굴 가리고 굴 어귀에 서서 (19:13)
+    // 엘리야 — 문·스폰 근처, 플레이어와 나란히 안쪽(−Z)을 바라봄
     const elijah = makeCharacterMesh(THREE, 0xc8a888, {
       index: 93,
       showFace: true,
       imageUrl: STORY_FACES.elijah,
     });
-    elijah.position.set(0, 0.22, -2.7);
-    elijah.rotation.y = 0; // 바깥(세 사명)을 향함
+    elijah.position.set(-1.35, 0.22, STORY_SPAWN_Z + 0.15);
+    elijah.rotation.y = Math.PI; // −Z (동굴·사명)을 향함
     root.add(elijah);
-    const cloak = new THREE.Mesh(
-      new THREE.BoxGeometry(0.85, 0.7, 0.14),
-      new THREE.MeshStandardMaterial({ color: 0x5a4030, roughness: 0.9 })
-    );
-    cloak.position.set(0, 1.25, -2.5);
-    root.add(cloak);
 
-    // 세미한 소리 — 굴 어귀 앞, 형체 없는 은은한 빛
+    // 세미한 소리 — 굴 어귀 (나가 굴 어귀에 서매)
     const whisper = new THREE.Group();
-    whisper.position.set(0, 1.9, -1.5);
+    whisper.position.set(0, 1.9, CAVE_MOUTH_Z + 0.6);
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0xfff4d0,
       transparent: true,
@@ -1911,7 +2052,7 @@ export function buildSundayContent(THREE, ctx) {
     whisper.add(whisperTag);
     root.add(whisper);
 
-    // 새 사명 — 세 갈래가 다르게 보이게
+    // 새 사명 — 어귀 밖(−Z) 바깥 공간
     function makeMissionPlinth(x, z, color) {
       const stone = new THREE.Mesh(
         new THREE.CylinderGeometry(0.55, 0.62, 0.22, 8),
@@ -1921,10 +2062,10 @@ export function buildSundayContent(THREE, ctx) {
       root.add(stone);
     }
 
-    // 하사엘 — 이방 아람의 왕, 심판의 도구 (왕관·창)
+    // 하사엘 — 이방 아람의 왕 (왕관·창), 동굴을 향해(+Z) 서 있음
     {
       const x = -3.4;
-      const z = 1.6;
+      const z = MISSION_Z;
       makeMissionPlinth(x, z, 0x4a6070);
       const haz = makeCharacterMesh(THREE, 0x5a7888, {
         index: 94,
@@ -1932,14 +2073,14 @@ export function buildSundayContent(THREE, ctx) {
         imageUrl: STORY_FACES.hazael,
       });
       haz.position.set(x, 0.22, z);
-      haz.rotation.y = 0.35;
+      haz.rotation.y = 0; // +Z(동굴·플레이어)를 향함
       root.add(haz);
-      const cloak = new THREE.Mesh(
+      const hazCloak = new THREE.Mesh(
         new THREE.BoxGeometry(0.85, 0.9, 0.2),
         new THREE.MeshStandardMaterial({ color: 0x3a5060, roughness: 0.85 })
       );
-      cloak.position.set(x, 0.85, z - 0.18);
-      root.add(cloak);
+      hazCloak.position.set(x, 0.85, z + 0.18);
+      root.add(hazCloak);
       const crown = new THREE.Mesh(
         new THREE.CylinderGeometry(0.16, 0.18, 0.12, 8),
         new THREE.MeshStandardMaterial({ color: 0xd4a848, roughness: 0.45, metalness: 0.35 })
@@ -1950,27 +2091,27 @@ export function buildSundayContent(THREE, ctx) {
         new THREE.CylinderGeometry(0.03, 0.03, 1.5, 5),
         new THREE.MeshStandardMaterial({ color: 0x8a8070, roughness: 0.6 })
       );
-      spear.position.set(x + 0.35, 0.95, z + 0.1);
+      spear.position.set(x + 0.35, 0.95, z - 0.1);
       spear.rotation.z = -0.15;
       root.add(spear);
       const tip = new THREE.Mesh(
         new THREE.ConeGeometry(0.06, 0.18, 5),
         new THREE.MeshStandardMaterial({ color: 0xc0c8d0, metalness: 0.4, roughness: 0.4 })
       );
-      tip.position.set(x + 0.42, 1.7, z + 0.1);
+      tip.position.set(x + 0.42, 1.7, z - 0.1);
       root.add(tip);
       const n1 = labelChip("하사엘");
       n1.position.set(x, 2.15, z);
       root.add(n1);
       const n2 = labelChip("아람의 왕");
-      n2.position.set(x, 1.75, z + 0.15);
+      n2.position.set(x, 1.75, z - 0.15);
       root.add(n2);
     }
 
-    // 예후 — 이스라엘의 왕, 개혁·공의 (투구·방패)
+    // 예후 — 이스라엘의 왕
     {
       const x = 0;
-      const z = 1.85;
+      const z = MISSION_Z - 0.35;
       makeMissionPlinth(x, z, 0x8a4038);
       const jehu = makeCharacterMesh(THREE, 0xb05040, {
         index: 95,
@@ -1998,21 +2139,21 @@ export function buildSundayContent(THREE, ctx) {
         new THREE.MeshStandardMaterial({ color: 0xc87840, roughness: 0.55, metalness: 0.2 })
       );
       shield.rotation.x = Math.PI / 2;
-      shield.rotation.y = 0.4;
-      shield.position.set(x - 0.4, 0.85, z + 0.15);
+      shield.rotation.y = -0.4;
+      shield.position.set(x - 0.4, 0.85, z - 0.15);
       root.add(shield);
       const n1 = labelChip("예후");
       n1.position.set(x, 2.2, z);
       root.add(n1);
       const n2 = labelChip("이스라엘의 왕");
-      n2.position.set(x, 1.8, z + 0.15);
+      n2.position.set(x, 1.8, z - 0.15);
       root.add(n2);
     }
 
-    // 엘리사 — 후계자·위로 (쟁기·겉옷)
+    // 엘리사 — 후계자
     {
       const x = 3.4;
-      const z = 1.6;
+      const z = MISSION_Z;
       makeMissionPlinth(x, z, 0x5a8848);
       const elisha = makeCharacterMesh(THREE, 0x88a868, {
         index: 96,
@@ -2020,47 +2161,45 @@ export function buildSundayContent(THREE, ctx) {
         imageUrl: STORY_FACES.elisha,
       });
       elisha.position.set(x, 0.22, z);
-      elisha.rotation.y = -0.35;
+      elisha.rotation.y = 0;
       root.add(elisha);
-      // 소박한 겉옷(망토) — 후계의 표식
       const mantle = new THREE.Mesh(
         new THREE.BoxGeometry(0.7, 0.85, 0.12),
         new THREE.MeshStandardMaterial({ color: 0x6a5840, roughness: 0.9 })
       );
-      mantle.position.set(x, 0.9, z - 0.2);
-      mantle.rotation.x = -0.15;
+      mantle.position.set(x, 0.9, z + 0.2);
+      mantle.rotation.x = 0.15;
       root.add(mantle);
-      // 쟁기 (밭을 갈던 중 부름)
       const plowBeam = new THREE.Mesh(
         new THREE.BoxGeometry(0.12, 0.12, 1.1),
         new THREE.MeshStandardMaterial({ color: 0x8a6840, roughness: 0.85 })
       );
-      plowBeam.position.set(x + 0.55, 0.25, z + 0.2);
-      plowBeam.rotation.y = 0.5;
+      plowBeam.position.set(x + 0.55, 0.25, z - 0.2);
+      plowBeam.rotation.y = -0.5;
       root.add(plowBeam);
       const plowBlade = new THREE.Mesh(
         new THREE.BoxGeometry(0.35, 0.08, 0.25),
         new THREE.MeshStandardMaterial({ color: 0x706860, roughness: 0.5, metalness: 0.35 })
       );
-      plowBlade.position.set(x + 0.85, 0.12, z + 0.45);
-      plowBlade.rotation.y = 0.5;
+      plowBlade.position.set(x + 0.85, 0.12, z - 0.45);
+      plowBlade.rotation.y = -0.5;
       root.add(plowBlade);
       const n1 = labelChip("엘리사");
       n1.position.set(x, 2.15, z);
       root.add(n1);
       const n2 = labelChip("후계자");
-      n2.position.set(x, 1.75, z + 0.15);
+      n2.position.set(x, 1.75, z - 0.15);
       root.add(n2);
     }
 
-    addScenePoint(root, "조용한 음성으로 다시 일으켜 세우세요", 3.9, -0.2);
+    addScenePoint(root, "조용한 음성으로 다시 일으켜 세우세요", 3.9, CAVE_MOUTH_Z + 1.2);
 
     const exitPortal = addStoryExit(root, STORY_DOOR_Z);
     scene.add(root);
     return {
       root,
       spawn: { x: 0, y: 0, z: STORY_SPAWN_Z },
-      faceYaw: 0,
+      faceYaw: Math.PI, // −Z: 동굴·사명을 먼저 봄 (벽화는 뒤)
       exitPortal,
       title: "③ 세미한 음성과 새 사명",
     };
@@ -2086,7 +2225,7 @@ export function buildSundayContent(THREE, ctx) {
       accent: TOKENS.muralAccent,
       verses: ["또 불 후에 세미한 소리가 있는지라"],
     });
-    mural.scale.set(6.0, 3.6, 1);
+    setMuralWorldHeight(mural, 3.2);
     mural.position.set(0, 2.35, -7.75);
     root.add(mural);
 
@@ -2127,19 +2266,15 @@ export function buildSundayContent(THREE, ctx) {
       });
     }
 
-    // 출구 — 남쪽, 소박한 문만
-    const exitDoor = new THREE.Mesh(
-      new THREE.BoxGeometry(1.15, 1.7, 0.12),
-      new THREE.MeshStandardMaterial({ color: TOKENS.exitDoor, roughness: 0.85 })
-    );
-    exitDoor.position.set(0, 0.85, 9.2);
+    // 출구 — 남쪽, 나무 문 (문틀·손잡이 포함)
+    const exitDoor = makeWoodenDoor({
+      doorW: 1.2,
+      doorH: 1.7,
+      color: TOKENS.exitDoor,
+      faceSign: -1,
+    });
+    exitDoor.position.set(0, 0, 9.2);
     root.add(exitDoor);
-    const exitFrame = new THREE.Mesh(
-      new THREE.BoxGeometry(1.45, 0.12, 0.16),
-      new THREE.MeshStandardMaterial({ color: TOKENS.houseDoor })
-    );
-    exitFrame.position.set(0, 1.75, 9.2);
-    root.add(exitFrame);
     const leave = labelChip("마을로");
     leave.position.set(0, 2.15, 8.95);
     root.add(leave);
@@ -2159,42 +2294,41 @@ export function buildSundayContent(THREE, ctx) {
     const showTip = opts.showTip === true;
     const showChip = opts.showChip !== false && title;
     const g = new THREE.Group();
-    const pillarMat = new THREE.MeshStandardMaterial({ color: TOKENS.gatePillar, roughness: 0.88 });
-    [-1.05, 1.05].forEach((ox) => {
-      const p = shadowify(new THREE.Mesh(new THREE.BoxGeometry(0.32, 2.5, 0.32), pillarMat), true);
-      p.position.set(ox, 1.25, 0);
-      g.add(p);
+
+    // 일반 나무 문 — 문틀·문짝·손잡이 (돌 아치 없음)
+    const doorH = opts.doorH ?? 1.85;
+    const doorW = opts.doorW ?? 1.25;
+    const door = makeWoodenDoor({
+      doorW,
+      doorH,
+      color: color ?? TOKENS.exitDoor,
+      faceSign: opts.faceSign ?? -1, // 마을에서 다가올 때 손잡이
     });
-    const lintel = shadowify(new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.28, 0.38), pillarMat), true);
-    lintel.position.set(0, 2.55, 0);
-    g.add(lintel);
-    const cloth = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.7, 1.9),
-      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.78, side: THREE.DoubleSide })
-    );
-    cloth.position.set(0, 1.25, 0.04);
-    g.add(cloth);
+    door.position.set(0, 0, 0);
+    g.add(door);
+
     if (showChip) {
       const tag = labelChip(title);
-      tag.position.set(0, 3.05, 0);
+      tag.position.set(0, doorH + 0.45, 0.05);
       g.add(tag);
     }
     if (opts.overheadTitle) {
       const t = labelTitle(opts.overheadTitle);
-      t.position.set(0, opts.overheadPlaque ? 3.85 : 3.35, 0.15);
+      t.position.set(0, doorH + (opts.overheadPlaque ? 1.05 : 0.55), 0.12);
       g.add(t);
     }
     if (opts.overheadPlaque) {
       const p = labelPlaque(opts.overheadPlaque);
-      p.position.set(0, 3.15, 0.15);
+      p.position.set(0, doorH + 0.55, 0.12);
       g.add(p);
     }
     if (showTip) {
       const tip = labelChip("들어가기");
-      tip.position.set(0, 0.32, 0.75);
+      tip.position.set(0, 0.32, 0.85);
       g.add(tip);
     }
     g.position.set(x, 0, z);
+    g.userData.doorH = doorH;
     return g;
   }
 
@@ -2268,8 +2402,10 @@ export function buildSundayContent(THREE, ctx) {
   });
 
   const storyGates = [];
-  const mainGate = makeStoryGate(gateX, gateZ, "elijah_hub", null, 0xe8b060, {
+  const mainGate = makeStoryGate(gateX, gateZ, "elijah_hub", null, TOKENS.exitDoor, {
     showChip: false,
+    doorW: 1.3,
+    doorH: 1.9,
     overheadTitle: "하나님께 실패한 엘리야",
     overheadPlaque: MEMORY_VERSE.short,
   });
