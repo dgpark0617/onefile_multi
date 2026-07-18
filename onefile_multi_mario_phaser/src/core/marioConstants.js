@@ -2,12 +2,9 @@ export const MAX_PLAYERS = 4;
 export const TICK_HZ = 60;
 export const TICK_MS = 1000 / TICK_HZ;
 
-/** 멀티플레이 네트워크 동기화 (초당 20회) — 물리는 NET_SUBSTEPS로 60Hz 유지 */
-export const NET_TICK_HZ = 20;
-export const NET_TICK_MS = 1000 / NET_TICK_HZ;
-export const NET_SUBSTEPS = 3;
-/** 손님 INP 대기 한도(ms) — held가 계속 갱신되므로 짧게 유지 */
-export const NET_INPUT_WAIT_MS = 55;
+/** 호스트 권위 스냅샷 전송 주기 (초당 20회) */
+export const NET_SNAP_HZ = 20;
+export const NET_SNAP_MS = 1000 / NET_SNAP_HZ;
 
 export const DESIGN_W = 900;
 export const DESIGN_H = 500;

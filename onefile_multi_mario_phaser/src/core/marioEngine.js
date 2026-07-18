@@ -17,9 +17,7 @@ import {
   LEVEL_COUNT,
   MAX_SPEED,
   MOVE_SPEED,
-  NET_SUBSTEPS,
-  NET_TICK_MS,
-  NET_INPUT_WAIT_MS,
+  NET_SNAP_MS,
   PIPE_COOLDOWN,
   resolveCharacterIds,
   TICK_MS,
@@ -3013,13 +3011,12 @@ let overworldPlatforms = [
         this.pipeCooldown = 0;
         this.simTick = 0;
         this.simAccumulator = 0;
-        this.inputBuffer = {};
-        this.lastSentInputTick = -1;
-        this.lastKnownInputs = {};
-        this.inputWaitStartedAt = 0;
-        this.pendingGuestInput = null;
-        this.frameQueue = {};
+        this.remoteInputs = {};
+        this.lastSnapSentT = 0;
+        this.lastSnapTick = -1;
+        this._lastGuestSendT = 0;
         this._lastGuestSendSig = '';
+        this._guestEdgeBuf = { j: 0, d: 0 };
         this.lastFrameT = 0;
         this.disconnectedPlayers = new Set();
         this.rafId = 0;
@@ -3032,27 +3029,18 @@ let overworldPlatforms = [
       me() { return this.players[this.myIndex] || this.players[0]; }
 
       tickMs() {
-        return this.solo ? TICK_MS : NET_TICK_MS;
-      }
-
-      substeps() {
-        return this.solo ? 1 : NET_SUBSTEPS;
-      }
-
-      predStepMs() {
-        return TICK_MS / this.substeps();
+        return TICK_MS;
       }
 
       resetSimState() {
         this.simTick = 0;
         this.simAccumulator = 0;
-        this.inputBuffer = {};
-        this.lastSentInputTick = -1;
-        this.lastKnownInputs = {};
-        this.inputWaitStartedAt = 0;
-        this.pendingGuestInput = null;
-        this.frameQueue = {};
+        this.remoteInputs = {};
+        this.lastSnapSentT = 0;
+        this.lastSnapTick = -1;
+        this._lastGuestSendT = 0;
         this._lastGuestSendSig = '';
+        this._guestEdgeBuf = { j: 0, d: 0 };
         this.disconnectedPlayers = new Set();
         popups.length = 0;
       }
@@ -3809,224 +3797,246 @@ let overworldPlatforms = [
         return inp;
       }
 
-      applyInputsForTick(inputs) {
-        for (let i = 0; i < this.playerCount; i++) {
-          const inp = inputs[i];
-          if (!inp) continue;
-          const p = this.players[i];
-          if (!p) continue;
-          p.input.left = !!inp.l;
-          p.input.right = !!inp.r;
-          p.input.jumpHeld = !!inp.jh;
-          p.input.downHeld = !!inp.dh;
-          // 서브스텝마다 OR하지 않고 스냅샷 그대로 (점프 3연타 소모 방지)
-          p.input.jumpPressed = !!inp.j;
-          p.input.downPressed = !!inp.d;
-        }
-      }
-
-      /** 물리 서브스텝용 — held만 유지, jump/down 엣지 제거 */
-      stripEdgeInputs(inputs) {
-        const out = {};
-        for (const key of Object.keys(inputs)) {
-          const inp = inputs[key];
-          out[key] = { l: inp.l, r: inp.r, j: 0, jh: inp.jh, d: 0, dh: inp.dh };
-        }
-        return out;
-      }
-
-      storeInput(tick, playerIndex, inp) {
-        if (tick < this.simTick) return;
-        if (!this.inputBuffer[tick]) this.inputBuffer[tick] = {};
-        const existing = this.inputBuffer[tick][playerIndex];
-        if (!existing) {
-          this.inputBuffer[tick][playerIndex] = { ...inp };
-        } else {
-          // 같은 tick 재전송: 방향은 최신, 점프/↓ 엣지는 OR
-          existing.l = inp.l ? 1 : 0;
-          existing.r = inp.r ? 1 : 0;
-          existing.jh = inp.jh ? 1 : 0;
-          existing.dh = inp.dh ? 1 : 0;
-          if (inp.j) existing.j = 1;
-          if (inp.d) existing.d = 1;
-        }
-        this.lastKnownInputs[playerIndex] = this.inputBuffer[tick][playerIndex];
-      }
-
       idleInput() {
         return { l: 0, r: 0, j: 0, jh: 0, d: 0, dh: 0 };
       }
 
-      hasAllInputs(tick) {
-        for (let i = 0; i < this.playerCount; i++) {
-          if (this.disconnectedPlayers.has(i)) continue;
-          if (this.inputBuffer[tick]?.[i] === undefined) return false;
-        }
-        return true;
+      applyOneInput(playerIndex, inp) {
+        const p = this.players[playerIndex];
+        if (!p || !inp) return;
+        p.input.left = !!inp.l;
+        p.input.right = !!inp.r;
+        p.input.jumpHeld = !!inp.jh;
+        p.input.downHeld = !!inp.dh;
+        p.input.jumpPressed = !!inp.j;
+        p.input.downPressed = !!inp.d;
       }
 
-      getInputsArray(tick) {
-        const inputs = {};
+      /** 호스트: 로컬+원격 최신 입력으로 1틱 진행 (대기 없음) */
+      hostSimTick() {
+        this.applyOneInput(this.myIndex, this.sampleLocalInput());
         for (let i = 0; i < this.playerCount; i++) {
+          if (i === this.myIndex) continue;
           if (this.disconnectedPlayers.has(i)) {
-            inputs[i] = this.idleInput();
+            this.applyOneInput(i, this.idleInput());
             continue;
           }
-          inputs[i] =
-            this.inputBuffer[tick]?.[i] ??
-            this.lastKnownInputs[i] ??
-            this.idleInput();
-        }
-        return inputs;
-      }
-
-      /** 호스트 입력: held는 최신값, jump/down 엣지는 tick 확정 전까지 OR 유지 */
-      captureHostInputForTick(tick) {
-        const me = this.me();
-        if (!me) {
-          this.storeInput(tick, this.myIndex, this.idleInput());
-          return;
-        }
-        const existing = this.inputBuffer[tick]?.[this.myIndex];
-        if (!existing) {
-          this.storeInput(tick, this.myIndex, this.sampleLocalInput());
-          return;
-        }
-        existing.l = me.input.left ? 1 : 0;
-        existing.r = me.input.right ? 1 : 0;
-        existing.jh = me.input.jumpHeld ? 1 : 0;
-        existing.dh = me.input.downHeld ? 1 : 0;
-        if (me.input.jumpPressed) existing.j = 1;
-        if (me.input.downPressed) existing.d = 1;
-        me.input.jumpPressed = false;
-        me.input.downPressed = false;
-        this.lastKnownInputs[this.myIndex] = existing;
-      }
-
-      /** 늦게 온 INP를 무한정 기다리지 않음 — 유실/고RTT에서도 진행 */
-      trySealCurrentTick(now = performance.now()) {
-        const tick = this.simTick;
-        this.captureHostInputForTick(tick);
-        if (this.hasAllInputs(tick)) {
-          this.inputWaitStartedAt = 0;
-          this.sealFrame(tick);
-          return true;
-        }
-        if (!this.inputWaitStartedAt) this.inputWaitStartedAt = now;
-        if (now - this.inputWaitStartedAt >= NET_INPUT_WAIT_MS) {
-          this.inputWaitStartedAt = 0;
-          this.sealFrame(tick);
-          return true;
-        }
-        return false;
-      }
-
-      simulateTick(inputs) {
-        this.applyInputsForTick(inputs);
-        this.hostTick();
-      }
-
-      applyFrame(tick, inputs) {
-        if (tick !== this.simTick || this.gameOver) return;
-        const n = this.substeps();
-        const heldOnly = n > 1 ? this.stripEdgeInputs(inputs) : null;
-        for (let s = 0; s < n; s++) {
-          this.simulateTick(s === 0 ? inputs : heldOnly);
-        }
-        this.simTick++;
-        this.predAccumulator = 0;
-        this.inputWaitStartedAt = 0;
-        delete this.inputBuffer[tick];
-        if (this.frameQueue) delete this.frameQueue[tick];
-      }
-
-      sealFrame(tick) {
-        if (tick !== this.simTick || this.gameOver) return;
-        const inputs = this.getInputsArray(tick);
-        if (!this.solo && this.isHost) {
-          netBroadcastGame({ type: 'FRAME', proto: 2, tick, inputs });
-        }
-        this.applyFrame(tick, inputs);
-      }
-
-      /** 게스트: FRAME 도착 순서가 어긋나도 큐로 따라잡기 */
-      enqueueGuestFrame(tick, inputs) {
-        if (this.solo || this.isHost || this.gameOver) return;
-        if (tick < this.simTick) return;
-        if (!this.frameQueue) this.frameQueue = {};
-        this.frameQueue[tick] = inputs;
-        while (this.frameQueue[this.simTick]) {
-          const frameInputs = this.frameQueue[this.simTick];
-          delete this.frameQueue[this.simTick];
-          this.applyFrame(this.simTick, frameInputs);
-          if (this.pendingGuestInput?.tick != null && this.pendingGuestInput.tick < this.simTick) {
-            this.pendingGuestInput = null;
+          const rem = this.remoteInputs[i] || this.idleInput();
+          this.applyOneInput(i, rem);
+          if (this.remoteInputs[i]) {
+            this.remoteInputs[i].j = 0;
+            this.remoteInputs[i].d = 0;
           }
         }
+        this.hostTick();
+        this.simTick++;
       }
 
-      /** 게스트 입력: held는 매 프레임 갱신, 엣지는 tick 확정 전까지 OR */
-      captureGuestInputForTick(tick) {
+      packPlayer(p) {
+        return {
+          x: Math.round(p.x * 10) / 10,
+          y: Math.round(p.y * 10) / 10,
+          vx: Math.round(p.vx * 100) / 100,
+          vy: Math.round(p.vy * 100) / 100,
+          alive: p.alive ? 1 : 0,
+          facing: p.facing,
+          size: p.sizeLevel,
+          onG: p.onGround ? 1 : 0,
+          jumps: p.jumpsLeft,
+          inv: p.invincible | 0,
+          feather: p.featherTimer | 0,
+          soap: p.soapBubbleTimer | 0,
+          fireCd: p.fireCooldown | 0,
+        };
+      }
+
+      applyPlayerSnap(p, s, soft) {
+        if (!p || !s) return;
+        if (soft) {
+          const dx = s.x - p.x;
+          const dy = s.y - p.y;
+          if (dx * dx + dy * dy > 6400) {
+            p.x = s.x;
+            p.y = s.y;
+          } else {
+            p.x += dx * 0.4;
+            p.y += dy * 0.4;
+          }
+        } else {
+          p.x = s.x;
+          p.y = s.y;
+        }
+        p.vx = s.vx;
+        p.vy = s.vy;
+        p.alive = !!s.alive;
+        p.facing = s.facing || 1;
+        if (p.sizeLevel !== s.size) {
+          p.sizeLevel = s.size | 0;
+          p.updateSize();
+        }
+        p.onGround = !!s.onG;
+        p.jumpsLeft = s.jumps ?? p.jumpsLeft;
+        p.invincible = s.inv | 0;
+        p.featherTimer = s.feather | 0;
+        p.soapBubbleTimer = s.soap | 0;
+        p.fireCooldown = s.fireCd | 0;
+      }
+
+      buildSnap() {
+        return {
+          type: 'SNAP',
+          proto: 3,
+          tick: this.simTick,
+          coins: this.coinsCount,
+          ice: this.iceAmmo,
+          world: this.world,
+          level: this.levelIndex,
+          players: this.players.map((p) => this.packPlayer(p)),
+          enemies: this.enemies.map((e) => ({
+            x: Math.round(e.x),
+            y: Math.round(e.y),
+            vx: e.vx || 0,
+            alive: e.alive ? 1 : 0,
+            squished: e.squished ? 1 : 0,
+            shell: e.shell ? 1 : 0,
+            frozen: e.frozen ? 1 : 0,
+            h: e.h | 0,
+          })),
+          minions: this.bossMinions.map((e) => ({
+            x: Math.round(e.x),
+            y: Math.round(e.y),
+            alive: e.alive ? 1 : 0,
+            squished: e.squished ? 1 : 0,
+          })),
+          boss: this.boss
+            ? {
+                x: Math.round(this.boss.x),
+                y: Math.round(this.boss.y),
+                vx: this.boss.vx || 0,
+                hp: this.boss.hp | 0,
+                alive: this.boss.alive ? 1 : 0,
+                frozen: this.boss.frozen ? 1 : 0,
+              }
+            : null,
+        };
+      }
+
+      applyEnemyList(list, snapArr) {
+        if (!snapArr) return;
+        const n = Math.min(list.length, snapArr.length);
+        for (let i = 0; i < n; i++) {
+          const e = list[i];
+          const s = snapArr[i];
+          e.x = s.x;
+          e.y = s.y;
+          if (s.vx != null) e.vx = s.vx;
+          e.alive = !!s.alive;
+          if ('squished' in e) e.squished = !!s.squished;
+          if ('shell' in e) {
+            e.shell = !!s.shell;
+            if (s.h) e.h = s.h;
+          }
+          if ('frozen' in e) e.frozen = !!s.frozen;
+        }
+      }
+
+      applySnap(snap) {
+        if (!snap || this.solo || this.isHost || this.gameOver) return;
+        if (typeof snap.tick === 'number' && snap.tick < this.lastSnapTick) return;
+        this.lastSnapTick = snap.tick ?? this.lastSnapTick;
+        this.simTick = snap.tick ?? this.simTick;
+        this.coinsCount = snap.coins ?? this.coinsCount;
+        this.iceAmmo = snap.ice ?? this.iceAmmo;
+
+        if (Array.isArray(snap.players)) {
+          for (let i = 0; i < snap.players.length; i++) {
+            const p = this.players[i];
+            if (!p) continue;
+            this.applyPlayerSnap(p, snap.players[i], i === this.myIndex);
+          }
+        }
+        this.applyEnemyList(this.enemies, snap.enemies);
+        this.applyEnemyList(this.bossMinions, snap.minions);
+        if (this.boss && snap.boss) {
+          const b = snap.boss;
+          this.boss.x = b.x;
+          this.boss.y = b.y;
+          this.boss.vx = b.vx || 0;
+          this.boss.hp = b.hp;
+          this.boss.alive = !!b.alive;
+          this.boss.frozen = !!b.frozen;
+        }
+      }
+
+      maybeBroadcastSnap(now) {
+        if (this.solo || !this.isHost) return;
+        if (!this.lastSnapSentT || now - this.lastSnapSentT >= NET_SNAP_MS) {
+          netBroadcastGame(this.buildSnap());
+          this.lastSnapSentT = now;
+        }
+      }
+
+      sendGuestInput(now) {
         const me = this.me();
-        if (!me) {
-          this.pendingGuestInput = { tick, input: this.idleInput() };
-          return this.pendingGuestInput.input;
+        if (!me) return;
+        if (!this._guestEdgeBuf) this._guestEdgeBuf = { j: 0, d: 0 };
+        if (me.input.jumpPressed) this._guestEdgeBuf.j = 1;
+        if (me.input.downPressed) this._guestEdgeBuf.d = 1;
+        const input = {
+          l: me.input.left ? 1 : 0,
+          r: me.input.right ? 1 : 0,
+          j: this._guestEdgeBuf.j,
+          jh: me.input.jumpHeld ? 1 : 0,
+          d: this._guestEdgeBuf.d,
+          dh: me.input.downHeld ? 1 : 0,
+        };
+        const sig = `${input.l}${input.r}${input.j}${input.jh}${input.d}${input.dh}`;
+        const changed = sig !== this._lastGuestSendSig;
+        if (changed || !this._lastGuestSendT || now - this._lastGuestSendT >= 16) {
+          WwNetRef.sendGame({ type: 'INP', proto: 3, input });
+          this._lastGuestSendT = now;
+          this._lastGuestSendSig = `${input.l}${input.r}0${input.jh}0${input.dh}`;
+          this._guestEdgeBuf.j = 0;
+          this._guestEdgeBuf.d = 0;
         }
-        if (!this.pendingGuestInput || this.pendingGuestInput.tick !== tick) {
-          this.pendingGuestInput = { tick, input: this.sampleLocalInput() };
-          return this.pendingGuestInput.input;
-        }
-        const existing = this.pendingGuestInput.input;
-        existing.l = me.input.left ? 1 : 0;
-        existing.r = me.input.right ? 1 : 0;
-        existing.jh = me.input.jumpHeld ? 1 : 0;
-        existing.dh = me.input.downHeld ? 1 : 0;
-        if (me.input.jumpPressed) existing.j = 1;
-        if (me.input.downPressed) existing.d = 1;
-        me.input.jumpPressed = false;
-        me.input.downPressed = false;
-        return existing;
       }
 
+      /** 게스트: 로컬 캐릭터만 짧게 예측 */
       runGuestPrediction(dt) {
-        // 로컬 예측은 FRAME 확정 위치와 어긋나 고무줄/끊김을 만듦.
-        // 같은 WiFi(수 ms)에서는 예측 없이 권위 프레임만 적용하는 편이 조작감이 낫다.
         if (this.solo || this.isHost || this.gameOver || this.levelTransition > 0) return;
-        if (WwNetRef?.lanMode) {
-          this.predAccumulator = 0;
-          return;
-        }
         const me = this.me();
         if (!me?.alive) return;
-        const step = this.predStepMs();
         this.predAccumulator += dt;
-        // 원격일 때만 짧게 예측 (과예측 고무줄 완화)
-        const maxPredSteps = 2;
         let steps = 0;
-        while (this.predAccumulator >= step && steps < maxPredSteps) {
-          this.predAccumulator -= step;
+        while (this.predAccumulator >= TICK_MS && steps < 3) {
+          this.predAccumulator -= TICK_MS;
           me.update({ predictive: true });
           steps++;
         }
-        if (steps >= maxPredSteps) this.predAccumulator = 0;
+        if (steps >= 3) this.predAccumulator = 0;
       }
 
-      onRemoteInput(from, tick, inp) {
-        this.storeInput(tick, from, inp);
-        if (this.isHost && tick === this.simTick) {
-          this.trySealCurrentTick();
-        }
+      onRemoteInput(from, inp) {
+        if (!this.isHost || from == null || !inp) return;
+        const cur = this.remoteInputs[from] || this.idleInput();
+        cur.l = inp.l ? 1 : 0;
+        cur.r = inp.r ? 1 : 0;
+        cur.jh = inp.jh ? 1 : 0;
+        cur.dh = inp.dh ? 1 : 0;
+        if (inp.j) cur.j = 1;
+        if (inp.d) cur.d = 1;
+        this.remoteInputs[from] = cur;
       }
 
-      onFrame(tick, inputs) {
-        this.enqueueGuestFrame(tick, inputs);
+      onSnap(snap) {
+        this.applySnap(snap);
       }
 
       onPeerLeft(index) {
         this.disconnectedPlayers.add(index);
+        delete this.remoteInputs[index];
         const p = this.players[index];
         if (p && p.alive) this.playerDie(p);
-        if (this.isHost) this.trySealCurrentTick();
       }
 
       draw() {
@@ -4085,41 +4095,20 @@ let overworldPlatforms = [
           } else {
           const step = this.tickMs();
           this.simAccumulator += dt;
-          if (this.solo) {
+          if (this.solo || this.isHost) {
             while (this.simAccumulator >= step) {
               this.simAccumulator -= step;
-              const inputs = {};
-              inputs[this.myIndex] = this.sampleLocalInput();
-              this.applyFrame(this.simTick, inputs);
+              if (this.solo) {
+                this.applyOneInput(this.myIndex, this.sampleLocalInput());
+                this.hostTick();
+                this.simTick++;
+              } else {
+                this.hostSimTick();
+              }
             }
-          } else if (this.isHost) {
-            while (this.simAccumulator >= step) {
-              // 대기 중에는 accumulator를 깎지 않음 → 타임아웃/도착 후 정상 진행
-              if (!this.trySealCurrentTick(t)) break;
-              this.simAccumulator -= step;
-            }
+            if (this.isHost) this.maybeBroadcastSnap(t);
           } else {
-            // FRAME 오기 전까지 입력을 계속 갱신·재전송 (방향키 고정 버그 방지)
-            const tick = this.simTick;
-            const input = this.captureGuestInputForTick(tick);
-            const sig = `${input.l}${input.r}${input.j}${input.jh}${input.d}${input.dh}`;
-            const changed = sig !== this._lastGuestSendSig;
-            if (
-              changed ||
-              !this._lastGuestSendT ||
-              t - this._lastGuestSendT >= 16
-            ) {
-              WwNetRef.sendGame({
-                type: 'INP',
-                proto: 2,
-                tick,
-                input,
-              });
-              this._lastGuestSendT = t;
-              this._lastGuestSendSig = sig;
-              this.lastSentInputTick = tick;
-            }
-            this.simAccumulator = 0;
+            this.sendGuestInput(t);
             this.runGuestPrediction(dt);
           }
           }

@@ -295,10 +295,10 @@ export function handleNetData(d) {
   const sim = gameSession.simulation;
   if (!sim) return;
 
-  if (d.type === "FRAME" && !sim.isHost) {
-    sim.onFrame(d.tick, d.inputs);
+  if (d.type === "SNAP" && !sim.isHost) {
+    sim.onSnap(d);
   } else if (d.type === "INP" && sim.isHost && d.from != null) {
-    sim.onRemoteInput(d.from, d.tick, d.input);
+    sim.onRemoteInput(d.from, d.input);
   } else if (d.type === "PEER_LEFT") {
     sim.onPeerLeft(d.index);
   } else if (d.type === "END" && !sim.isHost && !sim.gameOver) {

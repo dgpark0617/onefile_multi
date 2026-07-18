@@ -8,7 +8,7 @@ import {
 } from "./iceConfig.js";
 import { makeRoomCode, roomPeerId, toShortRoomCode } from "./roomCode.js";
 
-const GAME_TYPES = new Set(["INP", "FRAME"]);
+const GAME_TYPES = new Set(["INP", "SNAP"]);
 
 let peer = null;
 /** slot -> { ctrlConn, gameConn, peerId } */
@@ -100,8 +100,8 @@ function forEachCtrlConn(fn) {
 
 function broadcastGame(data) {
   forEachGameConn((conn) => conn.send(data));
-  // FRAME은 유실되면 락스텝이 깨지므로 제어 채널에도 백업
-  if (data?.type === "FRAME") {
+  // SNAP 백업 (제어 채널)
+  if (data?.type === "SNAP") {
     forEachCtrlConn((conn) => {
       try {
         conn.send(data);
