@@ -6,7 +6,7 @@ import { TERMS } from '@/lib/geomshin/terms';
 import { PALETTE, colorToCss, parseBrushColor } from '@/lib/geomshin/palette';
 import { LANDMARKS } from '@/lib/geomshin/landmarks';
 import type { BoardCell, LandmarkInfo } from '@/game/geomshin/GeomShinScene';
-import type { PresenceCell, PhaserMapApi } from '@/game/geomshin/PhaserMap';
+import type { PhaserMapApi } from '@/game/geomshin/PhaserMap';
 import GeomShinNav from './GeomShinNav';
 import GeomShinLogin from './GeomShinLogin';
 import { clearStoredSession, writeStoredSession } from '@/lib/geomshin/session';
@@ -27,19 +27,7 @@ type UserState = {
   brushColor: number;
   homeX: number;
   homeY: number;
-  onsite?: boolean;
-  geoMode?: 'onsite' | 'remote';
   refillMs?: number;
-  geoX?: number;
-  geoY?: number;
-};
-
-type PresenceSummary = {
-  totalHits: number;
-  lastHourUniqueCells: number;
-  topCells: PresenceCell[];
-  visits?: unknown[];
-  note: string;
 };
 
 const INITIAL_LANDMARKS: LandmarkInfo[] = LANDMARKS.map((lm) => ({
@@ -72,13 +60,10 @@ export default function GeomShinClient() {
   const [selected, setSelected] = useState<{ x: number; y: number } | null>(null);
   const [brush, setBrush] = useState('#22c55e');
   const [msg, setMsg] = useState('내 픽셀 찍는 중…');
-  const [geoMsg, setGeoMsg] = useState('위치는 부가 · 나중에');
   const [view, setView] = useState({ x0: 60, y0: 60, x1: 120, y1: 120 });
   const [focus, setFocus] = useState<{ x: number; y: number } | null>(null);
   const [pan] = useState<{ x: number; y: number } | null>(null);
-  const [presence, setPresence] = useState<PresenceSummary | null>(null);
   const booted = useRef(false);
-  const geoAsked = useRef(false);
   const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const brushRef = useRef(brush);
   const tokenRef = useRef<string | null>(null);
@@ -128,7 +113,6 @@ export default function GeomShinClient() {
 
   const enterAs = (id: string, displayName: string, token: string) => {
     booted.current = false;
-    geoAsked.current = false;
     setCells([]);
     setUser(null);
     setFocus(null);
@@ -148,7 +132,6 @@ export default function GeomShinClient() {
     }
     clearStoredSession();
     booted.current = false;
-    geoAsked.current = false;
     setAccessToken(null);
     setUserId(null);
     setUser(null);
@@ -194,15 +177,6 @@ export default function GeomShinClient() {
   const onViewChange = useCallback((v: { x0: number; y0: number; x1: number; y1: number }) => {
     if (viewTimer.current) clearTimeout(viewTimer.current);
     viewTimer.current = setTimeout(() => setView(v), 450);
-  }, []);
-
-  const refreshPresence = useCallback(() => {
-    fetch('/api/geomshin/presence')
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.summary) setPresence(data.summary);
-      })
-      .catch(() => {});
   }, []);
 
   /** 시작 즉시: 캐시된 내 픽셀 표시 + 시드 API 최우선 */
@@ -302,7 +276,6 @@ export default function GeomShinClient() {
           })
           .catch(() => {});
 
-        refreshPresence();
       } catch {
         if (cancelled) return;
         booted.current = false;
@@ -318,56 +291,7 @@ export default function GeomShinClient() {
 
   /** GPS는 첫 페인트 이후 지연 — 화면 차단하지 않음 */
   useEffect(() => {
-    if (!userId || !accessToken || geoAsked.current) return;
-    const start = window.setTimeout(() => {
-      if (geoAsked.current) return;
-      geoAsked.current = true;
-      if (!navigator.geolocation) {
-        setGeoMsg('위치 미지원 · 집관 모드');
-        return;
-      }
-      setGeoMsg('위치 권한(선택) · 거부해도 플레이 가능');
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          const { latitude: lat, longitude: lng } = pos.coords;
-          try {
-            const res = await fetch('/api/geomshin/presence', {
-              method: 'POST',
-              headers,
-              body: JSON.stringify({ lat, lng }),
-            });
-            if (!res.ok) throw new Error(`presence ${res.status}`);
-            const data = await res.json();
-            if (data.user) setUser(data.user);
-            if (data.onsite && data.cell) {
-              setGeoMsg(`현장 · 격자 (${data.cell.x},${data.cell.y}) · 잉크 1분/1`);
-            } else {
-              setGeoMsg('집관 · 잉크 5분/1');
-            }
-            refreshPresence();
-          } catch {
-            setGeoMsg('위치 전송 실패 · 집관 (플레이 가능)');
-          }
-        },
-        (err) => {
-          setGeoMsg(
-            err.code === err.PERMISSION_DENIED
-              ? '위치 거부 · 집관 (플레이 가능)'
-              : '위치 실패 · 집관 (플레이 가능)',
-          );
-        },
-        { enableHighAccuracy: false, timeout: 8000, maximumAge: 120_000 },
-      );
-    }, 1200);
-    return () => clearTimeout(start);
-  }, [headers, userId, accessToken, refreshPresence]);
-
-  useEffect(() => {
-    const t = setInterval(refreshPresence, 30_000);
-    return () => clearInterval(t);
-  }, [refreshPresence]);
-
-  useEffect(() => {
+    // Realtime 미구성·누락 대비: 보이는 영역만 2.5초마다 DB 기준 갱신
     if (!accessToken) return;
     let cancelled = false;
     const load = () => {
@@ -397,7 +321,6 @@ export default function GeomShinClient() {
         .catch(() => {});
     };
     load();
-    // Realtime 미구성·누락 대비: 보이는 영역만 2.5초마다 DB 기준 갱신
     const t = setInterval(load, 2500);
     return () => {
       cancelled = true;
@@ -567,10 +490,6 @@ export default function GeomShinClient() {
             {TERMS.inkShort} <b>{user?.ink ?? '…'}</b>
             <span className="gs-hide-sm"> / 200</span>
           </span>
-          <span className={user?.onsite ? 'gs-mode-onsite' : 'gs-mode-remote'}>
-            {user?.onsite ? '현장' : '집관'}
-            <span className="gs-hide-sm">{user?.onsite ? ' · 1분/1' : ' · 5분/1'}</span>
-          </span>
           <span className="gs-hide-sm">
             {user?.seeded && user.homeX >= 0
               ? `시작 (${user.homeX},${user.homeY})`
@@ -581,8 +500,8 @@ export default function GeomShinClient() {
               선택 ({selected.x},{selected.y})
             </span>
           )}
-          <a className="gs-heat-stat gs-hide-sm" href="/geomshin/presence">
-            B2B {presence?.totalHits ?? 0}→
+          <a className="gs-link" href="/geomshin/presence">
+            B2B
           </a>
         </div>
 
@@ -654,7 +573,7 @@ export default function GeomShinClient() {
             로그아웃
           </button>
         </div>
-        <p className="gs-msg gs-msg-one">{msg} · {geoMsg}</p>
+        <p className="gs-msg gs-msg-one">{msg}</p>
       </header>
       <div className="gs-map">
         <PhaserMap
@@ -665,7 +584,6 @@ export default function GeomShinClient() {
           mySlot={user?.slot ?? 0}
           focus={focus}
           pan={pan}
-          presence={[]}
           showHeat={false}
           mapApiRef={mapApiRef}
         />

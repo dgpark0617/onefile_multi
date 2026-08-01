@@ -372,13 +372,19 @@ body:has(.gs-root) main {
 
 .gs-presence-map {
   flex: 0 0 auto;
-}
-
-.gs-presence-map svg {
-  display: block;
   border: 1px solid #334155;
   border-radius: 8px;
+  overflow: hidden;
+}
+
+.leaflet-container {
+  height: 100%;
+  width: 100%;
   background: #0f172a;
+}
+
+.leaflet-control-attribution {
+  display: none !important;
 }
 
 .gs-presence-list {
