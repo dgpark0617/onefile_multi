@@ -3,14 +3,11 @@ import { notFound } from 'next/navigation';
 import {
   CATEGORY_LABELS,
   downloadUrl,
-  getAllSlugs,
   getGameBySlug,
 } from '@/lib/games';
 import { PlayFrame } from './PlayFrame';
 
-export function generateStaticParams() {
-  return getAllSlugs().map((slug) => ({ slug }));
-}
+export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({
   params,
